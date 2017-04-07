@@ -309,9 +309,66 @@ October, 2014
 ** Bug fixes
 -------------------------------------------------------------------------------#> 
 #Requires -Version 2.0
-param(
-[switch]$NoSplash,
-[switch]$help)
+Param
+(
+    # Param 1 Do not show splash window
+    [Parameter(Mandatory=$false, 
+                ValueFromPipeline=$true,
+                ValueFromPipelineByPropertyName=$true, 
+                ValueFromRemainingArguments=$false, 
+                Position=0,
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [Switch] 
+    $NoSplash,
+    # Param 2 Data Managment Delegation OU Name
+    [Parameter(Mandatory=$false, 
+                ValueFromPipeline=$true,
+                ValueFromPipelineByPropertyName=$true, 
+                ValueFromRemainingArguments=$false, 
+                Position=0,
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $help,
+    # Param 3 DistinguishedName
+    [Parameter(Mandatory=$false, 
+                ValueFromPipeline=$true,
+                ValueFromPipelineByPropertyName=$true, 
+                ValueFromRemainingArguments=$false, 
+                Position=0,
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $D,
+    # Param 4 filter
+    [Parameter(Mandatory=$false, 
+                ValueFromPipeline=$true,
+                ValueFromPipelineByPropertyName=$true, 
+                ValueFromRemainingArguments=$false, 
+                Position=1,
+                ParameterSetName='Default')]
+    [validatescript({$_ -like "(*=*)"})]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Filter,
+    # Param 4 Scope
+    [Parameter(Mandatory=$false, 
+                ValueFromPipeline=$true,
+                ValueFromPipelineByPropertyName=$true, 
+                ValueFromRemainingArguments=$false, 
+                Position=1,
+                ParameterSetName='Default')]
+    [ValidateSet("base", "onelevel", "subtree")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Scope
+)
 $strScriptName = $($MyInvocation.MyCommand.Name)
 
 if([threading.thread]::CurrentThread.ApartmentState.ToString() -eq 'MTA')               
@@ -774,6 +831,10 @@ $sd = ""
                                                             <RadioButton x:Name="rdbScanOU" Content="OUs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True"/>
                                                             <RadioButton x:Name="rdbScanContainer" Content="Containers" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80"/>
                                                             <RadioButton x:Name="rdbScanAll" Content="All Objects" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <RadioButton x:Name="rdbScanFilter" Content="" HorizontalAlignment="Left" Height="18" Margin="5,5,0,0" VerticalAlignment="Top" Width="15" GroupName="rdbGroupFilter"/>
+                                                            <TextBox x:Name="txtCustomFilter" Text="(objectClass=*)" HorizontalAlignment="Left" Height="18" Width="250" Margin="0,0,0.0,0" IsEnabled="False"/>
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </GroupBox>
