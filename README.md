@@ -3,6 +3,10 @@
 * A tool completly written in PowerShell. 
 * A tool with GUI used to create reports of access control lists (DACLs) and system access control lists (SACLs) in Active Directory .
 
+Related blog posts
+* [Forensics - Active Directory ACL Investigation](https://blogs.technet.microsoft.com/pfesweplat/2017/01/28/forensics-active-directory-acl-investigation)
+* [Take Control Over AD Permissions And The AD ACL Scanner Tool](https://blogs.technet.microsoft.com/pfesweplat/2013/05/13/take-control-over-ad-permissions-and-the-ad-acl-scanner-tool)
+
 ## New Features
 * Templates for Windows Server 2016 
 * Removed requirement on localization of names on well-known groups and built-in groups. 
