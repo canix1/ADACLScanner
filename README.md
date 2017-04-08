@@ -51,4 +51,4 @@ It has the following features:
 ## System requirements
 * Powershell 2.0 or above 
 * PowerShell using a single-threaded apartment 
-* Some functions requires Microsoft .NET Framework version 4.0](https://github.com/PowerShellMafia/PowerSploit/blob/master/README.md).
+* Some functions requires Microsoft .NET Framework version 4.0
