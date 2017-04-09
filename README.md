@@ -1,4 +1,9 @@
 # AD ACL Scanner
+
+## Current version
+**Version: 5.0**
+** 9 April, 2017 **
+
 ## Description
 * A tool completly written in PowerShell. 
 * A tool with GUI used to create reports of access control lists (DACLs) and system access control lists (SACLs) in Active Directory .
@@ -8,20 +13,21 @@ Related blog posts
 * [Take Control Over AD Permissions And The AD ACL Scanner Tool](https://blogs.technet.microsoft.com/pfesweplat/2013/05/13/take-control-over-ad-permissions-and-the-ad-acl-scanner-tool)
 
 ## New Features
-* Templates for Windows Server 2016 
-* Removed requirement on localization of names on well-known groups and built-in groups. 
-* Comparing using SIDs of security principals gives us the true state instead of names that could be modified. 
-* Better download windows.
+* Command line support.
+![](https://github.com/canix1/ADACLScanner/blob/master/src/adaclscan_commandline.gif)
+* Custom search filter for scanning objects. 
+* Support input form pipeline. You can call ADACLScn.ps1 by sending a distinguishedName via pipeline.
+* Added formated synopsis to the script.
 
 ## Features
 It has the following features:
 * View HTML reports of DACLs/SACLs and save it to disk. 
 * Export DACLs/SACLs on Active Directory objects in a CSV format. 
 * Connect and browse you default domain, schema , configuration or a naming context defined by distinguishedname. 
-* Browse naming context by clicking you way around, either by OU’s or all types of objects. 
+* Browse naming context by clicking you way around, either by OUï¿½s or all types of objects. 
 * Report only explicitly assigned DACLs/SACLs. 
 * Report on OUs , OUs and Container Objects or all object types. 
-* Filter DACLs/SACLs for a specific access type.. Where does “Deny” permission exists? 
+* Filter DACLs/SACLs for a specific access type.. Where does ï¿½Denyï¿½ permission exists? 
 * Filter DACLs/SACLs for a specific identity. Where does "Domain\Client Admins" have explicit access? Or use wildcards like "jdoe". 
 * Filter DACLs/SACLs for permission on specific object. Where are permissions set on computer objects? 
 * Skip default permissions (defaultSecurityDescriptor) in report. Makes it easier to find custom permissions. 
