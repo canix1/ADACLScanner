@@ -7,6 +7,8 @@
 
 **SHA256:** 4DA5B52BECED5829AAE53916CFF1FBF9222D0954F76F683DE90C21CC994C9C5C
 
+**Right click and save as**[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)
+
 ## Description
 * A tool completly written in PowerShell. 
 * A tool with GUI used to create reports of access control lists (DACLs) and system access control lists (SACLs) in Active Directory .
