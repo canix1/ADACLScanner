@@ -1,333 +1,394 @@
-﻿###############################################################################################
-# ADACLScan.ps1
-# 
-# AUTHOR: Robin Granberg (robin.granberg@microsoft.com)
-#
-# THIS CODE-SAMPLE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED 
-# OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR 
-# FITNESS FOR A PARTICULAR PURPOSE.
-#
-# This sample is not supported under any Microsoft standard support program or service. 
-# The script is provided AS IS without warranty of any kind. Microsoft further disclaims all
-# implied warranties including, without limitation, any implied warranties of merchantability
-# or of fitness for a particular purpose. The entire risk arising out of the use or performance
-# of the sample and documentation remains with you. In no event shall Microsoft, its authors,
-# or anyone else involved in the creation, production, or delivery of the script be liable for 
-# any damages whatsoever (including, without limitation, damages for loss of business profits, 
-# business interruption, loss of business information, or other pecuniary loss) arising out of 
-# the use of or inability to use the sample or documentation, even if Microsoft has been advised 
-# of the possibility of such damages.
-################################################################################################
-<#-------------------------------------------------------------------------------
-!! Version 4.9
-x April, 2017
+﻿<#
+.Synopsis
+    ADACLScan.ps1
+     
+    AUTHOR: Robin Granberg (robin.granberg@microsoft.com)
+    
+    THIS CODE-SAMPLE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED 
+    OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR 
+    FITNESS FOR A PARTICULAR PURPOSE.
+    
+    This sample is not supported under any Microsoft standard support program or service. 
+    The script is provided AS IS without warranty of any kind. Microsoft further disclaims all
+    implied warranties including, without limitation, any implied warranties of merchantability
+    or of fitness for a particular purpose. The entire risk arising out of the use or performance
+    of the sample and documentation remains with you. In no event shall Microsoft, its authors,
+    or anyone else involved in the creation, production, or delivery of the script be liable for 
+    any damages whatsoever (including, without limitation, damages for loss of business profits, 
+    business interruption, loss of business information, or other pecuniary loss) arising out of 
+    the use of or inability to use the sample or documentation, even if Microsoft has been advised 
+    of the possibility of such damages.
 
-*SHA256:* 
+.DESCRIPTION
+    A tool with GUI or command linte used to create reports of access control lists (DACLs) and system access control lists (SACLs) in Active Directory.
+    See https://github.com/canix1/ADACLScanner
 
-*New Features*
-** command line support.
-** Custom search filter for scanning objects. 
+.EXAMPLE
+    .\ADACLScan.ps1
 
-*Fixed issues*
-** Effective rights did not consider membership in Pre-Windows 2000 Compatible Access.
-** Failed to scan objects with "/" in the name.Removed all instances of replacing distinguishedNames containing "/" with "\/". It's a legacy from when AD ACL Scanner was using SDS (System.DirectoryServices) namespace. S.DS.P (System.DirectoryServices.Protocols) take care of special characters.
+    Start in GUI mode.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -NoSplash
+
+    Start in GUI mode wihtout splash window.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM"
+
+    Create a CSV file with the permissions of the object CORP.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -HTML
+
+    Create a HTML file with the permissions of the object CORP.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -HTML -Show
+
+    Opens the HTML (HTA) file with the permissions of the object CORP.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -OutputFolder C:\Temp
+
+    Create a CSV file in the folder C:\Temp, with the permissions of the object CORP.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree
+
+    Create a CSV file with the permissions of the object CORP and all child objects of type OrganizationalUnit.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree -Filter "(objectClass=user)"
+
+    Create a CSV file with the permissions of all the objects in the path and below that matches the filter (objectClass=user).
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree -Filter "(objectClass=user)" -Server DC1
+
+    Targeted search against server "DC1" that will create a CSV file with the permissions of all the objects in the path and below that matches the filter (objectClass=user).
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree -Filter "(objectClass=user)" -Server DC1 -Port 389
+
+    Targeted search against server "DC1" on port 389 that will create a CSV file with the permissions of all the objects in the path and below that matches the filter (objectClass=user).
+
+.OUTPUTS
+    The output is an CSV or HTML report.
+
+.LINK
+    https://github.com/canix1/ADACLScanner
+
+.NOTES
+    Version: 5.0
+    9 April, 2017
+
+    *SHA256:* 
+
+    *New Features*
+    ** Command line support.
+    ** Custom search filter for scanning objects. 
+    ** Support input form pipeline. You can call ADACLScn.ps1 by sending a distinguishedName via pipeline.
+    ** Added formated synopsis to the script.
+
+    *Fixed issues*
+    ** Effective rights did not consider membership in Pre-Windows 2000 Compatible Access.
+    ** Failed to scan objects with "/" in the name.Removed all instances of replacing distinguishedNames containing "/" with "\/". It's a legacy from when AD ACL Scanner was using SDS (System.DirectoryServices) namespace. S.DS.P (System.DirectoryServices.Protocols) take care of special characters.
 
  
-----
-!! Version 4.8
-7 February, 2017
+    ----
+    Version: 4.8
+    7 February, 2017
 
-*SHA256:* 8FCC040FA75E0593372C3F4397F26F0A1B7418A8B69491C08F565F5C566BA6E1
+    *SHA256:* 8FCC040FA75E0593372C3F4397F26F0A1B7418A8B69491C08F565F5C566BA6E1
 
-*New Features*
-** Templates for Windows Server 2016
-** Removed requirement on localization of names on well-known groups and built-in groups.
-** Comparing using SIDs of security principals gives us the true state instead of names that could be modified.
-** Better download windows.
+    *New Features*
+    ** Templates for Windows Server 2016
+    ** Removed requirement on localization of names on well-known groups and built-in groups.
+    ** Comparing using SIDs of security principals gives us the true state instead of names that could be modified.
+    ** Better download windows.
 
-*Fixed issues*
-** Users could not view permissions due to the collection of attributes that user possibly didn't have access to. (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Removed unnecessary retrieval of ldap attributes. (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Removed unused functions (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Removed duplicated function name (Credit to Kirill Nikolaev, Kaspersky Lab)
-** LoadWithPartialName is deprecated (Credit to Kirill Nikolaev, Kaspersky Lab)
-** A mandatory parameter has a default value (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Fixed unreachable code (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Removed unused variables (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Fixed typo (Credit to Kirill Nikolaev, Kaspersky Lab) 
+    *Fixed issues*
+    ** Users could not view permissions due to the collection of attributes that user possibly didn't have access to. (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Removed unnecessary retrieval of ldap attributes. (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Removed unused functions (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Removed duplicated function name (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** LoadWithPartialName is deprecated (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** A mandatory parameter has a default value (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Fixed unreachable code (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Removed unused variables (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Fixed typo (Credit to Kirill Nikolaev, Kaspersky Lab) 
  
-----
-!! Version 4.7.2
-12 January, 2017
+    ----
+    Version: 4.7.2
+    12 January, 2017
 
-*SHA256:* C1FDC71E46229EA11482D99EBB80CA1A24C0284D3F01FAC618277EA9C91F98F0
+    *SHA256:* C1FDC71E46229EA11482D99EBB80CA1A24C0284D3F01FAC618277EA9C91F98F0
 
-*New Features*
-** 
+    *New Features*
+    ** 
 
-*Fixed issues*
-** Browsing a container with more than 999 child objects and you will get (Exception calling "SendRequest" with "1" argument(s): "The size limit was exceeded")
-** Updated windows size. Increased height to not render a scroll bar under large screen size.
-** Reduced the window size when it is adapting to smaller screen size.
-
- 
-----
-!! Version 4.7.0
-6 December, 2016
-
-*SHA256:* 82DDB2263C7969AF5608246560A340CAB997F554CBE989A816A03C98F0E7582F
-
-*New Features*
-** Improved performance in preparing the scan. Updated function GetAllChildNodes. (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Improved support for connecting via IP-address only.
-** Height of windows adapts to screen size.
-** Better color coded criticality.
-
-*Fixed issues*
-** Removed unused LDAP attribute in LDAP search
+    *Fixed issues*
+    ** Browsing a container with more than 999 child objects and you will get (Exception calling "SendRequest" with "1" argument(s): "The size limit was exceeded")
+    ** Updated windows size. Increased height to not render a scroll bar under large screen size.
+    ** Reduced the window size when it is adapting to smaller screen size.
 
  
-----
-!! Version 4.6.0
-6 October, 2016
+    ----
+    Version: 4.7.0
+    6 December, 2016
 
-*SHA256:* 2E80D4CD580B9EBD2AFC18FCE3614B386BA16ECEA7C416C81CD133B7361A003F
+    *SHA256:* 82DDB2263C7969AF5608246560A340CAB997F554CBE989A816A03C98F0E7582F
 
-*New Features*
-** Display group members in groups in the HTLM report.
-** Present the value of the true SDDL in NTsecurityDescriptor, bypassing Object-Specific ACE merge done when a new instance of the ObjectSecurity class is initialized.
-** Added Active Directory schema version check for Windows Server 2016.
-** Added Exchange Schema Version check for Exchange Server 2016 CU2 and Exchange Server 2016 CU3
+    *New Features*
+    ** Improved performance in preparing the scan. Updated function GetAllChildNodes. (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Improved support for connecting via IP-address only.
+    ** Height of windows adapts to screen size.
+    ** Better color coded criticality.
 
-*Fixed issues*
-** Get Forest Info search did not handle return of empty or zero response entries in a correct way 
-** HTML and CSV file output option doesn't display HTA
+    *Fixed issues*
+    ** Removed unused LDAP attribute in LDAP search
+
  
-----
-!! Version 4.5.0
-19 June, 2016
+    ----
+    Version: 4.6.0
+    6 October, 2016
 
-*SHA256:* CDDA9E265995E23F8738A2914E4E05593F692B194C634DF0B4D9FBF1B6DC2298
+    *SHA256:* 2E80D4CD580B9EBD2AFC18FCE3614B386BA16ECEA7C416C81CD133B7361A003F
 
-*New Features*
-** Added Exchange Schema Version check for Exchange Server 2016 CU1.(Credit to Kirill Nikolaev, Kaspersky Lab)
+    *New Features*
+    ** Display group members in groups in the HTLM report.
+    ** Present the value of the true SDDL in NTsecurityDescriptor, bypassing Object-Specific ACE merge done when a new instance of the ObjectSecurity class is initialized.
+    ** Added Active Directory schema version check for Windows Server 2016.
+    ** Added Exchange Schema Version check for Exchange Server 2016 CU2 and Exchange Server 2016 CU3
 
-*Fixed issues*
-** Heavily improved code for “Skip Default Permissions”. Removed possible memory problem while scanning many objects.
-** Improved code for “Skip Protected Permissions”. One ACE was missing.
-** Null-valued array error while composing the list of domains. (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Null-valued array error when closing domain picker window w/o actually selecting one. (Credit to Kirill Nikolaev, Kaspersky Lab)
-** Updated LDAP filters for getting trusted domains.(Credit to Kirill Nikolaev, Kaspersky Lab)
-** Fixed issues with use of credentials over trusts.
-** Fixed issues with TokenGroups over trust lookup.
-** Removed unused variables.
-** Replaced aliases like %,?,Select,foreach and Sort.
-** Put $null to the left in comparison strings.
+    *Fixed issues*
+    ** Get Forest Info search did not handle return of empty or zero response entries in a correct way 
+    ** HTML and CSV file output option doesn't display HTA
+ 
+    ----
+    Version: 4.5.0
+    19 June, 2016
 
-----
-!! Version 4.4.0
-16 June, 2016
+    *SHA256:* CDDA9E265995E23F8738A2914E4E05593F692B194C634DF0B4D9FBF1B6DC2298
 
-*SHA256:* 2803906C909BB7DE7024FEE981BCE6D927A0826215051AEDD088D61C10F9AB97
+    *New Features*
+    ** Added Exchange Schema Version check for Exchange Server 2016 CU1.(Credit to Kirill Nikolaev, Kaspersky Lab)
 
-*Fixed issues*
-** Errors when scanning objects you don't have read access on.
-** Comparing with template containing forest root failed when connected to child domain.
-** Templates are updated with a more accurate DN.
-** Errors when translating NT Identity fixed. 
+    *Fixed issues*
+    ** Heavily improved code for “Skip Default Permissions”. Removed possible memory problem while scanning many objects.
+    ** Improved code for “Skip Protected Permissions”. One ACE was missing.
+    ** Null-valued array error while composing the list of domains. (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Null-valued array error when closing domain picker window w/o actually selecting one. (Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Updated LDAP filters for getting trusted domains.(Credit to Kirill Nikolaev, Kaspersky Lab)
+    ** Fixed issues with use of credentials over trusts.
+    ** Fixed issues with TokenGroups over trust lookup.
+    ** Removed unused variables.
+    ** Replaced aliases like %,?,Select,foreach and Sort.
+    ** Put $null to the left in comparison strings.
 
-----
-!! Version 4.3.0
-2 May, 2016
+    ----
+    Version: 4.4.0
+    16 June, 2016
 
-*SHA256:* 3473DDB452DE7640FAB03CAD3E8AAF6A527BDD6A7A311909CFEF9DE0B4B78333
+    *SHA256:* 2803906C909BB7DE7024FEE981BCE6D927A0826215051AEDD088D61C10F9AB97
 
-*New Features*
-** You can exclude multiple paths, just for each object, select and right click to choose Exclude.
+    *Fixed issues*
+    ** Errors when scanning objects you don't have read access on.
+    ** Comparing with template containing forest root failed when connected to child domain.
+    ** Templates are updated with a more accurate DN.
+    ** Errors when translating NT Identity fixed. 
 
-*Fixed issues*
-** Unresolved security principals was shown as empty instead of SID.
-** Searching for SID's included built-in groups that did not translate before compare.
+    ----
+    Version: 4.3.0
+    2 May, 2016
 
-----
-!! Version 4.2.0
-14 April, 2016
+    *SHA256:* 3473DDB452DE7640FAB03CAD3E8AAF6A527BDD6A7A311909CFEF9DE0B4B78333
 
-*SHA256:* F340F6B56F11F879ED8A4C0DDA751FFF9538EE5105B2C0F39C79BED218E985E2:* 
+    *New Features*
+    ** You can exclude multiple paths, just for each object, select and right click to choose Exclude.
 
-*Fixed issues*
-** The validated write was express as only "Self" in the report.
-** The validated write was never enumerated from the list of ControlAccessRights.
+    *Fixed issues*
+    ** Unresolved security principals was shown as empty instead of SID.
+    ** Searching for SID's included built-in groups that did not translate before compare.
 
-----
-!! Version 4.1.0
-12 April, 2016
+    ----
+    Version: 4.2.0
+    14 April, 2016
 
-*SHA256:* BE7ECB91AA0F819A1796739B0491CA4691DCBE718410CA8A7F9358B600754B2A
+    *SHA256:* F340F6B56F11F879ED8A4C0DDA751FFF9538EE5105B2C0F39C79BED218E985E2:* 
 
-*Fixed issues*
-** Comparing builtin groups differ from running on DC and domain member.
-** Connecting to custom DC did not collected forest info.
+    *Fixed issues*
+    ** The validated write was express as only "Self" in the report.
+    ** The validated write was never enumerated from the list of ControlAccessRights.
 
-----
-!! Version 4.0.0
-11 April, 2016
+    ----
+    Version: 4.1.0
+    12 April, 2016
 
-*SHA256:* C72CD69C0E15C1A9A276485FD5073F958B26B1A777928740C67B7E347F38938B
+    *SHA256:* BE7ECB91AA0F819A1796739B0491CA4691DCBE718410CA8A7F9358B600754B2A
 
-*New Features*
-** Faster compare of Access Control Lists using USN from replication metadata.
-** Primary directory service API changed to System.DirectoryServices.Protocols (S.DS.P).
-** Connect to custom directory server and port like mounted backup or snapshot of NTDS.dit.
-** Support for scanning AD LDS Instances.
-** Name translation of AD LDS Identity references in security descriptor.
-** Option to connect using credentials.
-** Export defaultSecurityDescriptor.
-** Compare DefaultSecurityDescriptor.
-** Download OS specific csv templates for DefaultSecuritydescriptor.
-** Connection Information tab provides information about the current connection.
-** Resizable Window
+    *Fixed issues*
+    ** Comparing builtin groups differ from running on DC and domain member.
+    ** Connecting to custom DC did not collected forest info.
 
-*Fixed issues*
-** Change the column name in the header from "OU" to "Object".
-** Display forest information like FFL,DFL,Schema Version, Exchange and Lync Schema version did not work due to wrong formatting of attributes.
-** Solved problem with returning schema version information about Exchange and Lync.
-** Minor improvements in the GUI. 
+    ----
+    Version: 4.0.0
+    11 April, 2016
 
-----
-!! Version 3.2.0
-7 September, 2015
+    *SHA256:* C72CD69C0E15C1A9A276485FD5073F958B26B1A777928740C67B7E347F38938B
 
-*SHA1:* 61CB4D160B4003FDF51FFACDB777FF0DC28D83D1
+    *New Features*
+    ** Faster compare of Access Control Lists using USN from replication metadata.
+    ** Primary directory service API changed to System.DirectoryServices.Protocols (S.DS.P).
+    ** Connect to custom directory server and port like mounted backup or snapshot of NTDS.dit.
+    ** Support for scanning AD LDS Instances.
+    ** Name translation of AD LDS Identity references in security descriptor.
+    ** Option to connect using credentials.
+    ** Export defaultSecurityDescriptor.
+    ** Compare DefaultSecurityDescriptor.
+    ** Download OS specific csv templates for DefaultSecuritydescriptor.
+    ** Connection Information tab provides information about the current connection.
+    ** Resizable Window
 
-*New Features*
-** Report single or all classSchema objects default security descriptor.
-** Option to select between DACL or SDDL output of default security descriptors.
-** Displays forest information like FFL,DFL,Schema Version, Exchange and Lync Schema version.
-----
-!! Version 3.1.0
-2 September, 2015
+    *Fixed issues*
+    ** Change the column name in the header from "OU" to "Object".
+    ** Display forest information like FFL,DFL,Schema Version, Exchange and Lync Schema version did not work due to wrong formatting of attributes.
+    ** Solved problem with returning schema version information about Exchange and Lync.
+    ** Minor improvements in the GUI. 
 
-*SHA1:* EBBB7083BE00108B14B661016A0D049EFF092971
+    ----
+    Version: 3.2.0
+    7 September, 2015
 
-*New Features*
-** Option to show objectClass of objects reported
-** Option skip ACE's for "Protect object from accidental deletion"
-** Error control on .Net Framework CLRVersion
-----
-!! Version 3.0.1
-10 July, 2015
+    *SHA1:* 61CB4D160B4003FDF51FFACDB777FF0DC28D83D1
+
+    *New Features*
+    ** Report single or all classSchema objects default security descriptor.
+    ** Option to select between DACL or SDDL output of default security descriptors.
+    ** Displays forest information like FFL,DFL,Schema Version, Exchange and Lync Schema version.
+    ----
+    Version: 3.1.0
+    2 September, 2015
+
+    *SHA1:* EBBB7083BE00108B14B661016A0D049EFF092971
+
+    *New Features*
+    ** Option to show objectClass of objects reported
+    ** Option skip ACE's for "Protect object from accidental deletion"
+    ** Error control on .Net Framework CLRVersion
+    ----
+    Version: 3.0.1
+    10 July, 2015
 
 
-*Fixed issues*
-** Reporting on modified default security descriptors in Schema did not work in Windows 10 or Windows Server Technical Preview 2.
-----
-!! Version 3.0
-9 July, 2015
+    *Fixed issues*
+    ** Reporting on modified default security descriptors in Schema did not work in Windows 10 or Windows Server Technical Preview 2.
+    ----
+    Version: 3.0
+    9 July, 2015
 
-*New Features*
-** You can take a CSV file from one domain and use it for another. With replacing the old DN with the current domains you can resuse reports between domains. You can also replace the (Short domain name)Netbios name security principals.
-** Reporting on modified default security descriptors in Schema.
-** Verifying the format of the CSV files used in convert and compare functions.
-** When comparing with CSV file Nodes missing in AD will be reported as "Node does not exist in AD"
-** The progress bar can be disabled to gain speed in creating reports.
-** If the fist node in the CSV file used for comparing can't be connected the scan will stop.
+    *New Features*
+    ** You can take a CSV file from one domain and use it for another. With replacing the old DN with the current domains you can resuse reports between domains. You can also replace the (Short domain name)Netbios name security principals.
+    ** Reporting on modified default security descriptors in Schema.
+    ** Verifying the format of the CSV files used in convert and compare functions.
+    ** When comparing with CSV file Nodes missing in AD will be reported as "Node does not exist in AD"
+    ** The progress bar can be disabled to gain speed in creating reports.
+    ** If the fist node in the CSV file used for comparing can't be connected the scan will stop.
 
-*Fixed issues*
-** Only the first node in the CSV file was used in the comparison the rest was skipped.
-** If a node in the CSV file did not exist in AD, the comparison failed.  
-----
-!! Version 2.2.2
-7 July, 2015
+    *Fixed issues*
+    ** Only the first node in the CSV file was used in the comparison the rest was skipped.
+    ** If a node in the CSV file did not exist in AD, the comparison failed.  
+    ----
+    Version: 2.2.2
+    7 July, 2015
 
-*Fixed issues*
-** If you run AD ACL Scanner in Windows 10 or Windows Server Technical Preview 2 you would always get mismatch during comparing. Problem fixed with if statement on System.Enum in PowerShell 5. 
-----
-!! Version 2.2.1
-6 July, 2015
+    *Fixed issues*
+    ** If you run AD ACL Scanner in Windows 10 or Windows Server Technical Preview 2 you would always get mismatch during comparing. Problem fixed with if statement on System.Enum in PowerShell 5. 
+    ----
+    Version: 2.2.1
+    6 July, 2015
 
-*New Features*
-** Number of excluded objects reported in Log.
+    *New Features*
+    ** Number of excluded objects reported in Log.
 
-*Fixed issues*
-** Broken scan! Everything are excluded when searching Onelevel or Subtree.
-----
-!! Version 2.2.0
-4 July, 2015
+    *Fixed issues*
+    ** Broken scan! Everything are excluded when searching Onelevel or Subtree.
+    ----
+    Version: 2.2.0
+    4 July, 2015
 
-*New Features*
-** Refresh Nodes by right-click container object. 
-** Exclude of objects from report by matching string to distinguishedName
-----
-!! Version 2.1.2
-2 July, 2015
+    *New Features*
+    ** Refresh Nodes by right-click container object. 
+    ** Exclude of objects from report by matching string to distinguishedName
+    ----
+    Version: 2.1.2
+    2 July, 2015
 
-*Fixed issues*
-** Every scan required SeSecurityPrivilege (Manage auditing and security log) due to modifications of the SecurityMasks. Now this is done only once you explicitly scan SACL's. 
-----
-!! Version 2.1.1
-12 June, 2015
+    *Fixed issues*
+    ** Every scan required SeSecurityPrivilege (Manage auditing and security log) due to modifications of the SecurityMasks. Now this is done only once you explicitly scan SACL's. 
+    ----
+    Version: 2.1.1
+    12 June, 2015
 
-*Fixed issues*
-** If you ran AD ACL Scanner in Windows 10 or Windows Server Technical Preview 2 you would get an error. Problem fixed with if statement on System.Enum in PowerShell 5. 
-----
-!! Version 2.1.0
-21 May, 2015
+    *Fixed issues*
+    ** If you ran AD ACL Scanner in Windows 10 or Windows Server Technical Preview 2 you would get an error. Problem fixed with if statement on System.Enum in PowerShell 5. 
+    ----
+    Version: 2.1.0
+    21 May, 2015
 
-*New Features*
-** Changed format on CSV output file. New format according to regular CSV type.
-** Removed dependency on Active Directory PowerShell module for reporting on SACL's.
-** Rename html report headers, Rights are called Access and if SACL's is used it's called Audit.
-** HTLM reports contain headers
-** Summary of criticality for all report types
-** Support statement included
+    *New Features*
+    ** Changed format on CSV output file. New format according to regular CSV type.
+    ** Removed dependency on Active Directory PowerShell module for reporting on SACL's.
+    ** Rename html report headers, Rights are called Access and if SACL's is used it's called Audit.
+    ** HTLM reports contain headers
+    ** Summary of criticality for all report types
+    ** Support statement included
 
-*Fixed issues*
-** Owner permissions are changed to the more accurate :Read permissions, Modify permissions.
-** Error when running PS 2.0 "ProgressBarWindow".
-** Correct name of SPN report file.
-** Criticality coloring of "Info"-level fixed.
-** Added error control for enumerating objects.
-----
-!! Version 2.0.3
-29 October, 2014
+    *Fixed issues*
+    ** Owner permissions are changed to the more accurate :Read permissions, Modify permissions.
+    ** Error when running PS 2.0 "ProgressBarWindow".
+    ** Correct name of SPN report file.
+    ** Criticality coloring of "Info"-level fixed.
+    ** Added error control for enumerating objects.
+    ----
+    Version: 2.0.3
+    29 October, 2014
 
-*Fixed issues*
-** PS 2.0 "Where-Object : Cannot bind argument to 'FilterScript' because it is null":5369.
-----
-!! Version 2.0.2
-28 October, 2014
+    *Fixed issues*
+    ** PS 2.0 "Where-Object : Cannot bind argument to 'FilterScript' because it is null":5369.
+    ----
+    Version: 2.0.2
+    28 October, 2014
 
-*New Features*
-** Scan for SACL's
-** Option to skip Splash through new parameter "NoSplash"
-** Option to show help text through new parameter "Help"
-** Translation of object GUID in CSV file.
+    *New Features*
+    ** Scan for SACL's
+    ** Option to skip Splash through new parameter "NoSplash"
+    ** Option to show help text through new parameter "Help"
+    ** Translation of object GUID in CSV file.
 
-*Fixed issues*
-** Require connection to domain before converting CSV to  HTML, otherwise object GUID translation will fail.
-----
-!! Version 2.0.1
-15 October, 2014
+    *Fixed issues*
+    ** Require connection to domain before converting CSV to  HTML, otherwise object GUID translation will fail.
+    ----
+    Version: 2.0.1
+    15 October, 2014
 
-*Fixed issues*
-** issues related to connecting to ForestDnsZones and DomainDnsZones
-----
-!! Version 2.0
-October, 2014
+    *Fixed issues*
+    ** issues related to connecting to ForestDnsZones and DomainDnsZones
+    ----
+    Version: 2.0
+    October, 2014
 
-*New Features*
-** New GUI
-** Progress Bar
-** Better browsing experience
-** Better logging function
-** Bug fixes
--------------------------------------------------------------------------------#> 
-#Requires -Version 2.0
-
+    *New Features*
+    ** New GUI
+    ** Progress Bar
+    ** Better browsing experience
+    ** Better logging function
+    ** Bug fixes
+#>
 Param
 (
-    # Param 1 DistinguishedName
+    # DistinguishedName to start your search at. Always included as long as your filter matches your object.
     [Parameter(Mandatory=$false, 
                 ValueFromPipeline=$true,
                 ValueFromPipelineByPropertyName=$true, 
@@ -337,13 +398,10 @@ Param
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $base,
+    $Base,
 
-    # Param 2 filter
+    # Filter. Specify your custom filter. Default is OrganizationalUnit.
     [Parameter(Mandatory=$false, 
-#                ValueFromPipeline=$true,
-#                ValueFromPipelineByPropertyName=$true, 
-#                ValueFromRemainingArguments=$false, 
                 Position=1,
                 ParameterSetName='Default')]
     [validatescript({$_ -like "(*=*)"})]
@@ -352,7 +410,7 @@ Param
     [String] 
     $Filter,
 
-    # Param 3 Scope
+    # Scope. Set your scope. Default is base.
     [Parameter(Mandatory=$false, 
                 Position=2,
                 ParameterSetName='Default')]
@@ -362,7 +420,7 @@ Param
     [String] 
     $Scope = "base",
 
-    # Param 4 Server
+    # Server. Specify your specific server to target your search at.
     [Parameter(Mandatory=$false, 
                 Position=3,
                 ParameterSetName='Default')]
@@ -371,7 +429,7 @@ Param
     [String] 
     $Server,
 
-    # Param 5 Port
+    # Port. Specify your custom port.
     [Parameter(Mandatory=$false, 
                 Position=4,
                 ParameterSetName='Default')]
@@ -380,19 +438,44 @@ Param
     [String] 
     $Port,
 
-    # Param 6 Do not show splash window
+    # Output folder path for where results are written.
+    [Parameter(Mandatory=$false, 
+                Position=5,
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $OutputFolder,
+
+    # Generates a HTML report, default is a CSV.
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $HTML,
+    
+    # Open HTML report
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $Show,
+
+    # Do not show splash window
     [Parameter(Mandatory=$false, 
                 ValueFromPipeline=$true,
                 ValueFromPipelineByPropertyName=$true, 
                 ValueFromRemainingArguments=$false, 
-                Position=5,
+                Position=6,
                 ParameterSetName='Default')]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [Switch] 
     $NoSplash,
 
-    # Param 7 Data Managment Delegation OU Name
+    # Data Managment Delegation OU Name
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -413,71 +496,6 @@ if([threading.thread]::CurrentThread.ApartmentState.ToString() -eq 'MTA')
   
   Exit
 }
-
-function funHelp
-{
-Clear-Host
-$helpText=@"
-THIS CODE-SAMPLE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED 
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR 
-FITNESS FOR A PARTICULAR PURPOSE.
-
-This sample is not supported under any Microsoft standard support program or service. 
-The script is provided AS IS without warranty of any kind. Microsoft further disclaims all
-implied warranties including, without limitation, any implied warranties of merchantability
-or of fitness for a particular purpose. The entire risk arising out of the use or performance
-of the sample and documentation remains with you. In no event shall Microsoft, its authors,
-or anyone else involved in the creation, production, or delivery of the script be liable for 
-any damages whatsoever (including, without limitation, damages for loss of business profits, 
-business interruption, loss of business information, or other pecuniary loss) arising out of 
-the use of or inability to use the sample or documentation, even if Microsoft has been advised 
-
-DESCRIPTION:
-NAME: $strScriptName
-
-
-SYSTEM REQUIREMENTS:
-
-- Windows Powershell 2.0
-
-- Connection to an Active Directory Domain
-
-
-
-PARAMETERS:
-
--NoSplash        Skip start flash window.
--help            Prints the HelpFile (Optional)
-
-
-
-SYNTAX:
- -------------------------- EXAMPLE 1 --------------------------
- 
-
-.\$strScriptName -NoSplash
-
-
- Description
- -----------
- Run the script without Splash window.
-
-
- -------------------------- EXAMPLE 2 --------------------------
- 
-.\$strScriptName -help
-
- Description
- -----------
- Displays the help topic for the script
-
- 
-
-"@
-write-host $helpText
-exit
-}
-if ($help){funHelp}
 #Set global value for time out in paged searches
 $global:TimeoutSeconds = 120
 #Set global value for page size in paged searches
@@ -5692,7 +5710,7 @@ function ReverseDNList {
 function GetAllChildNodes
 {
 param (
-# Param 1 search base
+# Search base
 [Parameter(Mandatory=$true, 
             ValueFromPipeline=$true,
             ValueFromPipelineByPropertyName=$true, 
@@ -5703,7 +5721,7 @@ param (
 [ValidateNotNullOrEmpty()]
 [String] 
 $firstnode,
-# Param 2 Scope
+# Scope
 [Parameter(Mandatory=$false, 
             ValueFromPipeline=$true,
             ValueFromPipelineByPropertyName=$true, 
@@ -5715,15 +5733,13 @@ $firstnode,
 [ValidateNotNullOrEmpty()]
 [String] 
 $Scope,
-# Param 3 search filter (Optional)
+# Search filter (Optional)
 [Parameter(Mandatory=$false, 
             ValueFromPipeline=$true,
             ValueFromPipelineByPropertyName=$true, 
             ValueFromRemainingArguments=$false, 
             Position=3,
             ParameterSetName='Default')]
-#[ValidateNotNull()]
-#[ValidateNotNullOrEmpty()]
 [string]
 $CustomFilter=""
 )
@@ -9423,7 +9439,7 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolCSVOnly,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$GUI)
+    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolCSVOnly,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show)
 $SDResult = $false
 $bolCompare = $false
 $bolACLExist = $true
@@ -10060,7 +10076,11 @@ else
                 $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
             }
         }
-	    Invoke-Item $strFileHTA
+        #If Get-Perm was called with Show then open the HTA file.
+        if($Show)
+        {
+	        Invoke-Item $strFileHTA
+        }
     }
 
     }# End If
@@ -12502,11 +12522,6 @@ $strLastCacheGuidsDom = ""
 $sd = ""
 $global:intObjeComputer = 0
 
-if([System.Windows.SystemParameters]::PrimaryScreenHeight -lt $ADACLGui.Window.Height)
-{
-$ADACLGui.Window.Height = [System.Windows.SystemParameters]::PrimaryScreenHeight * 0.94
-}
-
 $null = Add-Type -AssemblyName System.DirectoryServices.Protocols
 if($base) 
 {
@@ -12514,7 +12529,7 @@ if($base)
     #Connect to Custom Naming Context
     $global:bolCMD = $true
  
-    if (($base.Length -gt 0) -or ($Server.Length -gt 0) -or ($Port.Length -gt 0))
+    if ($base.Length -gt 0)
     {
         $strNamingContextDN = $base
         if($Server -eq "")
@@ -12530,129 +12545,136 @@ if($base)
         }
         else
         {
-            $global:strDC = $Server +":" +$Port
-        }
-            $global:bolLDAPConnection = $false
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
-            $LDAPConnection.SessionOptions.ReferralChasing = "None"
-            $request = New-Object System.directoryServices.Protocols.SearchRequest("", "(objectClass=*)", "base")
-            if($global:bolShowDeleted)
-            {
-                [string] $LDAP_SERVER_SHOW_DELETED_OID = "1.2.840.113556.1.4.417"
-                [void]$request.Controls.Add((New-Object "System.DirectoryServices.Protocols.DirectoryControl" -ArgumentList "$LDAP_SERVER_SHOW_DELETED_OID",$null,$false,$true ))
+            if($Port -eq "")
+            {                    
+                $global:strDC = $Server
             }
-            [void]$request.Attributes.Add("dnshostname")
-            [void]$request.Attributes.Add("supportedcapabilities")
-            [void]$request.Attributes.Add("namingcontexts")
-            [void]$request.Attributes.Add("defaultnamingcontext")
-            [void]$request.Attributes.Add("schemanamingcontext")
-            [void]$request.Attributes.Add("configurationnamingcontext")
-            [void]$request.Attributes.Add("rootdomainnamingcontext")
-            [void]$request.Attributes.Add("isGlobalCatalogReady")                        
-    
-	        try
-	        {
-                $response = $LDAPConnection.SendRequest($request)
-                $global:bolLDAPConnection = $true
-
-	        }
-	        catch
-	        {
-		        $global:bolLDAPConnection = $false
-                Write-host "Failed! Domain does not exist or can not be connected" -ForegroundColor red
-	        }
-            if($global:bolLDAPConnection -eq $true)
+            else
             {
-                $strPrimaryCapability= $response.Entries[0].attributes.supportedcapabilities[0]
-                Switch ($strPrimaryCapability)
+                $global:strDC = $Server + ":" + $Port
+            }
+        }
+        $global:bolLDAPConnection = $false
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+        $LDAPConnection.SessionOptions.ReferralChasing = "None"
+        $request = New-Object System.directoryServices.Protocols.SearchRequest("", "(objectClass=*)", "base")
+        if($global:bolShowDeleted)
+        {
+            [string] $LDAP_SERVER_SHOW_DELETED_OID = "1.2.840.113556.1.4.417"
+            [void]$request.Controls.Add((New-Object "System.DirectoryServices.Protocols.DirectoryControl" -ArgumentList "$LDAP_SERVER_SHOW_DELETED_OID",$null,$false,$true ))
+        }
+        [void]$request.Attributes.Add("dnshostname")
+        [void]$request.Attributes.Add("supportedcapabilities")
+        [void]$request.Attributes.Add("namingcontexts")
+        [void]$request.Attributes.Add("defaultnamingcontext")
+        [void]$request.Attributes.Add("schemanamingcontext")
+        [void]$request.Attributes.Add("configurationnamingcontext")
+        [void]$request.Attributes.Add("rootdomainnamingcontext")
+        [void]$request.Attributes.Add("isGlobalCatalogReady")                        
+    
+	    try
+	    {
+            $response = $LDAPConnection.SendRequest($request)
+            $global:bolLDAPConnection = $true
+
+	    }
+	    catch
+	    {
+		    $global:bolLDAPConnection = $false
+            Write-host "Failed! Domain does not exist or can not be connected" -ForegroundColor red
+	    }
+        if($global:bolLDAPConnection -eq $true)
+        {
+            $strPrimaryCapability= $response.Entries[0].attributes.supportedcapabilities[0]
+            Switch ($strPrimaryCapability)
+            {
+                "1.2.840.113556.1.4.1851"
                 {
-                    "1.2.840.113556.1.4.1851"
-                    {
-                        $global:DSType = "AD LDS"
-                        $global:bolADDSType = $false
-                        $global:strDomainDNName = $response.Entries[0].Attributes.namingcontexts[-1]
-                        $global:SchemaDN = $response.Entries[0].Attributes.schemanamingcontext[0]
-                        $global:ConfigDN = $response.Entries[0].Attributes.configurationnamingcontext[0]
-                        if($Port -eq "")
-                        {                    
-                            if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
-                            {
-                                $global:strDC = $response.Entries[0].Attributes.dnshostname[0]
-                            }
-                        }
-                        else
+                    $global:DSType = "AD LDS"
+                    $global:bolADDSType = $false
+                    $global:strDomainDNName = $response.Entries[0].Attributes.namingcontexts[-1]
+                    $global:SchemaDN = $response.Entries[0].Attributes.schemanamingcontext[0]
+                    $global:ConfigDN = $response.Entries[0].Attributes.configurationnamingcontext[0]
+                    if($Port -eq "")
+                    {                    
+                        if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
                         {
-                            if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
-                            {
-                                $global:strDC = $response.Entries[0].Attributes.dnshostname[0] +":" +$Port     
-                            }
-                        }
-
-                    }
-                    "1.2.840.113556.1.4.800"
-                    {
-                        $global:DSType = "AD DS"
-                        $global:bolADDSType = $true
-                        $global:ForestRootDomainDN = $response.Entries[0].Attributes.rootdomainnamingcontext[0]
-                        $global:strDomainDNName = $response.Entries[0].Attributes.defaultnamingcontext[0]
-                        $global:SchemaDN = $response.Entries[0].Attributes.schemanamingcontext[0]
-                        $global:ConfigDN = $response.Entries[0].Attributes.configurationnamingcontext[0]
-                        $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
-
-                        if($Port -eq "")
-                        {                    
-                            if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
-                            {
-                                $global:strDC = $response.Entries[0].Attributes.dnshostname[0]
-                            }
-                        }
-                        else
-                        {
-                            if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
-                            {
-                                $global:strDC = $response.Entries[0].Attributes.dnshostname[0] +":" +$Port
-                            }
-                                    
-                        }
-                        $global:strDomainPrinDNName = $global:strDomainDNName
-                        $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                        $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
-                        $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
-                    }
-                    default
-                    {
-                        $global:ForestRootDomainDN = $response.Entries[0].Attributes.rootdomainnamingcontext[0]
-                        $global:strDomainDNName = $response.Entries[0].Attributes.defaultnamingcontext[0]
-                        $global:SchemaDN = $response.Entries[0].Attributes.schemanamingcontext[0]
-                        $global:ConfigDN = $response.Entries[0].Attributes.configurationnamingcontext[0]
-                        $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
-
-                            if($Port -eq "")
-                        {                    
                             $global:strDC = $response.Entries[0].Attributes.dnshostname[0]
                         }
-                        else
+                    }
+                    else
+                    {
+                        if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
                         {
-                            $global:strDC = $response.Entries[0].Attributes.dnshostname[0] +":" +$Port
+                            $global:strDC = $response.Entries[0].Attributes.dnshostname[0] +":" + $Port     
                         }
                     }
-                }  
-                if($strNamingContextDN -eq "")
-                {
-                    $strNamingContextDN = $global:strDomainDNName
+
                 }
-                If(CheckDNExist $strNamingContextDN $global:strDC)
+                "1.2.840.113556.1.4.800"
                 {
-                    $NCSelect = $true
+                    $global:DSType = "AD DS"
+                    $global:bolADDSType = $true
+                    $global:ForestRootDomainDN = $response.Entries[0].Attributes.rootdomainnamingcontext[0]
+                    $global:strDomainDNName = $response.Entries[0].Attributes.defaultnamingcontext[0]
+                    $global:SchemaDN = $response.Entries[0].Attributes.schemanamingcontext[0]
+                    $global:ConfigDN = $response.Entries[0].Attributes.configurationnamingcontext[0]
+                    $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
+
+                    if($Port -eq "")
+                    {                    
+                        if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
+                        {
+                            $global:strDC = $response.Entries[0].Attributes.dnshostname[0]
+                        }
+                    }
+                    else
+                    {
+                        if(Test-ResolveDNS $response.Entries[0].Attributes.dnshostname[0])
+                        {
+                            $global:strDC = $response.Entries[0].Attributes.dnshostname[0] +":" + $Port
+                        }
+                                    
+                    }
+                    $global:strDomainPrinDNName = $global:strDomainDNName
+                    $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
+                    $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                    $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
                 }
-                else
+                default
                 {
-                    Write-Output "Failed to connect to $base"
-                    $global:bolConnected = $false
+                    $global:ForestRootDomainDN = $response.Entries[0].Attributes.rootdomainnamingcontext[0]
+                    $global:strDomainDNName = $response.Entries[0].Attributes.defaultnamingcontext[0]
+                    $global:SchemaDN = $response.Entries[0].Attributes.schemanamingcontext[0]
+                    $global:ConfigDN = $response.Entries[0].Attributes.configurationnamingcontext[0]
+                    $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
+
+                    if($Port -eq "")
+                    {                    
+                        $global:strDC = $response.Entries[0].Attributes.dnshostname[0]
+                    }
+                    else
+                    {
+                        $global:strDC = $response.Entries[0].Attributes.dnshostname[0] +":" + $Port
+                    }
                 }
+            }  
+            if($strNamingContextDN -eq "")
+            {
+                $strNamingContextDN = $global:strDomainDNName
+            }
+            If(CheckDNExist $strNamingContextDN $global:strDC)
+            {
+                $NCSelect = $true
+            }
+            else
+            {
+                Write-Output "Failed to connect to $base"
+                $global:bolConnected = $false
+            }
    
-            }#bolLDAPConnection
-        } # End If D lenght
+        }#bolLDAPConnection
+    } # End If D lenght
     else
     {
         $global:bolConnected = $false  
@@ -12699,14 +12721,78 @@ if($base)
         [void]$request.Attributes.Add("name")               
         $response = $LDAPConnection.SendRequest($request)
 
+        #Set search base as the name of the output file
         $Node = fixfilename $response.Entries[0].Attributes.name[0]
-
+        
+        #Get current date
         $date= get-date -uformat %Y%m%d_%H%M%S
-        $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+
+        
+        #Get all LDAP objects to read ACL's on
         $allSubOU = GetAllChildNodes $base $Scope $Filter
+
+
+        #If more than 0 objects returned send it to Get-Perm to read ACL's
         if($allSubOU.count -gt 0)
         {
-            $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $true $true $false $false $false $false $false $false
+            #Set the path for the CSV file name
+            if($OutputFolder -gt "")
+            {
+                #Check if foler exist if not use current folder
+                if(Test-Path $OutputFolder)
+                {
+                    $strFileCSV = $OutputFolder + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+                }
+                else
+                {
+                    Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                    $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+                }
+            }
+            else
+            {
+                $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+            }
+            # Check if HTML switch is selected , creates a HTML file
+            if($HTML)
+            {			
+                $strFileHTA = $env:temp + "\ACLHTML.hta" 
+                #Set the path for the HTM file name
+                if($OutputFolder -gt "")
+                {
+                    #Check if foler exist if not use current folder
+                    if(Test-Path $OutputFolder)
+                    {
+                        $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$Node"+".htm" 
+                    }
+                    else
+                    {
+                        Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                        $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node"+".htm" 
+                    }
+                }
+                else
+                {
+                    $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node"+".htm"  
+                }
+                CreateHTA "$global:strDomainShortName-$Node" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+                CreateHTM "$global:strDomainShortName-$Node" $strFileHTM	
+                InitiateHTM $strFileHTA $Node $Base $false $false $false $false $false $false $false "" $false $false $false
+                InitiateHTM $strFileHTM $Node $Base $false $false $false $false $false $false $false "" $false $false $false
+                if($Show)
+                {
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $true
+                }
+                else
+                {
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $false
+                }
+                Write-host "Report saved in $strFileHTM" -ForegroundColor Yellow
+            }
+            else # Create CSV file
+            {
+                $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $true $true $false $false $false $false $false $false
+            }
         }
         else
         {
@@ -12714,8 +12800,12 @@ if($base)
         }
     }#End if $NCSelect
 }# End if D
-else
+else # Else GUI will open
 {
+    if([System.Windows.SystemParameters]::PrimaryScreenHeight -lt $ADACLGui.Window.Height)
+    {
+    $ADACLGui.Window.Height = [System.Windows.SystemParameters]::PrimaryScreenHeight * 0.94
+    }
     $global:bolCMD = $false
     [void]$ADACLGui.Window.ShowDialog()
 }
