@@ -2,7 +2,7 @@
 
 ## Current version
 **Version: 5.0**
-** 9 April, 2017 **
+**9 April, 2017**
 
 ## Description
 * A tool completly written in PowerShell. 
