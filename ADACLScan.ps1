@@ -88,7 +88,7 @@
     *New Features*
     ** Command line support.
     ** Custom search filter for scanning objects. 
-    ** Support input form pipeline. You can call ADACLScn.ps1 by sending a distinguishedName via pipeline.
+    ** Support input form pipeline. You can call ADACLScan.ps1 by sending a distinguishedName via pipeline.
     ** Added formated synopsis to the script.
 
     *Fixed issues*
