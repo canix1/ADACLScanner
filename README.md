@@ -19,7 +19,7 @@ Related blog posts
 * Command line support.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/adaclscan_commandline.gif)
 * Custom search filter for scanning objects. 
-* Support input form pipeline. You can call ADACLScan.ps1 by sending a distinguishedName via pipeline.
+* Support input from pipeline. You can call ADACLScan.ps1 by sending a distinguishedName via pipeline.
 * Added formated synopsis to the script.
 
 ## Features
