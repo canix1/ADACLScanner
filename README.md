@@ -25,7 +25,7 @@ Related blog posts
 * Support input from pipeline. You can call ADACLScan.ps1 by sending a distinguishedName via pipeline.
 * Added formated synopsis to the script.
 
-![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan5.0.jpg)
+![](https://github.com/canix1/ADACLScanner/blob/master/src/GUICustomSearch.gif)
 ## Features
 It has the following features:
 * View HTML reports of DACLs/SACLs and save it to disk. 
