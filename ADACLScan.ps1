@@ -80,15 +80,24 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.1
+    26 April, 2017
+
+    *SHA256:* 
+
+    *Fixed issues*
+    ** Domain node was not included in the results, unless you used a custom filter.
+ 
+    ----
     Version: 5.0
     9 April, 2017
 
-    *SHA256:* 
+    *SHA256:* 4DA5B52BECED5829AAE53916CFF1FBF9222D0954F76F683DE90C21CC994C9C5C
 
     *New Features*
     ** Command line support.
     ** Custom search filter for scanning objects. 
-    ** Support input form pipeline. You can call ADACLScan.ps1 by sending a distinguishedName via pipeline.
+    ** Support input form pipeline. You can call ADACLScn.ps1 by sending a distinguishedName via pipeline.
     ** Added formated synopsis to the script.
 
     *Fixed issues*
@@ -1125,7 +1134,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.0" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -3417,8 +3426,8 @@ function ProcessOUTree
 
 	# Increment the node count to indicate we are done with the domain level
  
-	$strFilterOUCont = "(&(|(objectClass=organizationalUnit)(objectClass=container)))"
-	$strFilterAll = "(&(!msds-nctype=*))"
+	$strFilterOUCont = "(&(|(objectClass=organizationalUnit)(objectClass=container)(objectClass=domainDNS)))"
+	$strFilterAll = "(objectClass=*)"
 
     
     
@@ -3589,7 +3598,7 @@ function ProcessOUTreeStep2OnlyShow
 
 	# Increment the node count to indicate we are done with the domain level
 
-    $strFilterOUCont = "(&(|(objectClass=organizationalUnit)(objectClass=container)))"
+    $strFilterOUCont = "(&(|(objectClass=organizationalUnit)(objectClass=container)(objectClass=domainDNS)))"
 	$strFilterAll = "(&(name=*))"
 
     $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
@@ -5749,9 +5758,9 @@ $nodelist.Clear()
 
 # Add all Children found as Sub Nodes to the selected TreeNode 
 
-$strFilterAll = "(&(objectClass=*)(!msds-nctype=*))"
-$strFilterContainer = "(&(|(objectClass=organizationalUnit)(objectClass=container)(objectClass=DomainDNS)(objectClass=dMD))(!msds-nctype=*))"
-$strFilterOU = "(&(objectClass=organizationalUnit))"
+$strFilterAll = "(objectClass=*)"
+$strFilterContainer = "(&(|(objectClass=organizationalUnit)(objectClass=container)(objectClass=DomainDNS)(objectClass=dMD)))"
+$strFilterOU = "(|(objectClass=organizationalUnit)(objectClass=domainDNS))"
 $ReqFilter = ""
 
 $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)

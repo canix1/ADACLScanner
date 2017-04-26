@@ -1,11 +1,11 @@
 # AD ACL Scanner
 
 ## Current version
-**Version: 5.0**
+**Version: 5.1**
 
 **9 April, 2017**
 
-**SHA256:** 4DA5B52BECED5829AAE53916CFF1FBF9222D0954F76F683DE90C21CC994C9C5C
+**SHA256:** 2EB425DC449B70F2741AEA8E982FADA5D5733D75E259D0B8F86EDD72BB6F10D9
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
