@@ -80,10 +80,21 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.2
+    29 June, 2017
+
+    *SHA256:* 
+
+    *Fixed issues*
+    ** Unused variable name
+    ** Simultaneously running instances mess up with each other`s data 
+    ** Console errors are registered when a machine cannot connect to LDAP 
+ 
+    ----
     Version: 5.1
     26 April, 2017
 
-    *SHA256:* 
+    *SHA256:* 2EB425DC449B70F2741AEA8E982FADA5D5733D75E259D0B8F86EDD72BB6F10D9
 
     *Fixed issues*
     ** Domain node was not included in the results, unless you used a custom filter.
@@ -4744,46 +4755,70 @@ if($global:bolLDAPConnection -eq $true)
 $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Partitions,$global:ConfigDN ", "(&(cn=*)(systemFlags:1.2.840.113556.1.4.803:=3))", "Onelevel")
 [void]$request.Attributes.Add("ncname")
 [void]$request.Attributes.Add("dnsroot")
-$response = $LDAPConnection.SendRequest($request)
-$colResults = $response.Entries
 
-foreach ($objResult in $colResults)
+try
 {
-    [void] $arrPartitions.add($objResult.attributes.dnsroot[0])
-    [void] $objListBoxDomainList.Items.Add($objResult.attributes.ncname[0])
+    $response = $LDAPConnection.SendRequest($request)
+    
+}
+catch
+{
+    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+}
+#If connection established list partitions
+if($response)
+{
+    $colResults = $response.Entries
+    foreach ($objResult in $colResults)
+    {
+        [void] $arrPartitions.add($objResult.attributes.dnsroot[0])
+        [void] $objListBoxDomainList.Items.Add($objResult.attributes.ncname[0])
+    }
 }
 
 #Get all incoming and bidirectional trusts
 $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=System,$global:strDomainDNName", "(&(cn=*)(objectClass=trustedDomain)(|(trustDirection:1.2.840.113556.1.4.803:=1)(trustDirection:1.2.840.113556.1.4.803:=3)))", "Onelevel")
 [void]$request.Attributes.Add("trustpartner")
-$response = $LDAPConnection.SendRequest($request)
-$colResults = $response.Entries
-
-foreach ($objResult in $colResults)
+try
+{
+    $response = $LDAPConnection.SendRequest($request)
+    
+}
+catch
+{
+    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+}
+#If connection established list partitions
+if($response)
 {
 
-    $bolPartitionMatch = $false
-    foreach ($strPartition in $arrPartitions)
+    $colResults = $response.Entries
+    foreach ($objResult in $colResults)
     {
-        if($strPartition -eq $objResult.attributes.trustpartner[0])
+
+        $bolPartitionMatch = $false
+        foreach ($strPartition in $arrPartitions)
         {
-            $bolPartitionMatch = $true
+            if($strPartition -eq $objResult.attributes.trustpartner[0])
+            {
+                $bolPartitionMatch = $true
+            }
         }
-    }
-    if(!($bolPartitionMatch))
-    {
-        [void] $objListBoxDomainList.Items.Add($objResult.attributes.trustpartner[0])
-    }
+        if(!($bolPartitionMatch))
+        {
+            [void] $objListBoxDomainList.Items.Add($objResult.attributes.trustpartner[0])
+        }
 
 
+    }
 }
 
 
 
-
-
-
-$DomainPickerGui.ShowDialog()
+if($objListBoxDomainList.Items.count -gt 0)
+{
+    $DomainPickerGui.ShowDialog()
+}
 
 }
 #==========================================================================
