@@ -494,6 +494,12 @@ Param
 )
 $strScriptName = $($MyInvocation.MyCommand.Name)
 
+[string]$global:SessionID = (New-Guid).Guid
+[string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
+[string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
+[string]$global:ModifiedDefSDAccessFileName = "ModifiedDefSDAccess-$SessionID"
+[string]$global:LegendHTMLFileName = "LegendHTML-$SessionID"
+
 if([threading.thread]::CurrentThread.ApartmentState.ToString() -eq 'MTA')               
 {               
   write-host -ForegroundColor RED "RUN PowerShell.exe with -STA switch"              
@@ -1594,7 +1600,7 @@ $btnGETSPNReport.add_Click(
         If(($global:strEffectiveRightSP -ne "") -and  ($global:tokens.count -gt 0))
     {
         
-        $strFileSPNHTA = $env:temp + "\SPNHTML.hta" 
+        $strFileSPNHTA = $env:temp + "\"+$global:SPNHTMLFileName+".hta" 
 	    $strFileSPNHTM = $env:temp + "\"+"$global:strEffectiveRightAccount"+".htm" 
         CreateServicePrincipalReportHTA $global:strEffectiveRightSP $strFileSPNHTA $strFileSPNHTM $CurrentFSPath
         CreateSPNHTM $global:strEffectiveRightSP $strFileSPNHTM
@@ -1613,7 +1619,7 @@ $btnGETSPNReport.add_Click(
 $btnViewLegend.add_Click(
 {
     
-        $strFileLegendHTA = $env:temp + "\LegendHTML.hta"
+        $strFileLegendHTA = $env:temp + "\"+$global:LegendHTMLFileName+".hta"
 
         CreateColorLegenedReportHTA $strFileLegendHTA 
         Invoke-Item $strFileLegendHTA 
@@ -3126,8 +3132,8 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                     #if not is empty continue
                     if($strNode -ne "")
                     {
-                        $strFileHTA = $env:temp + "\ACLHTML.hta" 
-                        $strFileHTM = $env:temp + "\"+"$global:strDomainShortName-$strNode"+".htm" 
+                        $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
+                        $strFileHTM = $env:temp + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
                         CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM					
                         CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
 
@@ -3267,9 +3273,9 @@ If ($txtBoxSelected.Text)
             $bolTranslateGUIDStoObject = $false
             $date= get-date -uformat %Y%m%d_%H%M%S
             $strNode = fixfilename $strNode
-	        $strFileCSV = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
-	        $strFileHTA = $env:temp + "\ACLHTML.hta" 
-	        $strFileHTM = $env:temp + "\"+"$global:strDomainShortName-$strNode"+".htm" 	
+	        $strFileCSV = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID +".csv" 
+	        $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
+	        $strFileHTM = $env:temp + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 	
             if(!($rdbOnlyCSV.IsChecked))
             {			
                 if ($chkBoxFilter.IsChecked)
@@ -11211,7 +11217,7 @@ Function ConvertCSVtoHTM
 $bolReplMeta = $false
 If(Test-Path $CSVInput){
     $fileName = $(Get-ChildItem $CSVInput).BaseName
-	$strFileHTA = $env:temp + "\ACLHTML.hta" 
+	$strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
 	$strFileHTM = $env:temp + "\"+"$fileName"+".htm" 	
 
     $global:csvHistACLs = import-Csv $CSVInput
@@ -11465,8 +11471,8 @@ $ACLdate = $(get-date $strLastChangeDate -UFormat "%Y-%m-%d %H:%M:%S")
 Function Get-DefaultSD
 {
     Param( [String[]] $strObjectClass,[bool] $bolChangedDefSD,[bool]$bolSDDL)
-$strFileDefSDHTA = $env:temp + "\ModifiedDefSDAccess.hta" 
-$strFileDefSDHTM = $env:temp + "\ModifiedDefSDAccess.htm" 
+$strFileDefSDHTA = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".hta" 
+$strFileDefSDHTM = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".htm" 
 $bolOUHeader = $true 
 $bolReplMeta = $true    
 $bolCompare = $false 
@@ -11769,8 +11775,8 @@ Function Get-DefaultSDCompare
     Param( [String[]] $strObjectClass="*",
     [string] $strTemplate
     )
-$strFileDefSDHTA = $env:temp + "\ModifiedDefSDAccess.hta" 
-$strFileDefSDHTM = $env:temp + "\ModifiedDefSDAccess.htm" 
+$strFileDefSDHTA = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".hta" 
+$strFileDefSDHTM = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".htm" 
 $bolOUHeader = $true 
 $bolReplMeta = $true     
 $bolCompare = $true
@@ -12750,39 +12756,39 @@ if($base)
                 #Check if foler exist if not use current folder
                 if(Test-Path $OutputFolder)
                 {
-                    $strFileCSV = $OutputFolder + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+                    $strFileCSV = $OutputFolder + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID + ".csv" 
                 }
                 else
                 {
                     Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                    $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+                    $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID + ".csv" 
                 }
             }
             else
             {
-                $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+                $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID + ".csv" 
             }
             # Check if HTML switch is selected , creates a HTML file
             if($HTML)
             {			
-                $strFileHTA = $env:temp + "\ACLHTML.hta" 
+                $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
                 #Set the path for the HTM file name
                 if($OutputFolder -gt "")
                 {
                     #Check if foler exist if not use current folder
                     if(Test-Path $OutputFolder)
                     {
-                        $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$Node"+".htm" 
+                        $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm" 
                     }
                     else
                     {
                         Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                        $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node"+".htm" 
+                        $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm" 
                     }
                 }
                 else
                 {
-                    $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node"+".htm"  
+                    $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm"  
                 }
                 CreateHTA "$global:strDomainShortName-$Node" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
                 CreateHTM "$global:strDomainShortName-$Node" $strFileHTM	
