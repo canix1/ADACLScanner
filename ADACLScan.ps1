@@ -80,10 +80,21 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.2
+    29 June, 2017
+
+    *SHA256:* 
+
+    *Fixed issues*
+    ** Unused variable name
+    ** Simultaneously running instances mess up with each other`s data 
+    ** Console errors are registered when a machine cannot connect to LDAP 
+ 
+    ----
     Version: 5.1
     26 April, 2017
 
-    *SHA256:* 
+    *SHA256:* 2EB425DC449B70F2741AEA8E982FADA5D5733D75E259D0B8F86EDD72BB6F10D9
 
     *Fixed issues*
     ** Domain node was not included in the results, unless you used a custom filter.
@@ -492,7 +503,6 @@ Param
     [switch] 
     $help
 )
-$strScriptName = $($MyInvocation.MyCommand.Name)
 
 [string]$global:SessionID = (New-Guid).Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
@@ -1140,7 +1150,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.2" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -4745,46 +4755,70 @@ if($global:bolLDAPConnection -eq $true)
 $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Partitions,$global:ConfigDN ", "(&(cn=*)(systemFlags:1.2.840.113556.1.4.803:=3))", "Onelevel")
 [void]$request.Attributes.Add("ncname")
 [void]$request.Attributes.Add("dnsroot")
-$response = $LDAPConnection.SendRequest($request)
-$colResults = $response.Entries
 
-foreach ($objResult in $colResults)
+try
 {
-    [void] $arrPartitions.add($objResult.attributes.dnsroot[0])
-    [void] $objListBoxDomainList.Items.Add($objResult.attributes.ncname[0])
+    $response = $LDAPConnection.SendRequest($request)
+    
+}
+catch
+{
+    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+}
+#If connection established list partitions
+if($response)
+{
+    $colResults = $response.Entries
+    foreach ($objResult in $colResults)
+    {
+        [void] $arrPartitions.add($objResult.attributes.dnsroot[0])
+        [void] $objListBoxDomainList.Items.Add($objResult.attributes.ncname[0])
+    }
 }
 
 #Get all incoming and bidirectional trusts
 $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=System,$global:strDomainDNName", "(&(cn=*)(objectClass=trustedDomain)(|(trustDirection:1.2.840.113556.1.4.803:=1)(trustDirection:1.2.840.113556.1.4.803:=3)))", "Onelevel")
 [void]$request.Attributes.Add("trustpartner")
-$response = $LDAPConnection.SendRequest($request)
-$colResults = $response.Entries
-
-foreach ($objResult in $colResults)
+try
+{
+    $response = $LDAPConnection.SendRequest($request)
+    
+}
+catch
+{
+    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+}
+#If connection established list partitions
+if($response)
 {
 
-    $bolPartitionMatch = $false
-    foreach ($strPartition in $arrPartitions)
+    $colResults = $response.Entries
+    foreach ($objResult in $colResults)
     {
-        if($strPartition -eq $objResult.attributes.trustpartner[0])
+
+        $bolPartitionMatch = $false
+        foreach ($strPartition in $arrPartitions)
         {
-            $bolPartitionMatch = $true
+            if($strPartition -eq $objResult.attributes.trustpartner[0])
+            {
+                $bolPartitionMatch = $true
+            }
         }
-    }
-    if(!($bolPartitionMatch))
-    {
-        [void] $objListBoxDomainList.Items.Add($objResult.attributes.trustpartner[0])
-    }
+        if(!($bolPartitionMatch))
+        {
+            [void] $objListBoxDomainList.Items.Add($objResult.attributes.trustpartner[0])
+        }
 
 
+    }
 }
 
 
 
-
-
-
-$DomainPickerGui.ShowDialog()
+if($objListBoxDomainList.Items.count -gt 0)
+{
+    $DomainPickerGui.ShowDialog()
+}
 
 }
 #==========================================================================
