@@ -492,7 +492,6 @@ Param
     [switch] 
     $help
 )
-$strScriptName = $($MyInvocation.MyCommand.Name)
 
 [string]$global:SessionID = (New-Guid).Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
