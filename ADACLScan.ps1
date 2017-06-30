@@ -80,10 +80,19 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.2.1
+    30 June, 2017
+
+    *SHA256:* 
+
+    *Minor Fixed issues*
+    ** New-GUID not recongnized in Windows PowerShell versions lower than 5.0
+ 
+    ----
     Version: 5.2
     29 June, 2017
 
-    *SHA256:* 
+    *SHA256:* B378746599D75747F38CD7E8BEEE67F04A62AC0F525E590CB3918C6015E23EC3
 
     *Fixed issues*
     ** Unused variable name
@@ -504,7 +513,7 @@ Param
     $help
 )
 
-[string]$global:SessionID = (New-Guid).Guid
+[string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
 [string]$global:ModifiedDefSDAccessFileName = "ModifiedDefSDAccess-$SessionID"
@@ -1150,7 +1159,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.2" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.2.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
