@@ -19,8 +19,8 @@ Related blog posts
 * [Take Control Over AD Permissions And The AD ACL Scanner Tool](https://blogs.technet.microsoft.com/pfesweplat/2013/05/13/take-control-over-ad-permissions-and-the-ad-acl-scanner-tool)
 
 ## New Features
-![](https://github.com/canix1/ADACLScanner/blob/master/src/SaveToExcel.jpg)
 * New output format. Save to excel file without excel installed. Both from UI and command line. Requires ImportExcel PowerShell Module.
+![](https://github.com/canix1/ADACLScanner/blob/master/src/SaveToExcel.jpg)
 
 * Command line support.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/adaclscan_commandline.gif)
