@@ -39,6 +39,11 @@
     Create a HTML file with the permissions of the object CORP.
 
 .EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -EXCEL
+
+    Create a Excel file with the permissions of the object CORP.
+
+.EXAMPLE
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -HTML -Show
 
     Opens the HTML (HTA) file with the permissions of the object CORP.
@@ -75,10 +80,19 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.3
+    Version: 5.4
     25 August, 2017
 
     *SHA256:* 
+
+    *New Features*
+    ** New output format. Save to excel file without excel installed. Both from UI and command line. Requires ImportExcel PowerShell Module.
+ 
+    ----
+    Version: 5.3
+    25 August, 2017
+
+    *SHA256:* 39193B85E9B9977CF1231D14986D1799216D9AC132461806DC0C0F4F2710B54C
 
     *Minor Fixed issues*
     ** Removed Splash Window
@@ -490,6 +504,14 @@ Param
     [switch] 
     $HTML,
     
+    # Generates a EXCEL report, default is a CSV.
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $EXCEL,
+        
     # Open HTML report
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -867,7 +889,10 @@ $sd = ""
                                                             <RadioButton x:Name="rdbOnlyHTA" Content="HTML" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput" IsChecked="True"/>
                                                             <RadioButton x:Name="rdbHTAandCSV" Content="HTML and CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
                                                         </StackPanel>
-                                                        <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="5,02,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupOutput"/>
+                                                        <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="5,02,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
+                                                        <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
+                                                        </StackPanel>
                                                         <CheckBox x:Name="chkBoxTranslateGUID" Content="Translate GUID's in CSV output" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="200"/>
                                                         <Label x:Name="lblTempFolder" Content="CSV file destination" />
                                                         <TextBox x:Name="txtTempFolder" Margin="0,0,02,0"/>
@@ -1077,7 +1102,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.3" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.4" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -1156,6 +1181,7 @@ $rdbScanAll = $ADACLGui.Window.FindName("rdbScanAll")
 $rdbScanFilter = $ADACLGui.Window.FindName("rdbScanFilter")
 $txtCustomFilter = $ADACLGui.Window.FindName("txtCustomFilter")
 $rdbHTAandCSV = $ADACLGui.Window.FindName("rdbHTAandCSV")
+$rdbOnlyHTA = $ADACLGui.Window.FindName("rdbOnlyHTA")
 $rdbOnlyCSV = $ADACLGui.Window.FindName("rdbOnlyCSV")
 $txtBoxSelected = $ADACLGui.Window.FindName("txtBoxSelected")
 $txtBoxDomainConnect = $ADACLGui.Window.FindName("txtBoxDomainConnect")
@@ -1208,6 +1234,7 @@ $btnDownloadCSVDefSD = $ADACLGui.Window.Findname("btnDownloadCSVDefSD")
 $txtListObjectMode = $ADACLGui.Window.Findname("txtListObjectMode")
 $btnDownloadCSVDefACLs = $ADACLGui.Window.Findname("btnDownloadCSVDefACLs")
 $chkBoxRAWSDDL = $ADACLGui.Window.Findname("chkBoxRAWSDDL")
+$rdbEXcel = $ADACLGui.Window.Findname("rdbEXcel")
 
 
 $txtTempFolder.Text = $CurrentFSPath
@@ -1375,6 +1402,24 @@ $txtCustomFilter.IsEnabled = $true
 
 })
 
+
+$rdbEXcel.add_Click({
+if(!$(get-module ImportExcel))
+{ 
+    $global:observableCollection.Insert(0,(LogMessage -strMessage "Checking for ImportExcel PowerShell Module..."  -strType "Info" -DateStamp ))
+    if(!$(get-module -ListAvailable | Where-Object name -eq "ImportExcel"))
+    {
+        $global:observableCollection.Insert(0,(LogMessage -strMessage "You need to install the PowerShell module ImportExcel found in the PSGallery"  -strType "Error" -DateStamp ))
+        $rdbOnlyHTA.IsChecked = $true
+    }
+    else
+    {
+        Import-Module ImportExcel
+    }
+
+}
+
+})
 $btnGetForestInfo.add_Click({
 
     if ($global:bolConnected -eq $true)
@@ -3242,24 +3287,33 @@ If ($txtBoxSelected.Text)
             $bolTranslateGUIDStoObject = $false
             $date= get-date -uformat %Y%m%d_%H%M%S
             $strNode = fixfilename $strNode
-	        $strFileCSV = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID +".csv" 
+	        $strFileCSV = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".csv" 
+            $strFileEXCEL = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
 	        $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
 	        $strFileHTM = $env:temp + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 	
             if(!($rdbOnlyCSV.IsChecked))
-            {			
-                if ($chkBoxFilter.IsChecked)
-                {
-		            CreateHTA "$global:strDomainShortName-$strNode Filtered" $strFileHTA  $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
-		            CreateHTM "$global:strDomainShortName-$strNode Filtered" $strFileHTM	
+            {		
+                if(!($rdbEXcel.IsChecked))
+                {		            	
+                    if ($chkBoxFilter.IsChecked)
+                    {
+		                CreateHTA "$global:strDomainShortName-$strNode Filtered" $strFileHTA  $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+		                CreateHTM "$global:strDomainShortName-$strNode Filtered" $strFileHTM	
+                    }
+                    else
+                    {
+                        CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+		                CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
+                    }
+
+	                InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
+	                InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
+                    $Format = "HTM"
                 }
                 else
                 {
-                    CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
-		            CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
+                    $Format = "EXCEL"
                 }
-
-	            InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
-	            InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
             }			
 	        If ($txtBoxSelected.Text.ToString().Length -gt 0)
             {
@@ -3282,7 +3336,7 @@ If ($txtBoxSelected.Text)
                 #if any objects found read ACLs
                 if($allSubOU.count -gt 0)
                 {			        
-                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $rdbOnlyCSV.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $chkBoxGetOUProtected.IsChecked $bolTranslateGUIDStoObject $true
+                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $rdbOnlyCSV.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $chkBoxGetOUProtected.IsChecked $bolTranslateGUIDStoObject $true $Format
                 }
                 else
                 {
@@ -7024,15 +7078,26 @@ Return $intCriticalityLevel
 
 }
 #==========================================================================
-# Function		: WriteHTM
-# Arguments     : Security Descriptor, OU dn string, Output htm file
+# Function		: WriteOUT
+# Arguments     : Security Descriptor, OU dn string, Output htm file or other format
 # Returns   	: n/a
-# Description   : Wites the SD info to a HTM table, it appends info if the file exist
+# Description   : Wites the SD info to a HTM table or other format, it appends info if the file exist
 #==========================================================================
-function WriteHTM
+function WriteOUT
 {
-    Param([bool] $bolACLExist,$sd,[string]$ou,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass)
-
+    Param([bool] $bolACLExist,$sd,[string]$DSObject,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$xlsxout,[string]$Type)
+if($Type -eq "HTM")
+{
+$htm = $true
+$fileout = $htmfileout
+}
+if($Type -eq "EXCEL")
+{
+$EXCEL = $true
+$fileout = $xlsxout
+}
+if($HTM)
+{
 $strTHOUColor = "E5CF00"
 $strTHColor = "EFAC00"
 if ($bolCriticalityLevel -eq $true)
@@ -7076,7 +7141,7 @@ If ($OUHeader -eq $true)
 {
 $strHTMLText =@"
 $strHTMLText
-<TR bgcolor="$strTHOUColor"><TD><b>$strFontOU $ou</b>
+<TR bgcolor="$strTHOUColor"><TD><b>$strFontOU $DSObject</b>
 "@
 
 if ($bolObjClass -eq $true)
@@ -7151,10 +7216,12 @@ Switch ($strColorTemp)
 	$strColor = "FFFF00"
 }          
 	}# End Switch
-
+}#End if HTM
 if ($bolACLExist) 
 {
 	$sd  | foreach{
+
+
     if($null  -ne  $_.AccessControlType)
     {
         $objAccess = $($_.AccessControlType.toString())
@@ -7165,6 +7232,7 @@ if ($bolACLExist)
     }
 	$objFlags = $($_.ObjectFlags.toString())
 	$objType = $($_.ObjectType.toString())
+    $objIsInheried = $($_.IsInherited.toString())
 	$objInheritedType = $($_.InheritedObjectType.toString())
 	$objRights = $($_.ActiveDirectoryRights.toString())
     $objInheritanceType = $($_.InheritanceType.toString())
@@ -7526,9 +7594,9 @@ if ($bolACLExist)
         
     }#End IF else
 
-	$strNTAccount = $($_.IdentityReference.toString())
+	$IdentityReference = $($_.IdentityReference.toString())
     
-    If ($strNTAccount.contains("S-1-"))
+    If ($IdentityReference.contains("S-1-"))
 	{
 	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
 
@@ -7569,23 +7637,28 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strPerm =  "$strFont This object and all child objects</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo =  "This object and all child objects"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
 		      	}    	
 		      	"ObjectAceTypePresent"
 		      	{
-		      		$strPerm =  "$strFont This object and all child objects</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo =  "This object and all child objects"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strPerm =  "$strFont $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 	      	
 		      	"None"
 		      	{
-		      		$strPerm ="$strFont This object and all child objects</TD><TD $strLegendColor>$strFontRights $objRights</TD>"
+		      		$strApplyTo ="This object and all child objects"
+                    $strPerm = "$objRights"
 		      	} 
 		      		default
 	 		    {
-		      		$strPerm = "Error: Failed to display permissions 1K"
+		      		$strApplyTo = "Error"
+                    $strPerm = "Error: Failed to display permissions 1K"
 		      	} 	 
 	
 		    }# End Switch
@@ -7598,23 +7671,28 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      	$strPerm = "$strFont $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD><TD $strLegendColor>$strFontRights $objRights</TD>"
+		      	    $strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights"
 		      	}
 		      	"None"
 		      	{
-		      		$strPerm ="$strFont Child Objects Only</TD><TD $strLegendColor>$strFontRights $objRights</TD>"
+		      		$strApplyTo = "Child Objects Only"
+                    $strPerm = "$objRights"
 		      	} 	      	
 		      	"ObjectAceTypePresent"
 		      	{
-		      		$strPerm = "$strFont Child Objects Only</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo = "Child Objects Only"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strPerm =	"$strFont $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo =	"$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm =	"$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	}
 		      	default
 	 			{
-		      		$strPerm = "Error: Failed to display permissions 2K"
+		      		$strApplyTo = "Error"
+                    $strPerm = "Error: Failed to display permissions 2K"
 		      	} 	 
 	
 		    } 		
@@ -7625,15 +7703,18 @@ if ($bolACLExist)
 	    	{ 
 		      	"ObjectAceTypePresent"
 		      	{
-		      		$strPerm = "$strFont This Object Only</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName}) </TD>"
+		      		$strApplyTo = "This Object Only"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 
 		      	"None"
 		      	{
-		      		$strPerm ="$strFont This Object Only</TD><TD $strLegendColor>$strFontRights $objRights </TD>"
+		      		$strApplyTo = "This Object Only"
+                    $strPerm = "$objRights"
 		      	} 
 		      		default
-	 		{
-		      		$strPerm = "Error: Failed to display permissions 4K"
+	 		    {
+		      		$strApplyTo = "Error"
+                    $strPerm = "Error: Failed to display permissions 4K"
 		      	} 	 
 	
 			}
@@ -7644,24 +7725,29 @@ if ($bolACLExist)
 	    	{ 
 		      	"ObjectAceTypePresent"
 	      		{
-		      		$strPerm = "$strFont This object and all child objects within this conatainer only</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo = "This object and all child objects within this conatainer only"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	}
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strPerm = "$strFont Children within this conatainer only</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo = "Children within this conatainer only"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
 		      	} 
 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strPerm =  "$strFont $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 	      	
 		      	"None"
 		      	{
-		      		$strPerm ="$strFont This object and all child objects</TD><TD $strLegendColor>$strFontRights $objRights</TD>"
+		      		$strApplyTo = "This object and all child objects"
+                    $strPerm = "$objRights"
 		      	}                                  	   
 		      	default
 	 		    {
-		      		$strPerm = "Error: Failed to display permissions 5K"
+		      		$strApplyTo = "Error"
+                    $strPerm = "Error: Failed to display permissions 5K"
 		      	} 	 
 	
 			}   	
@@ -7672,39 +7758,56 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strPerm = "$strFont Children within this conatainer only</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo = "Children within this conatainer only"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
 		      	} 
 		      	"None"
 		      	{
-		      		$strPerm = "$strFont Children  within this conatainer only</TD><TD $strLegendColor>$strFontRights $objRights</TD>"
+		      		$strApplyTo = "Children  within this conatainer only"
+                    $strPerm = "$objRights"
 		      	} 	      	
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 	      		{
-		      		$strPerm = "$strFont $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})</TD><TD>$strFont $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName}) $objRights</TD>"
+		      		$strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm = "$(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName}) $objRights"
 		      	} 	
 		      	"ObjectAceTypePresent"
 	      		{
-		      		$strPerm = "$strFont Children within this conatainer only</TD><TD $strLegendColor>$strFontRights $objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})</TD>"
+		      		$strApplyTo = "Children within this conatainer only"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 		      	
 		      	default
 	 			{
-		      		$strPerm = "Error: Failed to display permissions 6K"
+		      		$strApplyTo = "Error"
+                    $strPerm = "Error: Failed to display permissions 6K"
 		      	} 	 
 	
 	 		}
 	 	}
 	 	default
-	 		{
-		      		$strPerm = "Error: Failed to display permissions 7K"
-		    } 	 
+	 	{
+		    $strApplyTo = "Error"
+            $strPerm = "Error: Failed to display permissions 7K"
+		} 	 
 	}# End Switch
 
 ##
 
+If($Excel)
+{
+    $objhashtableACE = [pscustomobject][ordered]@{    Object = $DSObject ;`    ObjectClass = $strObjClass ;`    IdentityReference = $IdentityReference ;`    Trustee = $strNTAccount ;`    Access = $objAccess ;`
+    Inhereted = $objIsInheried ;`
+    'Apply To' = $strApplyTo ;`
+    Permission = $strPerm}
 
+    [VOID]$global:ArrayAllACE.Add($objhashtableACE)
+}
+
+If($HTM)
+{
 $strACLHTMLText =@"
 $strACLHTMLText
-<TR bgcolor="$strColor"><TD>$strFont $ou</TD>
+<TR bgcolor="$strColor"><TD>$strFont $DSObject</TD>
 "@
 
 if ($bolObjClass -eq $true)
@@ -7740,10 +7843,12 @@ $strACLHTMLText
 $strACLHTMLText =@"
 $strACLHTMLText
 <TD>$strFont <a href="#web" onclick="GetGroupDN('$strNTAccount')">$strNTAccount</a></TD>
-<TD>$strFont $(if($null -ne $_.AccessControlType){$_.AccessControlType.toString()}else{$_.AuditFlags.toString()}) </TD>
-<TD>$strFont $($_.IsInherited.toString())</TD>
-<TD>$strPerm</TD>
+<TD>$strFont $objAccess</TD>
+<TD>$strFont $objIsInheried </TD>
+<TD>$strFont $strApplyTo</TD>
+<TD $strLegendColor>$strFontRights $strPerm</TD>
 "@
+
 
 if($CompareMode)
 {
@@ -7761,11 +7866,14 @@ $strACLHTMLText
 "@
 
 }
+}#End If HTM
 }# End Foreach
 
 	
 }
 else
+{
+if($HTM)
 {
 if ($OUHeader -eq $false)
 {
@@ -7801,7 +7909,7 @@ $strACLHTMLText =@"
 $strACLHTMLText
 <TD>$strFont N/A</TD>
 <TD>$strFont N/A</TD>
-<TD>$strFont N/A</TD><
+<TD>$strFont N/A</TD>
 <TD>$strFont N/A</TD>
 <TD>$strFont No Matching Permissions Set</TD>
 "@
@@ -7848,7 +7956,7 @@ $strACLHTMLText =@"
 $strACLHTMLText
 <TD>$strFont N/A</TD>
 <TD>$strFont N/A</TD>
-<TD>$strFont N/A</TD><
+<TD>$strFont N/A</TD>
 <TD>$strFont N/A</TD>
 <TD>$strFont No Permissions Set</TD>
 "@
@@ -7864,26 +7972,30 @@ $strACLHTMLText
 
 }# End If
 }#end If OUHeader false
-}
+}#End if HTM
+} #End if bolACLExist
+if($HTM)
+{
 $strACLHTMLText =@"
 $strACLHTMLText
 </TR>
 "@
 
-#end ifelse OUHEader
-$strHTMLText = $strHTMLText + $strACLHTMLText
+    #end ifelse OUHEader
+    $strHTMLText = $strHTMLText + $strACLHTMLText
 
-Out-File -InputObject $strHTMLText -Append -FilePath $htmfileout 
-Out-File -InputObject $strHTMLText -Append -FilePath $strFileHTM
+    Out-File -InputObject $strHTMLText -Append -FilePath $fileout 
+    Out-File -InputObject $strHTMLText -Append -FilePath $strFileHTM
 
-$strHTMLText = $null
-$strACLHTMLText = $null
-Remove-Variable -Name "strHTMLText"
-Remove-Variable -Name "strACLHTMLText"
+    $strHTMLText = $null
+    $strACLHTMLText = $null
+    Remove-Variable -Name "strHTMLText"
+    Remove-Variable -Name "strACLHTMLText"
+}#End if HTM
 
 }
 #==========================================================================
-# Function		: WriteHTM
+# Function		: WriteDefSDAccessHTM
 # Arguments     : Security Descriptor, OU dn string, Output htm file
 # Returns   	: n/a
 # Description   : Wites the SD info to a HTM table, it appends info if the file exist
@@ -9503,7 +9615,7 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolCSVOnly,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show)
+    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolCSVOnly,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType)
 $SDResult = $false
 $bolCompare = $false
 $bolACLExist = $true
@@ -9512,6 +9624,7 @@ $strACLSize = ""
 $bolOUProtected = $false
 $aclcount = 0
 $sdOUProtect = ""
+$global:ArrayAllACE = New-Object System.Collections.ArrayList
 
 If ($bolCSV)
 {
@@ -9682,7 +9795,8 @@ if ($rdbDACL.IsChecked)
         else
         {
             &{#Try
-                $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.NTAccount])
+                #$global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.NTAccount]) # 2017-08-25 RG
+                $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier]) 
 
             }
             Trap [SystemException]
@@ -9993,13 +10107,13 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				 	        if ($permcount -eq 0)
 				 	        {
                                 $bolOUHeader = $true    
-				 		        WriteHTM $bolACLExist $sd[$index] $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+				 		        WriteOUT $bolACLExist $sd[$index] $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
 
 				 	        }
 				 	        else
 				 	        {
                                     $bolOUHeader = $false 
-				 		        WriteHTM $bolACLExist $sd[$index] $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+				 		        WriteOUT $bolACLExist $sd[$index] $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
 
 				 	        }# End If
                         }
@@ -10026,7 +10140,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    if ($permcount -eq 0)
 		 	    {
                     $bolOUHeader = $true 
-		 		    WriteHTM $bolACLExist $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+		 		    WriteOUT $bolACLExist $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
 
                    
 		 	    }
@@ -10034,7 +10148,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    {
                     $bolOUHeader = $false 
                     $GetOwnerEna = $false
-                    WriteHTM $bolACLExist $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                    WriteOUT $bolACLExist $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                     #$aclcount++
 		 	    }
             }
@@ -10048,7 +10162,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             if (($permcount -eq 0) -and ($index -gt 0))
             {
                 $bolOUHeader = $true 
-	            WriteHTM $bolACLExist $sd $DSobject.distinguishedname.toString() $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked 
+	            WriteOUT $bolACLExist $sd $DSobject.distinguishedname.toString() $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                 $aclcount++
             }# End If
         }# End if bolCSVOnly
@@ -10140,10 +10254,27 @@ else
                 $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
             }
         }
-        #If Get-Perm was called with Show then open the HTA file.
-        if($Show)
+        #If excel output
+        if($OutType -eq "EXCEL")
         {
-	        Invoke-Item $strFileHTA
+            $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname "ACL" -BoldTopRow -TableStyle Medium2 -TableName "acltbl" -NoLegend -AutoSize -FreezeTopRow
+            
+            if($bolCMD)
+            {
+                Write-host "Report saved in $strFileEXCEL" -ForegroundColor Yellow
+            }
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileEXCEL" -strType "Warning" -DateStamp ))
+            }
+        }#End if EXCEL
+        else
+        {
+            #If Get-Perm was called with Show then open the HTA file.
+            if($Show)
+            {
+	            Invoke-Item $strFileHTA
+            }
         }
     }
 
@@ -10588,11 +10719,11 @@ while($count -le $ALOUdn.count -1)
                                     {
                                         $intAclOccurence++
                                         $bolOUHeader = $true 
-                                        WriteHTM $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                                        WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         
                                     }
                                     $bolOUHeader = $false 
-                                    WriteHTM $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                                    WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                                 }
                                 $SDUsnNew = $false
                                 break
@@ -10766,11 +10897,11 @@ while($count -le $ALOUdn.count -1)
                         {
                             $intAclOccurence++
                             $bolOUHeader = $true 
-                            WriteHTM $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                            WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         
                         }
                         $bolOUHeader = $false 
-                        WriteHTM $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                        WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                     
                     }
 		            If ($OUMatchResult -And !($SDResult))
@@ -10779,11 +10910,11 @@ while($count -le $ALOUdn.count -1)
                         {
                             $intAclOccurence++
                             $bolOUHeader = $true 
-                            WriteHTM $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                            WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         }   
                         $newSdObject.Color = "New"
                         $bolOUHeader = $false 
-                        WriteHTM $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                        WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
             
                      }
                 }# End If SkipProtectedPerm
@@ -10982,10 +11113,10 @@ while($count -le $ALOUdn.count -1)
                         {
                             $intAclOccurence++
                             $bolOUHeader = $true 
-                            WriteHTM $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                            WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         }
                         $bolOUHeader = $false               
-                        WriteHTM $true $histSDObject $DSobject.distinguishedname.toString() $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                        WriteOUT $true $histSDObject $DSobject.distinguishedname.toString() $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         $histSDObject = ""
                     }# End If $OUMatchResult
                 }# End if $OUdn
@@ -11058,10 +11189,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteHTM $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                             }
                             $bolOUHeader = $false 
-                            WriteHTM $true $MissingOUSdObject $OUdn $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                            WriteOUT $true $MissingOUSdObject $OUdn $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         }
                     }
                     else
@@ -11079,10 +11210,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteHTM $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                             }
                             $bolOUHeader = $false                  
-                            WriteHTM $true $MissingOUSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                            WriteOUT $true $MissingOUSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         }
                     }
                 }#Skip Default or bolComparedelegation
@@ -11156,10 +11287,10 @@ while($count -le $ALOUdn.count -1)
             {
                 $intAclOccurence++
                 $bolOUHeader = $true 
-                WriteHTM $false $histSDObject $strOUcol $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+                WriteOUT $false $histSDObject $strOUcol $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
             }
             $bolOUHeader = $false               
-            WriteHTM $true $histSDObject $strOUcol $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked
+            WriteOUT $true $histSDObject $strOUcol $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
             $histSDObject = ""
         }
         $index++
@@ -11396,7 +11527,7 @@ If(Test-Path $CSVInput)
             {
   
                 $bolOUHeader = $true   
-                WriteHTM $true $txtSdObject $strOU $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $bolObjType
+                WriteOUT $true $txtSdObject $strOU $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType
    
     
                 $tmpOU = $strOU
@@ -11404,7 +11535,8 @@ If(Test-Path $CSVInput)
             else
             {
                 $bolOUHeader = $false   
-                WriteHTM $true $txtSdObject $strOU $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $bolObjType
+                WriteOUT $true $txtSdObject $strOU $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType
+
 
             }
 			
@@ -12824,17 +12956,17 @@ if($base)
                 #Check if foler exist if not use current folder
                 if(Test-Path $OutputFolder)
                 {
-                    $strFileCSV = $OutputFolder + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID + ".csv" 
+                    $strFileCSV = $OutputFolder + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
                 }
                 else
                 {
                     Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                    $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID + ".csv" 
+                    $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
                 }
             }
             else
             {
-                $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + "_" + $global:SessionID + ".csv" 
+                $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
             }
             # Check if HTML switch is selected , creates a HTML file
             if($HTML)
@@ -12864,17 +12996,64 @@ if($base)
                 InitiateHTM $strFileHTM $Node $Base $false $false $false $false $false $false $false "" $false $false $false
                 if($Show)
                 {
-                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $true
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $true "HTM"
                 }
                 else
                 {
-                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $false
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $false "HTM"
                 }
+
                 Write-host "Report saved in $strFileHTM" -ForegroundColor Yellow
             }
-            else # Create CSV file
+            else 
             {
-                $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $true $true $false $false $false $false $false $false
+                if($EXCEL)
+                {	
+                    $ExcelModuleExist = $true
+                    if(!$(get-module ImportExcel))
+                    { 
+                        Write-Host "Checking for ImportExcel PowerShell Module..." 
+                        if(!$(get-module -ListAvailable | Where-Object name -eq "ImportExcel"))
+                        {
+                            write-host "You need to install the PowerShell module ImportExcel found in the PSGallery" -ForegroundColor red    
+                            $ExcelModuleExist = $false 
+                        }
+                        else
+                        {
+                            Import-Module ImportExcel
+                            $ExcelModuleExist = $true
+                        }
+
+                    }
+                    if($ExcelModuleExist)
+                    {                		
+                        #Set the path for the HTM file name
+                        if($OutputFolder -gt "")
+                        {
+                            #Check if foler exist if not use current folder
+                            if(Test-Path $OutputFolder)
+                            {
+                                $strFileEXCEL = $OutputFolder + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                            }
+                            else
+                            {
+                                Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                                $strFileEXCEL = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                            }
+                        }
+                        else
+                        {
+                            $strFileEXCEL = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                        }
+
+                        $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $false "EXCEL"
+
+                    }
+                }
+                else # Create CSV file
+                {
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $true $true $false $false $false $false $false $false "HTM"
+                }
             }
         }
         else

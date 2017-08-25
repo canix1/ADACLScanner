@@ -1,11 +1,11 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.3**
+**Version: 5.4**
 
 **25 August,2017**
 
-**SHA256:** 39193B85E9B9977CF1231D14986D1799216D9AC132461806DC0C0F4F2710B54C
+**SHA256:** D6BAC8FD6E4BDA7931329E41F0BAEC4CA4A45232D046C777CC13A74138441C3E
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
@@ -19,6 +19,8 @@ Related blog posts
 * [Take Control Over AD Permissions And The AD ACL Scanner Tool](https://blogs.technet.microsoft.com/pfesweplat/2013/05/13/take-control-over-ad-permissions-and-the-ad-acl-scanner-tool)
 
 ## New Features
+* New output format. Save to excel file without excel installed. Both from UI and command line. Requires ImportExcel PowerShell Module.
+
 * Command line support.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/adaclscan_commandline.gif)
 * Custom search filter for scanning objects. 
