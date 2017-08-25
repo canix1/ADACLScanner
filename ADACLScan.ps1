@@ -29,11 +29,6 @@
     Start in GUI mode.
 
 .EXAMPLE
-    .\ADACLScan.ps1 -NoSplash
-
-    Start in GUI mode wihtout splash window.
-
-.EXAMPLE
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM"
 
     Create a CSV file with the permissions of the object CORP.
@@ -80,10 +75,21 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.3
+    25 August, 2017
+
+    *SHA256:* 
+
+    *Minor Fixed issues*
+    ** Removed Splash Window
+    ** Makes modal pop-up windows visible in the taskbar - exchange12rocks (Kirill Nikolaev)
+    ** Replaced UNIX endings with Windows endings - exchange12rocks (Kirill Nikolaev)
+ 
+    ----
     Version: 5.2.1
     30 June, 2017
 
-    *SHA256:* 
+    *SHA256:* 5E80AC4E22EDC19878F1B9504F16EA0CFBA8E0D8DF18972157B0EC86AD6ED0B7
 
     *Minor Fixed issues*
     ** New-GUID not recongnized in Windows PowerShell versions lower than 5.0
@@ -492,18 +498,6 @@ Param
     [switch] 
     $Show,
 
-    # Do not show splash window
-    [Parameter(Mandatory=$false, 
-                ValueFromPipeline=$true,
-                ValueFromPipelineByPropertyName=$true, 
-                ValueFromRemainingArguments=$false, 
-                Position=6,
-                ParameterSetName='Default')]
-    [ValidateNotNull()]
-    [ValidateNotNullOrEmpty()]
-    [Switch] 
-    $NoSplash,
-
     # Data Managment Delegation OU Name
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -638,82 +632,6 @@ $global:dicNameToSchemaIDGUIDs = @{"user"="BF967ABA-0DE6-11D0-A285-00AA003049E2"
 BuildSchemaDic
 
 Add-Type -Assembly PresentationFramework
-
-$global:syncHashSplash = [hashtable]::Synchronized(@{})
-$newRunspaceSplash =[runspacefactory]::CreateRunspace()
-$newRunspaceSplash.ApartmentState = "STA"
-$newRunspaceSplash.ThreadOptions = "ReuseThread"          
-$newRunspaceSplash.Open()
-$newRunspaceSplash.SessionStateProxy.SetVariable("global:syncHashSplash",$global:syncHashSplash)          
-$psCmdSplash = [PowerShell]::Create().AddScript({   
-    
-[xml]$xamlSplash = 
-@"
-<Window xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:system="clr-namespace:System;assembly=mscorlib"
-        WindowStyle='None' AllowsTransparency='True'
-   
-        Topmost='True' Background="Transparent"  ShowInTaskbar='False'
-         WindowStartupLocation='CenterScreen' >
-    <Window.Resources>
-        <system:String x:Key="Time">AD ACL &#10;Scanner</system:String>
-
-    </Window.Resources>
-
-
-    <Grid Height="200" Width="400" Background="White">
-        <Border BorderBrush="Black" BorderThickness="1">
-        <StackPanel VerticalAlignment="Center">
-
-            <Label x:Name="lbl1"  Content="Active Directory&#10;AD ACL Scanner" FontWeight="Normal" Width="250" Height="110" FontSize="32"  HorizontalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Bottom">
-                <Label.Foreground>
-                    <LinearGradientBrush>
-                        <GradientStop Color="#CC1281DB"/>
-                        <GradientStop Color="#FF6797BF" Offset="0.3"/>
-                        <GradientStop Color="#FF6797BF" Offset="0.925"/>
-                        <GradientStop Color="#FFD4DBE1" Offset="1"/>
-                    </LinearGradientBrush>
-                </Label.Foreground>
-            </Label>
-            <Label x:Name="lbl2" Content="THIS CODE-SAMPLE IS PROVIDED WITHOUT WARRANTY OF ANY KIND" Width="500" Height="80" FontSize="10" HorizontalAlignment="Center" HorizontalContentAlignment="Center" VerticalContentAlignment="Bottom">
-
-            </Label>
-        </StackPanel>
-        </Border>
-    </Grid>
-</Window>
-"@
- 
-    $reader=(New-Object System.Xml.XmlNodeReader $xamlSplash)
-    $xamlSplash = $null
-    Remove-Variable -Name xamlSplash
-    $global:syncHashSplash.Window=[Windows.Markup.XamlReader]::Load( $reader )
-    $global:syncHashSplash.Window.Show() | Out-Null
-    $global:syncHashSplash.Error = $Error
-    Start-Sleep -Seconds 2
-    $global:syncHashSplash.Window.Dispatcher.Invoke([action]{$global:syncHashSplash.Window.Hide()},"Normal")
-    
-    $syncHashSplash = $null
-    Remove-Variable -Name "syncHashSplash" -Scope Global
-    $reader = $null
-    Remove-Variable -Name "reader" -Scope Global
-    $newRunspaceSplash = $null
-    Remove-Variable -Name "newRunspaceSplash" -Scope Global
-    $ADACLGui.Window.Activate()
-})
-
-
-if (($PSVersionTable.PSVersion -ne "2.0") -and (!$NoSplash) -and (!$base))
-{
-    $psCmdSplash.Runspace = $newRunspaceSplash
-    $syncHashSplash = $null
-    Remove-Variable -Name "syncHashSplash" -Scope Global
-    [void]$psCmdSplash.BeginInvoke()
-   
-
-}
-
 
 $ADACLGui = [hashtable]::Synchronized(@{})
 
@@ -1159,7 +1077,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.2.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.3" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
