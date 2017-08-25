@@ -1316,7 +1316,37 @@ $tabAdv.IsSelected= $true
 #TODO: Place custom script here
 
 
-$code = @"using System;using System.Drawing;using System.Runtime.InteropServices;namespace System{	public class IconExtractor	{	 public static Icon Extract(string file, int number, bool largeIcon)	 {	  IntPtr large;	  IntPtr small;	  ExtractIconEx(file, number, out large, out small, 1);	  try	  {	   return Icon.FromHandle(largeIcon ? large : small);	  }	  catch	  {	   return null;	  }	 }	 [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]	 private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);	}}"@
+$code = @"
+using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
+
+namespace System
+{
+	public class IconExtractor
+	{
+
+	 public static Icon Extract(string file, int number, bool largeIcon)
+	 {
+	  IntPtr large;
+	  IntPtr small;
+	  ExtractIconEx(file, number, out large, out small, 1);
+	  try
+	  {
+	   return Icon.FromHandle(largeIcon ? large : small);
+	  }
+	  catch
+	  {
+	   return null;
+	  }
+
+	 }
+	 [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
+	 private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
+
+	}
+}
+"@
 
 Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
 
@@ -2912,7 +2942,9 @@ remove-variable -name "tokens" -Scope Global
 
 
 $ErrorActionPreference = "SilentlyContinue"
-    &{#Try        $xmlDoc = $null        remove-variable -name "xmlDoc" -Scope Global
+    &{#Try
+        $xmlDoc = $null
+        remove-variable -name "xmlDoc" -Scope Global
     }
     Trap [SystemException]
     {
@@ -3450,7 +3482,8 @@ function ProcessOUTree
 	Param($node, $ADSObject)
 
 	# Increment the node count to indicate we are done with the domain level
- 
+
+ 
 	$strFilterOUCont = "(&(|(objectClass=organizationalUnit)(objectClass=container)(objectClass=domainDNS)))"
 	$strFilterAll = "(objectClass=*)"
 
@@ -4070,7 +4103,7 @@ Function GenerateTemplateDownloaderSchemaDefSD
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="CSV Templates" WindowStartupLocation = "CenterScreen"
-        Width = "380" Height = "250" ShowInTaskbar = "False" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
+        Width = "380" Height = "250" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
     <Window.Resources>
     
         <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
@@ -4179,7 +4212,7 @@ Function GenerateTemplateDownloader
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="CSV Templates" WindowStartupLocation = "CenterScreen"
-        Width = "650" Height = "400" ShowInTaskbar = "False" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
+        Width = "650" Height = "400" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
     <Window.Resources>
     
         <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
@@ -4499,7 +4532,7 @@ Function GenerateTrustedDomainPicker
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="Locations" WindowStartupLocation = "CenterScreen"
-        Width = "400" Height = "200" ShowInTaskbar = "False" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9">
+        Width = "400" Height = "200" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9">
     <Window.Background>
         <LinearGradientBrush>
             <LinearGradientBrush.Transform>
@@ -4604,7 +4637,7 @@ Function GenerateSupportStatement
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="Support Statement" WindowStartupLocation = "CenterScreen"
-        Width = "400" Height = "500" ShowInTaskbar = "False" ResizeMode="NoResize" WindowStyle="ToolWindow"  Background="#FFF0F0F0">
+        Width = "400" Height = "500" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow"  Background="#FFF0F0F0">
     <Grid HorizontalAlignment="Center">
         <StackPanel Orientation="Vertical"  Margin="0,0,00,0" HorizontalAlignment="Center">
             <Label x:Name="lblSupportHeader" Content="Carefully read and understand the support statement." Height="25" Width="350" FontSize="12" />
@@ -4675,7 +4708,7 @@ Function GenerateDomainPicker
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="Select a domain" WindowStartupLocation = "CenterScreen"
-        Width = "400" Height = "200" ShowInTaskbar = "False" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9">
+        Width = "400" Height = "200" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9">
     <Window.Background>
         <LinearGradientBrush>
             <LinearGradientBrush.Transform>
@@ -5199,13 +5232,16 @@ return $bolValid
 # Returns   	: ArrayList of groups names
 # Description   : Group names of all sids in tokenGroups
 #==========================================================================
-Function GetTokenGroups{
+Function GetTokenGroups
+{
 Param($PrincipalDomDC,$PrincipalDN,
 [bool] $bolCreds,
 [parameter(Mandatory=$false)]
-[System.Management.Automation.PSCredential] $GetTokenCreds)
+[System.Management.Automation.PSCredential] $GetTokenCreds)
 
-$script:bolErr = $false$tokenGroups =  New-Object System.Collections.ArrayList
+
+$script:bolErr = $false
+$tokenGroups =  New-Object System.Collections.ArrayList
 
 $tokenGroups.Clear()
 $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$GetTokenCreds)
@@ -5228,16 +5264,22 @@ else
 {
     $SIDs = $ADobject.Attributes.tokengroupsglobalanduniversal
 }
-$ownerSIDs = [string]$($ADobject.Attributes.objectsid)
+
+$ownerSIDs = [string]$($ADobject.Attributes.objectsid)
+
+
 $arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ownerSIDs) $global:CREDS
 
 foreach ($ForeignMemb in $arrForeignSecGroups)
 {
        if($null -ne  $ForeignMemb)
-        {            if($ForeignMemb.tostring().length -gt 0 )
-            {            [void]$tokenGroups.add($ForeignMemb)
+        {
+            if($ForeignMemb.tostring().length -gt 0 )
+            {
+            [void]$tokenGroups.add($ForeignMemb)
             }
-        }} 
+        }
+} 
 
 # Populate hash table with security group memberships. 
 $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$GetTokenCreds)
@@ -5258,18 +5300,26 @@ foreach ($objResult in $colResults)
     foreach ($ForeignMemb in $arrForeignSecGroups)
     {
            if($null -ne  $ForeignMemb)
-            {                if($ForeignMemb.tostring().length -gt 0 )
-                {                [void]$tokenGroups.add($ForeignMemb)
+            {
+                if($ForeignMemb.tostring().length -gt 0 )
+                {
+                [void]$tokenGroups.add($ForeignMemb)
                 }
-            }    } 
+            }
+    } 
 } 
-ForEach ($Value In $SIDs){
+
+ForEach ($Value In $SIDs)
+{
 
 
-    $SID = New-Object System.Security.Principal.SecurityIdentifier $Value, 0
 
-    # Translate into "pre-Windows 2000" name.
-    &{#Try        $Script:Group = $SID.Translate([System.Security.Principal.NTAccount])
+    $SID = New-Object System.Security.Principal.SecurityIdentifier $Value, 0
+
+
+    # Translate into "pre-Windows 2000" name.
+    &{#Try
+        $Script:Group = $SID.Translate([System.Security.Principal.NTAccount])
     }
     Trap [SystemException]
     {
@@ -5278,7 +5328,11 @@ foreach ($objResult in $colResults)
      continue
     }
     if ($script:bolErr  -eq $false)
-     {    [void]$tokenGroups.Add($Script:Group.Value)      }      else
+     {
+
+    [void]$tokenGroups.Add($Script:Group.Value)
+      }
+      else
     {
         $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$GetTokenCreds)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
@@ -5311,20 +5365,29 @@ foreach ($objResult in $colResults)
     foreach ($ForeignMemb in $arrForeignSecGroups)
     {
        if($null -ne $ForeignMemb)
-        {            if($ForeignMemb.tostring().length -gt 0 )
-            {            [void]$tokenGroups.add($ForeignMemb)
+        {
+            if($ForeignMemb.tostring().length -gt 0 )
+            {
+            [void]$tokenGroups.add($ForeignMemb)
             }
-        }    } 
-    }
+        }
+    } 
+    
+}
+
          [void]$tokenGroups.Add("Everyone")
          [void]$tokenGroups.Add("NT AUTHORITY\Authenticated Users")
 if(($global:strPrinDomAttr -eq 14) -or ($global:strPrinDomAttr -eq 18) -or ($global:strPrinDomAttr -eq "5C") -or ($global:strPrinDomAttr -eq "1C") -or ($global:strPrinDomAttr -eq "44")  -or ($global:strPrinDomAttr -eq "54")  -or ($global:strPrinDomAttr -eq "50"))         
 {
-         [void]$tokenGroups.Add("NT AUTHORITY\Other Organization")}
+         [void]$tokenGroups.Add("NT AUTHORITY\Other Organization")
+}
 else
 {
          [void]$tokenGroups.Add("NT AUTHORITY\This Organization")
-}Return $tokenGroups}
+}
+Return $tokenGroups
+
+}
 
 
 #==========================================================================
@@ -5388,7 +5451,12 @@ Foreach ( $obj in $response.Entries)
         [void]$request.Attributes.Add("samaccountname")
         $response = $LDAPConnection.SendRequest($request)
         $ADobject = $response.Entries[0]
-        $strPrinName = $ADobject.Attributes."msds-principalname"[0]        if (($strPrinName -eq "") -or ($null -eq $strPrinName))        {            $strPrinName = "$global:strPrinDomFlat\$($ADobject.Attributes.samaccountname[0])"        }   
+
+        $strPrinName = $ADobject.Attributes."msds-principalname"[0]
+        if (($strPrinName -eq "") -or ($null -eq $strPrinName))
+        {
+            $strPrinName = "$global:strPrinDomFlat\$($ADobject.Attributes.samaccountname[0])"
+        }   
         [void]$arrForeignMembership.add($strPrinName)
         $index++
     }
@@ -5595,13 +5663,18 @@ Param (
     }
 }
 
-#==========================================================================
+
+#==========================================================================
 # Function		: TestCSVColumnsDefaultSD
 # Arguments     : CSV import for Default Security descriptor
 # Returns   	: Boolean
 # Description   : Search for all requried column names in CSV and return true or false
 #==========================================================================
-function TestCSVColumnsDefaultSD{param($CSVImport)$bolColumExist = $false$colHeaders = ( $CSVImport | Get-member -MemberType 'NoteProperty' | Select-Object -ExpandProperty 'Name')
+function TestCSVColumnsDefaultSD
+{
+param($CSVImport)
+$bolColumExist = $false
+$colHeaders = ( $CSVImport | Get-member -MemberType 'NoteProperty' | Select-Object -ExpandProperty 'Name')
 $bolName = $false
 $boldistinguishedName = $false
 $bolVersion = $false
@@ -5636,13 +5709,22 @@ Foreach ($ColumnName in $colHeaders )
 }
 #if test column names exist
 if($bolName -and $boldistinguishedName -and $bolVersion -and $bolModifiedDate -and $bolSDDL)
-{    $bolColumExist = $true}return $bolColumExist}#==========================================================================
+{
+    $bolColumExist = $true
+}
+return $bolColumExist
+}
+#==========================================================================
 # Function		: TestCSVColumns
 # Arguments     : CSV import 
 # Returns   	: Boolean
 # Description   : Search for all requried column names in CSV and return true or false
 #==========================================================================
-function TestCSVColumns{param($CSVImport)$bolColumExist = $false$colHeaders = ( $CSVImport | Get-member -MemberType 'NoteProperty' | Select-Object -ExpandProperty 'Name')
+function TestCSVColumns
+{
+param($CSVImport)
+$bolColumExist = $false
+$colHeaders = ( $CSVImport | Get-member -MemberType 'NoteProperty' | Select-Object -ExpandProperty 'Name')
 $bolAccessControlType = $false
 $bolActiveDirectoryRights = $false
 $bolIdentityReference = $false
@@ -5728,7 +5810,12 @@ Foreach ($ColumnName in $colHeaders )
 if($bolAccessControlType -and $bolActiveDirectoryRights -and $bolIdentityReference -and $bolInheritanceFlags -and $bolInheritanceType -and $bolInheritedObjectType `
     -and $bolInvocationID -and $bolIsInherited -and $bolLegendText -and $bolObjectFlags -and $bolObjectType -and $bolOrgUSN -and $bolOU -and $bolPropagationFlags`
     -and $bolSDDate)
-{    $bolColumExist = $true}return $bolColumExist}
+{
+    $bolColumExist = $true
+}
+return $bolColumExist
+}
+
 #==========================================================================
 # Function		: ReverseDNList
 # Arguments     : array of distinguishedname
@@ -6087,7 +6174,8 @@ if($nodelist.count -gt 0)
 }
 return $nodelist
 
-}#==========================================================================
+}
+#==========================================================================
 # Function		: GetDomainShortName
 # Arguments     : domain name 
 # Returns   	: N/A
@@ -11258,7 +11346,9 @@ Function ConvertCSVtoHTM
 {
     Param($CSVInput,[boolean] $bolGUIDtoText)
 $bolReplMeta = $false
-If(Test-Path $CSVInput){
+If(Test-Path $CSVInput)
+{
+
     $fileName = $(Get-ChildItem $CSVInput).BaseName
 	$strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
 	$strFileHTM = $env:temp + "\"+"$fileName"+".htm" 	
@@ -12476,10 +12566,19 @@ else
     if ($global:strPrinDomDir -eq 2)
     {
         [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups $global:strPinDomDC $global:strPrincipalDN $true $Script:CredsExt)
-                $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$Script:CredsExt.UserName,$Script:CredsExt.GetNetworkCredential().Password)
+        
+        $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$Script:CredsExt.UserName,$Script:CredsExt.GetNetworkCredential().Password)
 
         
-        $objADPrinipal.psbase.RefreshCache("msDS-PrincipalName")        $strPrinName = $($objADPrinipal.psbase.Properties.Item("msDS-PrincipalName"))        $global:strSPNobjectClass = $($objADPrinipal.psbase.Properties.Item("objectClass"))[$($objADPrinipal.psbase.Properties.Item("objectClass")).count-1]        if (($strPrinName -eq "") -or ($null -eq $strPrinName))        {            $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item("samAccountName"))"        }        $global:strEffectiveRightSP = $strPrinName        $global:tokens.Add($strPrinName)
+        $objADPrinipal.psbase.RefreshCache("msDS-PrincipalName")
+        $strPrinName = $($objADPrinipal.psbase.Properties.Item("msDS-PrincipalName"))
+        $global:strSPNobjectClass = $($objADPrinipal.psbase.Properties.Item("objectClass"))[$($objADPrinipal.psbase.Properties.Item("objectClass")).count-1]
+        if (($strPrinName -eq "") -or ($null -eq $strPrinName))
+        {
+            $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item("samAccountName"))"
+        }
+        $global:strEffectiveRightSP = $strPrinName
+        $global:tokens.Add($strPrinName)
         $lblEffectiveSelUser.Content = $strPrinName    
     }
     else
@@ -12490,7 +12589,15 @@ else
         $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN")
 
                     
-        $objADPrinipal.psbase.RefreshCache("msDS-PrincipalName")        $strPrinName = $($objADPrinipal.psbase.Properties.Item("msDS-PrincipalName"))        $global:strSPNobjectClass = $($objADPrinipal.psbase.Properties.Item("objectClass"))[$($objADPrinipal.psbase.Properties.Item("objectClass")).count-1]        if (($strPrinName -eq "") -or ($null -eq $strPrinName))        {            $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item("samAccountName"))"        }        $global:strEffectiveRightSP = $strPrinName        $global:tokens.Add($strPrinName)
+        $objADPrinipal.psbase.RefreshCache("msDS-PrincipalName")
+        $strPrinName = $($objADPrinipal.psbase.Properties.Item("msDS-PrincipalName"))
+        $global:strSPNobjectClass = $($objADPrinipal.psbase.Properties.Item("objectClass"))[$($objADPrinipal.psbase.Properties.Item("objectClass")).count-1]
+        if (($strPrinName -eq "") -or ($null -eq $strPrinName))
+        {
+            $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item("samAccountName"))"
+        }
+        $global:strEffectiveRightSP = $strPrinName
+        $global:tokens.Add($strPrinName)
         $lblEffectiveSelUser.Content = $strPrinName
     }
 
@@ -12514,7 +12621,7 @@ $psCmd = [PowerShell]::Create().AddScript({
          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="Scanning..." WindowStartupLocation = "CenterScreen"
-        Width = "350" Height = "150" ShowInTaskbar = "False" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9" Background="#FF165081" >
+        Width = "350" Height = "150" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9" Background="#FF165081" >
     <Grid>
         <StackPanel >
             <Label x:Name="lblProgressBarInfo" Foreground="white" Content="Currently scanning 0 of 0 objects" HorizontalAlignment="Center" Margin="10,20,0,0"  FontWeight="Bold" FontSize="14"/>
