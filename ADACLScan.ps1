@@ -80,10 +80,19 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.4.1
+    26 August, 2017
+
+    *SHA256:* 
+
+    *Fixed issues*
+    ** Compare function got broken report.
+ 
+    ----
     Version: 5.4
     25 August, 2017
 
-    *SHA256:* 
+    *SHA256:* D6BAC8FD6E4BDA7931329E41F0BAEC4CA4A45232D046C777CC13A74138441C3E
 
     *New Features*
     ** New output format. Save to excel file without excel installed. Both from UI and command line. Requires ImportExcel PowerShell Module.
@@ -1102,7 +1111,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.4" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.4.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -3173,10 +3182,11 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 		                    {
 			                    $allSubOU =  @($txtBoxSelected.Text)
 		                    }
+                            $Format = "HTM"
                             #if any objects found compare ACLs
                             if($allSubOU.count -gt 0)
                             {			        
-                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject
+                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Format
                             }	
                             else
                             {
@@ -10301,7 +10311,7 @@ return $SDResult
 #==========================================================================
 Function Get-PermCompare
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText)
+    Param([System.Collections.ArrayList]$ALOUdn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[string] $OutType)
 $Error
 &{#Try
 $arrOUList = New-Object System.Collections.ArrayList
