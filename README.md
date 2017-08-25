@@ -33,6 +33,7 @@ Related blog posts
 It has the following features:
 * View HTML reports of DACLs/SACLs and save it to disk. 
 * Export DACLs/SACLs on Active Directory objects in a CSV format. 
+* Export DACLs/SACLs on Active Directory objects in a Excel sheet. 
 * Connect and browse you default domain, schema , configuration or a naming context defined by distinguishedname. 
 * Browse naming context by clicking you way around, either by OU�s or all types of objects. 
 * Report only explicitly assigned DACLs/SACLs. 
