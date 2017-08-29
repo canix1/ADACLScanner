@@ -8,7 +8,7 @@
 **SHA256:** CC03A16FCDFA94B03DD61B0772B481100098D638A85D92B9023F3A143D61FC0E
 
 ## History
-https://github.com/canix1/ADACLScanner/wiki/History
+Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 #### 25/8/2017
 Thanks to Kirill Nikolaev [exchange12rocks](https://github.com/exchange12rocks) for his contirbution. 
 * Fixing pop-up windows disappear during window switching
