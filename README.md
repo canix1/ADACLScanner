@@ -10,7 +10,7 @@
 ## History
 https://github.com/canix1/ADACLScanner/wiki/History
 #### 25/8/2017
-Thanks to Kirill Nikolaev exchange12rocks(https://github.com/exchange12rocks) for his contirbution. 
+Thanks to Kirill Nikolaev [exchange12rocks](https://github.com/exchange12rocks) for his contirbution. 
 * Fixing pop-up windows disappear during window switching
 * UNIX style endings in code 
 
