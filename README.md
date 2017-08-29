@@ -7,6 +7,9 @@
 
 **SHA256:** CC03A16FCDFA94B03DD61B0772B481100098D638A85D92B9023F3A143D61FC0E
 
+## History
+https://github.com/canix1/ADACLScanner/wiki/History
+[Here](https://github.com/canix1/ADACLScanner/wiki/History)
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
 
