@@ -80,10 +80,19 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.4.2
+    29 August, 2017
+
+    *SHA256:* 
+
+    *Fixed issues*
+    ** Effective rights report broken, now comparing using SIDs instead of names.
+ 
+    ----
     Version: 5.4.1
     26 August, 2017
 
-    *SHA256:* 
+    *SHA256:* 8CB8785927EE353DEA60C1A0F331795D3AAC08EBF0D8D6D8311CB5A809A7E73D
 
     *Fixed issues*
     ** Compare function got broken report.
@@ -1111,7 +1120,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.4.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.4.2" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -5246,11 +5255,13 @@ else
 {
     $SIDs = $ADobject.Attributes.tokengroupsglobalanduniversal
 }
+#Get selected principal SID
+$strOwnerSIDs = [string]$($ADobject.Attributes.objectsid)
+$ownerSIDs = New-Object System.Security.Principal.SecurityIdentifier $ADobject.Attributes.objectsid[0], 0
+# Add selected principal SID to tokenGroups
+[void]$tokenGroups.Add($ownerSIDs.Value)
 
-$ownerSIDs = [string]$($ADobject.Attributes.objectsid)
-
-
-$arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ownerSIDs) $global:CREDS
+$arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $strOwnerSIDs) $global:CREDS
 
 foreach ($ForeignMemb in $arrForeignSecGroups)
 {
@@ -5290,83 +5301,29 @@ foreach ($objResult in $colResults)
             }
     } 
 } 
-
+#Add SID string to tokenGroups
 ForEach ($Value In $SIDs)
 {
-
-
-
     $SID = New-Object System.Security.Principal.SecurityIdentifier $Value, 0
 
-
-    # Translate into "pre-Windows 2000" name.
-    &{#Try
-        $Script:Group = $SID.Translate([System.Security.Principal.NTAccount])
-    }
-    Trap [SystemException]
-    {
-     $script:bolErr = $true
-     $script:sidstring = GetSidStringFromSidByte $Value
-     continue
-    }
-    if ($script:bolErr  -eq $false)
-     {
-
-    [void]$tokenGroups.Add($Script:Group.Value)
-      }
-      else
-    {
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$GetTokenCreds)
-        $LDAPConnection.SessionOptions.ReferralChasing = "None"
-        $request = New-Object System.directoryServices.Protocols.SearchRequest
-        if($global:bolShowDeleted)
-        {
-            [string] $LDAP_SERVER_SHOW_DELETED_OID = "1.2.840.113556.1.4.417"
-            [void]$request.Controls.Add((New-Object "System.DirectoryServices.Protocols.DirectoryControl" -ArgumentList "$LDAP_SERVER_SHOW_DELETED_OID",$null,$false,$true ))
-        }
-        $request.DistinguishedName = "<SID=$script:sidstring>"
-        $request.Filter = "(name=*)"
-        $request.Scope = "Base"
-        [void]$request.Attributes.Add("samaccountname")
-        $response = $LDAPConnection.SendRequest($request)
-        $result = $response.Entries[0]
-        try
-        {
-	        $script:sidstring =  $global:strPrinDomFlat + "\" + $result.attributes.samaccountname[0]
-        }
-        catch
-        {
-             
-        }
-        [void]$tokenGroups.Add($script:sidstring)
-        $script:bolErr = $false
-    }
-
-    $arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $Value) $global:CREDS
-
-    foreach ($ForeignMemb in $arrForeignSecGroups)
-    {
-       if($null -ne $ForeignMemb)
-        {
-            if($ForeignMemb.tostring().length -gt 0 )
-            {
-            [void]$tokenGroups.add($ForeignMemb)
-            }
-        }
-    } 
-    
+    [void]$tokenGroups.Add($SID.Value)
 }
-
-         [void]$tokenGroups.Add("Everyone")
-         [void]$tokenGroups.Add("NT AUTHORITY\Authenticated Users")
+#Add Everyone  
+[void]$tokenGroups.Add("S-1-1-0")
+#Add Authenticated Users 
+[void]$tokenGroups.Add("S-1-5-11")
 if(($global:strPrinDomAttr -eq 14) -or ($global:strPrinDomAttr -eq 18) -or ($global:strPrinDomAttr -eq "5C") -or ($global:strPrinDomAttr -eq "1C") -or ($global:strPrinDomAttr -eq "44")  -or ($global:strPrinDomAttr -eq "54")  -or ($global:strPrinDomAttr -eq "50"))         
 {
-         [void]$tokenGroups.Add("NT AUTHORITY\Other Organization")
+    #Add Other Organization 
+    [void]$tokenGroups.Add("S-1-5-1000")
 }
 else
 {
-         [void]$tokenGroups.Add("NT AUTHORITY\This Organization")
+    #Add This Organization 
+    [void]$tokenGroups.Add("S-1-5-15")
 }
+#Remove duplicate
+$tokenGroups = $tokenGroups | Select-Object -Unique
 Return $tokenGroups
 
 }
@@ -5429,17 +5386,11 @@ Foreach ( $obj in $response.Entries)
         $request.DistinguishedName = $member
         $request.Filter = "(name=*)"
         $request.Scope = "Base"
-        [void]$request.Attributes.Add("msDS-PrincipalName")
-        [void]$request.Attributes.Add("samaccountname")
+        [void]$request.Attributes.Add("objectsid")
         $response = $LDAPConnection.SendRequest($request)
         $ADobject = $response.Entries[0]
-
-        $strPrinName = $ADobject.Attributes."msds-principalname"[0]
-        if (($strPrinName -eq "") -or ($null -eq $strPrinName))
-        {
-            $strPrinName = "$global:strPrinDomFlat\$($ADobject.Attributes.samaccountname[0])"
-        }   
-        [void]$arrForeignMembership.add($strPrinName)
+        $strPrinName = New-Object System.Security.Principal.SecurityIdentifier $($ADobject.Attributes.objectsid), 0
+        [void]$arrForeignMembership.add($strPrinName.Value)
         $index++
     }
 }            
@@ -7608,7 +7559,7 @@ if ($bolACLExist)
     
     If ($IdentityReference.contains("S-1-"))
 	{
-	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference
 
 	}
    
@@ -9168,7 +9119,12 @@ $strHTMLText
 
 
 $tokens  | foreach{
-if ($($_.toString()) -ne $strSPN)
+If ($_.contains("S-1-"))
+{
+	$strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $_
+
+}
+if ($($strNTAccount.toString()) -ne $strSPN)
 {
 Switch ($strColorTemp) 
 {
@@ -9198,7 +9154,7 @@ Switch ($strColorTemp)
 	}# End Switch
 $strGroupText=$strGroupText+@"
 <TR bgcolor="$strColor"><TD>
-$strFont $($_.toString())</TD></TR>
+$strFont $($strNTAccount.toString())</TD></TR>
 "@
 }
 }
@@ -9783,54 +9739,25 @@ if ($rdbDACL.IsChecked)
         {
             $sec.SetSecurityDescriptorBinaryForm($DSobject.Attributes.ntsecuritydescriptor[0])
         }
-        If ($bolCSVOnly)
-        {
-            &{#Try
-                $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
 
-            }
-            Trap [SystemException]
-            { 
-                if($bolCMD)
-                {
-                    Write-host "Failed to translate identity:$ADObjDN" -ForegroundColor red
-                }
-                else
-                {
-                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to translate identity:$ADObjDN" -strType "Warning" -DateStamp ))
-                }
-                Continue
-            }              
+        &{#Try
+            $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
+
         }
-        else
-        {
-            &{#Try
-                #$global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.NTAccount]) # 2017-08-25 RG
-                $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier]) 
-
+        Trap [SystemException]
+        { 
+            if($bolCMD)
+            {
+                Write-host "Failed to translate identity:$ADObjDN" -ForegroundColor red
             }
-            Trap [SystemException]
-            { 
-                if($bolCMD)
-                {
-                    Write-host "Failed to translate identity:$ADObjDN" -ForegroundColor red
-                }
-                else
-                {
-                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to translate identity:$ADObjDN" -strType "Warning" -DateStamp ))
-                }
-                &{#Try
-                    $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
-                }
-                Trap [SystemException]
-                { 
-                    $global:GetSecErr = $true
-                    Continue
-
-                }
-                Continue
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to translate identity:$ADObjDN" -strType "Warning" -DateStamp ))
             }
-        }
+            $global:GetSecErr = $true
+            Continue
+        }              
+
     }
     else
     {
@@ -9856,8 +9783,7 @@ else
     $sec = New-Object System.DirectoryServices.ActiveDirectorySecurity
     $sec.SetSecurityDescriptorBinaryForm($DSobject.Attributes.ntsecuritydescriptor[0])
     &{#Try
-        #$DSobject.psbase.Options.SecurityMasks = [System.DirectoryServices.SecurityMasks]'Owner' -bor [System.DirectoryServices.SecurityMasks]'Group'-bor [System.DirectoryServices.SecurityMasks]'Dacl' -bor [System.DirectoryServices.SecurityMasks]'Sacl'
-        $global:secd = $sec.GetAuditRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.NTAccount])
+        $global:secd = $sec.GetAuditRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
     }
     Trap [SystemException]
     { 
@@ -9869,15 +9795,7 @@ else
         {
             $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to translate identity:$ADObjDN" -strType "Warning" -DateStamp ))
         }       
-        &{#Try
-            $global:secd = $sec.GetAuditRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
-        }
-        Trap [SystemException]
-        { 
-            $global:GetSecErr = $true
-            Continue
-
-        }
+        $global:GetSecErr = $true
         Continue
     }
 }
@@ -9892,7 +9810,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
     {
     
         &{#Try
-            $global:strOwner = $sec.GetOwner([System.Security.Principal.NTAccount]).value
+            $global:strOwner = $sec.GetOwner([System.Security.Principal.SecurityIdentifier]).value
         }
    
         Trap [SystemException]
@@ -9908,7 +9826,6 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                     $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to translate owner identity:$ADObjDN" -strType "Warning" -DateStamp ))
                 }
             }
-            $global:strOwner = $sec.GetOwner([System.Security.Principal.SecurityIdentifier]).value
             Continue
         }
 
@@ -9925,7 +9842,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             {
     
             &{#Try
-                $global:strOwner = $sec.GetOwner([System.Security.Principal.NTAccount]).value
+                $global:strOwner = $sec.GetOwner([System.Security.Principal.SecurityIdentifier]).value
             }
    
             Trap [SystemException]
@@ -9938,7 +9855,6 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                 {
                     $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to translate owner identity:$ADObjDN" -strType "Error" -DateStamp ))
                 }
-                $global:strOwner = $sec.GetOwner([System.Security.Principal.SecurityIdentifier]).value
                 Continue
             }
         } 
@@ -10005,7 +9921,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                 if ($global:strPrincipalDN -eq $ADObjDN)
                 {
                         $sdtemp = ""
-                        $sdtemp = $sd | Where-Object{$_.IdentityReference -eq "NT AUTHORITY\SELF"}
+                        $sdtemp = $sd | Where-Object{$_.IdentityReference -eq "S-1-5-10"}
                         if($sdtemp)
                         {
                             $sdtemp2.Add( $sdtemp)
@@ -12638,7 +12554,6 @@ else
             $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item("samAccountName"))"
         }
         $global:strEffectiveRightSP = $strPrinName
-        $global:tokens.Add($strPrinName)
         $lblEffectiveSelUser.Content = $strPrinName    
     }
     else
@@ -12657,7 +12572,6 @@ else
             $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item("samAccountName"))"
         }
         $global:strEffectiveRightSP = $strPrinName
-        $global:tokens.Add($strPrinName)
         $lblEffectiveSelUser.Content = $strPrinName
     }
 
