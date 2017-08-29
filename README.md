@@ -9,7 +9,7 @@
 
 ## History
 https://github.com/canix1/ADACLScanner/wiki/History
-(https://github.com/canix1/ADACLScanner/wiki/History)
+
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
 
