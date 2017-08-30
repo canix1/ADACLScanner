@@ -80,10 +80,19 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.4.2
+    Version: 5.4.3
     29 August, 2017
 
     *SHA256:* 
+
+    *Fixed issues*
+    ** Convert CSV to HTML report was broken, missing parameter added.
+ 
+    ----
+    Version: 5.4.2
+    29 August, 2017
+
+    *SHA256:* CC03A16FCDFA94B03DD61B0772B481100098D638A85D92B9023F3A143D61FC0E
 
     *Fixed issues*
     ** Effective rights report broken, now comparing using SIDs instead of names.
@@ -11320,6 +11329,7 @@ Remove-Variable -Name "secd" -Scope Global
 Function ConvertCSVtoHTM
 {
     Param($CSVInput,[boolean] $bolGUIDtoText)
+$OutType = "HTM"
 $bolReplMeta = $false
 If(Test-Path $CSVInput)
 {
