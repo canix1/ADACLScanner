@@ -83,7 +83,7 @@
     Version: 5.4.4
     18 September, 2017
 
-    *SHA256:* 3BEC090FA37F7A6ABB08BE7417CA40B25E543AFEC7071EA1CAE568AF2FBDCE69
+    *SHA256:* 
 
     *Fixed issues*
     ** Unresolved schemaGUID string will be written in report instead of nothing.
@@ -93,7 +93,7 @@
     Version: 5.4.3
     30 August, 2017
 
-    *SHA256:* 
+    *SHA256:* 534D84F4B46F63DAE278938873787BCA63CF8A2E1C9BFE3168C8DD06C6572D76
 
     *Fixed issues*
     ** Convert CSV to HTML report was broken, missing parameter added.
