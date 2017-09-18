@@ -80,6 +80,16 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.4.4
+    18 September, 2017
+
+    *SHA256:* 534D84F4B46F63DAE278938873787BCA63CF8A2E1C9BFE3168C8DD06C6572D76
+
+    *Fixed issues*
+    ** Unresolved schemaGUID string will be written in report instead of nothing.
+    ** Typo corrected 
+ 
+    ----
     Version: 5.4.3
     30 August, 2017
 
@@ -6354,7 +6364,7 @@ Function CacheRightsGuids
 Function MapGUIDToMatchingName
 {
 Param([string] $strGUIDAsString,[string] $Domain)
-	[string] $strOut =""
+	[string] $strOut = $strGUIDAsString
 	[string] $strLDAPname = ""
 
 	If ($strGUIDAsString -eq "") 
@@ -6363,13 +6373,13 @@ Param([string] $strGUIDAsString,[string] $Domain)
 	 Break
 	 }
 	$strGUIDAsString = $strGUIDAsString.toUpper()
-	$strOut =""
+
 	if ($global:dicRightsGuids.ContainsKey($strGUIDAsString))
 	{
 		$strOut =$global:dicRightsGuids.Item($strGUIDAsString)
 	}
 
-	If ($strOut -eq "")
+	If ($strOut -eq $strGUIDAsString)
 	{  #Didn't find a match in extended rights
 		If ($global:dicSchemaIDGUIDs.ContainsKey($strGUIDAsString))
 		{
@@ -8827,14 +8837,14 @@ If($SkipDefACE)
 {
 $strHTMLText =@"
 $strHTMLText
-<h3 style="color: #191010;text-align: center;">Default permissions excluced</h3>
+<h3 style="color: #191010;text-align: center;">Default permissions excluded</h3>
 "@ 
 }
 If($SkipProtectDelACE)
 {
 $strHTMLText =@"
 $strHTMLText
-<h3 style="color: #191010;text-align: center;">Protected against accidental deletions permissions excluced</h3>
+<h3 style="color: #191010;text-align: center;">Protected against accidental deletions permissions excluded</h3>
 "@ 
 }
 $strHTMLText =@"

@@ -1,18 +1,11 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.4.3**
+**Version: 5.4.4**
 
-**30 August,2017**
+**19 September,2017**
 
-**SHA256:** 534D84F4B46F63DAE278938873787BCA63CF8A2E1C9BFE3168C8DD06C6572D76
-
-## History
-Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
-#### 25/8/2017
-Thanks to Kirill Nikolaev [exchange12rocks](https://github.com/exchange12rocks) for his contirbution. 
-* Fixing pop-up windows disappear during window switching
-* UNIX style endings in code 
+**SHA256:** 15A4D18EE6D86F577E16B1D3AA52B76C4A9235C0A2C7FA6E07C082EFC7083C50
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
@@ -24,6 +17,18 @@ Thanks to Kirill Nikolaev [exchange12rocks](https://github.com/exchange12rocks) 
 Related blog posts
 * [Forensics - Active Directory ACL Investigation](https://blogs.technet.microsoft.com/pfesweplat/2017/01/28/forensics-active-directory-acl-investigation)
 * [Take Control Over AD Permissions And The AD ACL Scanner Tool](https://blogs.technet.microsoft.com/pfesweplat/2013/05/13/take-control-over-ad-permissions-and-the-ad-acl-scanner-tool)
+
+## History
+
+Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
+#### 19/9/2017
+ * Unresolved schemaGUID string will be written in report instead of nothing.
+ * Typo corrected 
+	
+#### 25/8/2017
+Thanks to Kirill Nikolaev [exchange12rocks](https://github.com/exchange12rocks) for his contirbution. 
+* Fixing pop-up windows disappear during window switching
+* UNIX style endings in code 
 
 ## New Features
 #### 25/8/2017
