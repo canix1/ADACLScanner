@@ -22,8 +22,8 @@ Related blog posts
 
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 #### 22/10/2017
-*Supported output format for comparison report now includes CSV and EXCEL.
-*Translation of security principals failed when running compare mode.
+* Supported output format for comparison report now includes CSV and EXCEL.
+* Translation of security principals failed when running compare mode.
 
 #### 19/9/2017
  * Unresolved schemaGUID string will be written in report instead of nothing.
