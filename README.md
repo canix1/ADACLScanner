@@ -1,11 +1,11 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.4.4**
+**Version: 5.5**
 
-**19 September,2017**
+**22 October,2017**
 
-**SHA256:** 89E4BC55774CA11A432FD731A0CA163CB4E7FF8383DF7E80EA44E6A28DB03227
+**SHA256:** 7BADE8A248F461325535C1240741AC57133D41EBA1557681A16B9EFE60158F11
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
@@ -21,6 +21,10 @@ Related blog posts
 ## History
 
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
+#### 22/10/2017
+*Supported output format for comparison report now includes CSV and EXCEL.
+*Translation of security principals failed when running compare mode.
+
 #### 19/9/2017
  * Unresolved schemaGUID string will be written in report instead of nothing.
  * Typo corrected 

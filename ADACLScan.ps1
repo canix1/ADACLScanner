@@ -80,10 +80,22 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.5
+    22 October, 2017
+
+    *SHA256:* 
+
+    *New Features*
+    ** Supported output format for comparison report now includes CSV and EXCEL.
+
+    *Fixed issues*
+    ** Translation of security principals failed when running compare mode.
+ 
+    ----
     Version: 5.4.4
     18 September, 2017
 
-    *SHA256:* 
+    *SHA256:* 89E4BC55774CA11A432FD731A0CA163CB4E7FF8383DF7E80EA44E6A28DB03227
 
     *Fixed issues*
     ** Unresolved schemaGUID string will be written in report instead of nothing.
@@ -924,11 +936,10 @@ $sd = ""
                                                     <StackPanel Orientation="Vertical" Margin="0,0">
                                                         <StackPanel Orientation="Horizontal">
                                                             <RadioButton x:Name="rdbOnlyHTA" Content="HTML" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput" IsChecked="True"/>
-                                                            <RadioButton x:Name="rdbHTAandCSV" Content="HTML and CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
+                                                            <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
                                                         </StackPanel>
                                                         <StackPanel Orientation="Horizontal">
-                                                        <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="5,02,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
-                                                        <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
+                                                        <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
                                                         </StackPanel>
                                                         <CheckBox x:Name="chkBoxTranslateGUID" Content="Translate GUID's in CSV output" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="200"/>
                                                         <Label x:Name="lblTempFolder" Content="CSV file destination" />
@@ -1139,7 +1150,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.4.4" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.5" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -1217,7 +1228,6 @@ $rdbScanContainer = $ADACLGui.Window.FindName("rdbScanContainer")
 $rdbScanAll = $ADACLGui.Window.FindName("rdbScanAll")
 $rdbScanFilter = $ADACLGui.Window.FindName("rdbScanFilter")
 $txtCustomFilter = $ADACLGui.Window.FindName("txtCustomFilter")
-$rdbHTAandCSV = $ADACLGui.Window.FindName("rdbHTAandCSV")
 $rdbOnlyHTA = $ADACLGui.Window.FindName("rdbOnlyHTA")
 $rdbOnlyCSV = $ADACLGui.Window.FindName("rdbOnlyCSV")
 $txtBoxSelected = $ADACLGui.Window.FindName("txtBoxSelected")
@@ -3070,6 +3080,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 	               $BolSkipDefPerm = $chkBoxDefaultPerm.IsChecked
                    $BolSkipProtectedPerm =  $chkBoxSkipProtectedPerm.IsChecked
                    $global:bolProgressBar = $chkBoxSkipProgressBar.IsChecked
+                   $bolCSV = $rdbOnlyCSV.IsChecked
 	               if ($chkBoxTemplateNodes.IsChecked -eq $false)
                     {
                         $sADobjectName = $txtBoxSelected.Text.ToString()
@@ -3183,15 +3194,37 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                     #if not is empty continue
                     if($strNode -ne "")
                     {
+                        $bolTranslateGUIDStoObject = $false
+                        $date= get-date -uformat %Y%m%d_%H%M%S
+                        $strNode = fixfilename $strNode
+	                    $strFileCSV = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".csv" 
+                        $strFileEXCEL = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
                         $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
                         $strFileHTM = $env:temp + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
-                        CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM					
-                        CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+                        if(!($bolCSV))
+                        {		
+                            if(!($rdbEXcel.IsChecked))
+                            {		            	
+                                if ($chkBoxFilter.IsChecked)
+                                {
+		                            CreateHTA "$global:strDomainShortName-$strNode Filtered" $strFileHTA  $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+		                            CreateHTM "$global:strDomainShortName-$strNode Filtered" $strFileHTM	
+                                }
+                                else
+                                {
+                                    CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+		                            CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
+                                }
 
-           
-                        InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
-                        InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
-                        $bolTranslateGUIDStoObject = $false
+	                            InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
+	                            InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
+                                $Format = "HTM"
+                            }
+                            else
+                            {
+                                $Format = "EXCEL"
+                            }
+                        }
                         If (($txtBoxSelected.Text.ToString().Length -gt 0) -or (($chkBoxTemplateNodes.IsChecked -eq $true)))
                         {
                             #Select type of scope
@@ -3210,11 +3243,10 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 		                    {
 			                    $allSubOU =  @($txtBoxSelected.Text)
 		                    }
-                            $Format = "HTM"
                             #if any objects found compare ACLs
                             if($allSubOU.count -gt 0)
                             {			        
-                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Format
+                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $chkBoxGetOUProtected.IsChecked $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $true $Format
                             }	
                             else
                             {
@@ -3256,6 +3288,7 @@ $strFileHTM = ""
 $sADobjectName = ""
 $date= ""
 }
+
 function RunScan
 {
 
@@ -3294,7 +3327,7 @@ If ($txtBoxSelected.Text)
 	    $BolSkipDefPerm = $chkBoxDefaultPerm.IsChecked
         $BolSkipProtectedPerm =  $chkBoxSkipProtectedPerm.IsChecked
         $global:bolProgressBar = $chkBoxSkipProgressBar.IsChecked
-	    $bolCSV = $rdbHTAandCSV.IsChecked
+	    $bolCSV = $rdbOnlyCSV.IsChecked
 
         $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
@@ -3329,7 +3362,7 @@ If ($txtBoxSelected.Text)
             $strFileEXCEL = $txtTempFolder.Text + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
 	        $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
 	        $strFileHTM = $env:temp + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 	
-            if(!($rdbOnlyCSV.IsChecked))
+            if(!($bolCSV))
             {		
                 if(!($rdbEXcel.IsChecked))
                 {		            	
@@ -3374,7 +3407,7 @@ If ($txtBoxSelected.Text)
                 #if any objects found read ACLs
                 if($allSubOU.count -gt 0)
                 {			        
-                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $rdbOnlyCSV.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $chkBoxGetOUProtected.IsChecked $bolTranslateGUIDStoObject $true $Format
+                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $chkBoxGetOUProtected.IsChecked $bolTranslateGUIDStoObject $true $Format
                 }
                 else
                 {
@@ -6466,7 +6499,7 @@ function fixfilename
 #==========================================================================
 function WritePermCSV
 {
-    Param($sd,[string]$ou,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string]  $strACLDate,[string] $strInvocationID,[string] $strOrgUSN)
+    Param($sd,[string]$ou,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string]  $strACLDate,[string] $strInvocationID,[string] $strOrgUSN,[bool] $compare)
 $sd  | foreach {
         #Convert SID to Names for lookups
         $strPrincipalName = $_.IdentityReference.toString()
@@ -6553,7 +6586,11 @@ $sd  | foreach {
 	    $_.InheritanceFlags.toString()+[char]34+","+[char]34+`
         $_.PropagationFlags.toString()+[char]34+","+[char]34+`
         $strMetaData+[char]34+`
-         $strLegendText | Out-File -Append -FilePath $fileout 
+        $strLegendText+`
+        $(if($compare)
+        {
+        [char]34+$_.State.toString()+[char]34
+        }) | Out-File -Append -FilePath $fileout 
 
 
 
@@ -7581,6 +7618,10 @@ if ($bolACLExist)
 	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference
 
 	}
+    else
+    {
+        $strNTAccount = $IdentityReference 
+    }
    
     Switch ($strColorTemp) 
     {
@@ -7780,6 +7821,10 @@ If($Excel)
     'Apply To' = $strApplyTo ;`
     Permission = $strPerm}
 
+    if($CompareMode)
+    {
+        $objhashtableACE | Add-Member NoteProperty State $($_.State.toString()) -PassThru 
+    }
     [VOID]$global:ArrayAllACE.Add($objhashtableACE)
 }
 
@@ -7835,7 +7880,7 @@ if($CompareMode)
 
 $strACLHTMLText =@"
 $strACLHTMLText
-<TD>$strFont $($_.color.toString())</TD>
+<TD>$strFont $($_.State.toString())</TD>
 "@
 }
 if ($bolCriticalityLevel -eq $true)
@@ -8657,7 +8702,7 @@ if($CompareMode)
 
 $strACLHTMLText =@"
 $strACLHTMLText
-<TD>$strFont $($_.color.toString())</TD>
+<TD>$strFont $($_.State.toString())</TD>
 "@
 }
 
@@ -9600,7 +9645,7 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolCSVOnly,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType)
+    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType)
 $SDResult = $false
 $bolCompare = $false
 $bolACLExist = $true
@@ -10027,8 +10072,8 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				        {
 				        }
 				        else
-				                                                                                                                                            {
-					    If ($bolCSV -or $bolCSVOnly)
+                        {
+					    If ($bolCSV)
 					    {
                             if($intCSV -eq 0)
                             {
@@ -10036,10 +10081,10 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                             $strCSVHeader | Out-File -FilePath $strFileCSV
                             }
                             $intCSV++
-				 		    WritePermCSV $sd[$index] $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN
+				 		    WritePermCSV $sd[$index] $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $false
 
 				 	    }# End If
-                        If (!($bolCSVOnly))
+                        Else
                         {
 					        If ($strColorTemp -eq "1")
 					        {
@@ -10072,7 +10117,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
         }
         else
         {
-            If (!($bolCSVOnly))
+            If (!($bolCSV))
             {            
 			    If ($strColorTemp -eq "1")
 			    {
@@ -10101,7 +10146,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             $permcount++
         }#End if array        
     
-        If (!($bolCSVOnly))
+        If (!($bolCSVO))
         {
             $bolACLExist = $false
             if (($permcount -eq 0) -and ($index -gt 0))
@@ -10175,7 +10220,8 @@ else
             $global:ProgressBarWindow.Window.Dispatcher.invoke([action]{$global:ProgressBarWindow.Window.Close()},"Normal")
             #Remove-Variable -Name "ProgressBarWindow" -Scope Global
     } 
-    If ($bolCSVOnly)
+
+    if($bolCSV)
     {
         if($bolCMD)
         {
@@ -10188,17 +10234,6 @@ else
     }
     else
     {
-        if($bolCSV)
-        {
-            if($bolCMD)
-            {
-                Write-host "Report saved in $strFileCSV" -ForegroundColor Yellow
-            }
-            else
-            {
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
-            }
-        }
         #If excel output
         if($OutType -eq "EXCEL")
         {
@@ -10246,7 +10281,7 @@ return $SDResult
 #==========================================================================
 Function Get-PermCompare
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[string] $OutType)
+    Param([System.Collections.ArrayList]$ALOUdn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType)
 $Error
 &{#Try
 $arrOUList = New-Object System.Collections.ArrayList
@@ -10262,6 +10297,8 @@ $aclcount = 0
 $SDUsnCheck = $false
 $ExitCompare = $false
 $sdOUProtect = ""
+$global:ArrayAllACE = New-Object System.Collections.ArrayList
+
 if ($chkBoxTemplateNodes.IsChecked -eq $true)
 {
 
@@ -10338,16 +10375,35 @@ if($chkBoxScanUsingUSN.IsChecked -eq $true)
 }
 if(!($ExitCompare))
 {
+If ($bolCSV)
+{
+	If ((Test-Path $strFileCSV) -eq $true)
+	{
+	Remove-Item $strFileCSV
+	}
+}
+
+
 $i = 0
-if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
+$intCSV = 0
+if($global:bolCMD)
 {
     $intTot = 0
     #calculate percentage
     $intTot = $ALOUdn.count
-    if ($intTot -gt 0)
+}
+else
+{
+    if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
     {
-    LoadProgressBar
-    
+        $intTot = 0
+        #calculate percentage
+        $intTot = $ALOUdn.count
+        if ($intTot -gt 0)
+        {
+        LoadProgressBar
+   
+        }
     }
 }
 
@@ -10657,18 +10713,32 @@ while($count -le $ALOUdn.count -1)
 	                                }
                                     $newSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
                                     InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
-                                    InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;Color="Match"}
+                                    InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State="Match"}
 
                                     $OUMatchResultOverall = $true
-                                    if ($intAclOccurence -eq 0)
+					                If ($bolCSV)
+					                {
+                                        if($intCSV -eq 0)
+                                        {
+
+                                        $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                                        }
+                                        $intCSV++
+				 		                WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
+
+				 	                }# End If
+                                    Else
                                     {
-                                        $intAclOccurence++
-                                        $bolOUHeader = $true 
-                                        WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                        if ($intAclOccurence -eq 0)
+                                        {
+                                            $intAclOccurence++
+                                            $bolOUHeader = $true 
+                                            WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         
-                                    }
-                                    $bolOUHeader = $false 
-                                    WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                        }
+                                        $bolOUHeader = $false 
+                                        WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                    }#End !$bolCSVOnly
                                 }
                                 $SDUsnNew = $false
                                 break
@@ -10762,7 +10832,7 @@ while($count -le $ALOUdn.count -1)
 
                         $newSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
                         InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
-                        InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;Color="Match"}
+                        InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State="Match"}
 
 		                while($index -le $global:csvHistACLs.count -1) 
 		                {
@@ -10838,28 +10908,56 @@ while($count -le $ALOUdn.count -1)
          
                     if ($SDResult)
                     {
-                        if ($intAclOccurence -eq 0)
+					    If ($bolCSV)
+					    {
+                            if($intCSV -eq 0)
+                            {
+
+                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                            }
+                            $intCSV++
+				 		    WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
+
+				 	    }# End If
+                        Else
                         {
-                            $intAclOccurence++
-                            $bolOUHeader = $true 
-                            WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            if ($intAclOccurence -eq 0)
+                            {
+                                $intAclOccurence++
+                                $bolOUHeader = $true 
+                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         
-                        }
-                        $bolOUHeader = $false 
-                        WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            }
+                            $bolOUHeader = $false 
+                            WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                        }#End !$bolCSVOnly
                     
                     }
 		            If ($OUMatchResult -And !($SDResult))
 		            {
-                        if ($intAclOccurence -eq 0)
+					    If ($bolCSV)
+					    {
+                            if($intCSV -eq 0)
+                            {
+
+                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                            }
+                            $intCSV++
+				 		    WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
+
+				 	    }# End If
+                        Else
                         {
-                            $intAclOccurence++
-                            $bolOUHeader = $true 
-                            WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
-                        }   
-                        $newSdObject.Color = "New"
-                        $bolOUHeader = $false 
-                        WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            if ($intAclOccurence -eq 0)
+                            {
+                                $intAclOccurence++
+                                $bolOUHeader = $true 
+                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            }   
+                            $newSdObject.State = "New"
+                            $bolOUHeader = $false 
+                            WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                        }#End !$bolCSVO
             
                      }
                 }# End If SkipProtectedPerm
@@ -11052,16 +11150,30 @@ while($count -le $ALOUdn.count -1)
 	                    }
                         $histSDObject = New-Object PSObject -Property @{ActiveDirectoryRights=$global:csvHistACLs[$index].ActiveDirectoryRights;InheritanceType=$global:csvHistACLs[$index].InheritanceType;ObjectType=$global:csvHistACLs[$index].ObjectType;`
                         InheritedObjectType=$global:csvHistACLs[$index].InheritedObjectType;ObjectFlags=$global:csvHistACLs[$index].ObjectFlags;AccessControlType=$global:csvHistACLs[$index].AccessControlType;IdentityReference=$strIdentityReference;IsInherited=$global:csvHistACLs[$index].IsInherited;`
-                        InheritanceFlags=$global:csvHistACLs[$index].InheritanceFlags;PropagationFlags=$global:csvHistACLs[$index].PropagationFlags;Color="Missing"}
-                    
-                        if ($intAclOccurence -eq 0)
-                        {
-                            $intAclOccurence++
-                            $bolOUHeader = $true 
-                            WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
-                        }
-                        $bolOUHeader = $false               
-                        WriteOUT $true $histSDObject $DSobject.distinguishedname.toString() $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                        InheritanceFlags=$global:csvHistACLs[$index].InheritanceFlags;PropagationFlags=$global:csvHistACLs[$index].PropagationFlags;State="Missing"}
+
+					    If ($bolCSV)
+					    {
+                            if($intCSV -eq 0)
+                            {
+
+                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                            }
+                            $intCSV++
+				 		    WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
+
+				 	    }# End If
+                        Else
+                        {                    
+                            if ($intAclOccurence -eq 0)
+                            {
+                                $intAclOccurence++
+                                $bolOUHeader = $true 
+                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            }
+                            $bolOUHeader = $false               
+                            WriteOUT $true $histSDObject $DSobject.distinguishedname.toString() $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                        }#End !$bolCSVOnly
                         $histSDObject = ""
                     }# End If $OUMatchResult
                 }# End if $OUdn
@@ -11130,14 +11242,28 @@ while($count -le $ALOUdn.count -1)
                             InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$sdObject.AccessControlType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                             InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;Color=$strDelegationNotation}
 
-                            if ($intAclOccurence -eq 0)
-                            {
-                                $intAclOccurence++
-                                $bolOUHeader = $true 
-                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
-                            }
-                            $bolOUHeader = $false 
-                            WriteOUT $true $MissingOUSdObject $OUdn $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+				            If ($bolCSV)
+					        {
+                                if($intCSV -eq 0)
+                                {
+
+                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                                }
+                                $intCSV++
+				 		        WritePermCSV $MissingOUSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
+
+				 	        }# End If
+                            Else
+                            {   
+                                if ($intAclOccurence -eq 0)
+                                {
+                                    $intAclOccurence++
+                                    $bolOUHeader = $true 
+                                    WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                }
+                                $bolOUHeader = $false 
+                                WriteOUT $true $MissingOUSdObject $OUdn $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            }#End !$bolCSVOnly
                         }
                     }
                     else
@@ -11151,14 +11277,28 @@ while($count -le $ALOUdn.count -1)
                             InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$sdObject.AccessControlType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                             InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;Color=$strDelegationNotation}
  
-                            if ($intAclOccurence -eq 0)
-                            {
-                                $intAclOccurence++
-                                $bolOUHeader = $true 
-                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
-                            }
-                            $bolOUHeader = $false                  
-                            WriteOUT $true $MissingOUSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+ 				            If ($bolCSV)
+					        {
+                                if($intCSV -eq 0)
+                                {
+
+                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                                }
+                                $intCSV++
+				 		        WritePermCSV $MissingOUSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
+
+				 	        }# End If
+                            Else
+                            {   
+                                if ($intAclOccurence -eq 0)
+                                {
+                                    $intAclOccurence++
+                                    $bolOUHeader = $true 
+                                    WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                }
+                                $bolOUHeader = $false                  
+                                WriteOUT $true $MissingOUSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            }#End !$bolCSVOnly
                         }
                     }
                 }#Skip Default or bolComparedelegation
@@ -11226,16 +11366,30 @@ while($count -le $ALOUdn.count -1)
 	        }
             $histSDObject = New-Object PSObject -Property @{ActiveDirectoryRights=$global:csvHistACLs[$index].ActiveDirectoryRights;InheritanceType=$global:csvHistACLs[$index].InheritanceType;ObjectType=$global:csvHistACLs[$index].ObjectType;`
             InheritedObjectType=$global:csvHistACLs[$index].InheritedObjectType;ObjectFlags=$global:csvHistACLs[$index].ObjectFlags;AccessControlType=$global:csvHistACLs[$index].AccessControlType;IdentityReference=$strIdentityReference;IsInherited=$global:csvHistACLs[$index].IsInherited;`
-            InheritanceFlags=$global:csvHistACLs[$index].InheritanceFlags;PropagationFlags=$global:csvHistACLs[$index].PropagationFlags;Color="Node does not exist in AD"}
-                    
-            if ($intAclOccurence -eq 0)
-            {
-                $intAclOccurence++
-                $bolOUHeader = $true 
-                WriteOUT $false $histSDObject $strOUcol $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
-            }
-            $bolOUHeader = $false               
-            WriteOUT $true $histSDObject $strOUcol $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+            InheritanceFlags=$global:csvHistACLs[$index].InheritanceFlags;PropagationFlags=$global:csvHistACLs[$index].PropagationFlags;State="Node does not exist in AD"}
+
+            If ($bolCSV)
+			{
+                if($intCSV -eq 0)
+                {
+
+                $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                }
+                $intCSV++
+				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
+
+			}# End If
+            Else
+            {                       
+                if ($intAclOccurence -eq 0)
+                {
+                    $intAclOccurence++
+                    $bolOUHeader = $true 
+                    WriteOUT $false $histSDObject $strOUcol $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                }
+                $bolOUHeader = $false               
+                WriteOUT $true $histSDObject $strOUcol $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+            }#End !$bolCSVOnly
             $histSDObject = ""
         }
         $index++
@@ -11289,14 +11443,45 @@ if (($count -gt 0))
                 }
             }
         }
-        if ($bolCSVOnly)
+        if($bolCSV)
         {
-
-            [System.Windows.Forms.MessageBox]::Show("Done!" , "Status") 
+            if($bolCMD)
+            {
+                Write-host "Report saved in $strFileCSV" -ForegroundColor Yellow
+            }
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
+            }
         }
         else
         {
-	        Invoke-Item $strFileHTA
+            #If excel output
+            if($OutType -eq "EXCEL")
+            {
+                $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname "ACL" -BoldTopRow -TableStyle Medium2 -TableName "acltbl" -NoLegend -AutoSize -FreezeTopRow  -ConditionalText $( 
+                New-ConditionalText Missing -Range "I:I" -BackgroundColor Red -ConditionalTextColor Black
+                New-ConditionalText Match -Range "I:I" -BackgroundColor Green -ConditionalTextColor Black
+                New-ConditionalText New -Range "I:I" -BackgroundColor Yellow -ConditionalTextColor Black
+                )
+            
+                if($bolCMD)
+                {
+                    Write-host "Report saved in $strFileEXCEL" -ForegroundColor Yellow
+                }
+                else
+                {
+                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileEXCEL" -strType "Warning" -DateStamp ))
+                }
+            }#End if EXCEL
+            else
+            {
+                #If Get-Perm was called with Show then open the HTA file.
+                if($Show)
+                {
+	                Invoke-Item $strFileHTA
+                }
+            }
         }
 
     }# End If
@@ -11309,13 +11494,7 @@ else
 }
 }#End if ExitCompare
 }# End Try
- Trap [SystemException]
- {
-#
 
-Invoke-Item $strFileHTA
-;Continue
- }  
 
 $histSDObject = ""
 $sdObject = ""   
@@ -12123,7 +12302,7 @@ while ($true)
 	                    }
                         $newObjectDefSD = New-Object PSObject -Property @{ActiveDirectoryRights=$ObjectDefSD.ActiveDirectoryRights;InheritanceType=$ObjectDefSD.InheritanceType;ObjectType=$ObjectDefSD.ObjectType;`
                         InheritedObjectType=$ObjectDefSD.InheritedObjectType;ObjectFlags=$ObjectDefSD.ObjectFlags;AccessControlType=$ObjectDefSD.AccessControlType;IdentityReference=$strNTAccount;IsInherited=$ObjectDefSD.IsInherited;`
-                        InheritanceFlags=$ObjectDefSD.InheritanceFlags;PropagationFlags=$ObjectDefSD.PropagationFlags;Color="Match"}
+                        InheritanceFlags=$ObjectDefSD.InheritanceFlags;PropagationFlags=$ObjectDefSD.PropagationFlags;State="Match"}
 
                         #Matching color "green"
                         $strColorTemp = 4
@@ -12174,7 +12353,7 @@ while ($true)
 
                         $newObjectDefSD = New-Object PSObject -Property @{ActiveDirectoryRights=$ObjectDefSD.ActiveDirectoryRights;InheritanceType=$ObjectDefSD.InheritanceType;ObjectType=$ObjectDefSD.ObjectType;`
                         InheritedObjectType=$ObjectDefSD.InheritedObjectType;ObjectFlags=$ObjectDefSD.ObjectFlags;AccessControlType=$ObjectDefSD.AccessControlType;IdentityReference=$strNTAccount;IsInherited=$ObjectDefSD.IsInherited;`
-                        InheritanceFlags=$ObjectDefSD.InheritanceFlags;PropagationFlags=$ObjectDefSD.PropagationFlags;Color="New"}
+                        InheritanceFlags=$ObjectDefSD.InheritanceFlags;PropagationFlags=$ObjectDefSD.PropagationFlags;State="New"}
 
                         $sdFile = ""
                         #Create ad security object
@@ -12194,7 +12373,7 @@ while ($true)
                         if ($SDCompareResult)
                         {
                             #Change from New to Match
-                            $newObjectDefSD.Color = "Match"
+                            $newObjectDefSD.State = "Match"
                             #Match color "Green"
                             $strColorTemp = 4
                             #If first ACE add header
@@ -12249,7 +12428,7 @@ while ($true)
 
                         $ObjectDefSDFile = New-Object PSObject -Property @{ActiveDirectoryRights=$ObjectDefSDFromFile.ActiveDirectoryRights;InheritanceType=$ObjectDefSDFromFile.InheritanceType;ObjectType=$ObjectDefSDFromFile.ObjectType;`
                         InheritedObjectType=$ObjectDefSDFromFile.InheritedObjectType;ObjectFlags=$ObjectDefSDFromFile.ObjectFlags;AccessControlType=$ObjectDefSDFromFile.AccessControlType;IdentityReference=$ObjectDefSDFromFile.IdentityReference;IsInherited=$ObjectDefSDFromFile.IsInherited;`
-                        InheritanceFlags=$ObjectDefSDFromFile.InheritanceFlags;PropagationFlags=$ObjectDefSDFromFile.PropagationFlags;Color="Missing"}
+                        InheritanceFlags=$ObjectDefSDFromFile.InheritanceFlags;PropagationFlags=$ObjectDefSDFromFile.PropagationFlags;State="Missing"}
 
                         foreach($ObjectDefSD in $sd)
                         {
@@ -12309,7 +12488,7 @@ while ($true)
 
                 $newObjectDefSD = New-Object PSObject -Property @{ActiveDirectoryRights=$ObjectDefSD.ActiveDirectoryRights;InheritanceType=$ObjectDefSD.InheritanceType;ObjectType=$ObjectDefSD.ObjectType;`
                 InheritedObjectType=$ObjectDefSD.InheritedObjectType;ObjectFlags=$ObjectDefSD.ObjectFlags;AccessControlType=$ObjectDefSD.AccessControlType;IdentityReference=$ObjectDefSD.IdentityReference;IsInherited=$ObjectDefSD.IsInherited;`
-                InheritanceFlags=$ObjectDefSD.InheritanceFlags;PropagationFlags=$ObjectDefSD.PropagationFlags;Color="Missing in file"}
+                InheritanceFlags=$ObjectDefSD.InheritanceFlags;PropagationFlags=$ObjectDefSD.PropagationFlags;State="Missing in file"}
 
                 #Matching color "green"
                 $strColorTemp = 5
@@ -12674,6 +12853,11 @@ $strCSVHeader = @"
 "OU","ObjectClass","IdentityReference","PrincipalName","ActiveDirectoryRights","InheritanceType","ObjectType","InheritedObjectType","ObjectFlags","AccessControlType","IsInherited","InheritanceFlags","PropagationFlags","SDDate","InvocationID","OrgUSN","LegendText"
 "@
 
+#Number of columns in CSV import
+$strCSVCompareHeader = @"
+"OU","ObjectClass","IdentityReference","PrincipalName","ActiveDirectoryRights","InheritanceType","ObjectType","InheritedObjectType","ObjectFlags","AccessControlType","IsInherited","InheritanceFlags","PropagationFlags","SDDate","InvocationID","OrgUSN","LegendText","State"
+"@
+
 $global:myPID = $PID
 $global:csvHistACLs = New-Object System.Collections.ArrayList
 $CurrentFSPath = split-path -parent $MyInvocation.MyCommand.Path
@@ -12990,13 +13174,13 @@ if($base)
                             $strFileEXCEL = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
                         }
 
-                        $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $false "EXCEL"
+                        $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false "EXCEL"
 
                     }
                 }
                 else # Create CSV file
                 {
-                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $true $true $false $false $false $false $false $false "HTM"
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $true $false $false $false $false $false $false "HTM"
                 }
             }
         }
