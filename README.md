@@ -1,11 +1,11 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.5.1**
+**Version: 5.6**
 
 **8 January,2018**
 
-**SHA256:** 2206815374C5CDCF4091F177B60CFDADC2B9BFBDBBCE4B208A061AC3B403F115
+**SHA256:** 908819F1E2BAAC1B8BDBDB58C4DA7325606173555E1188CBEE22D54E2A3D612A
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
@@ -22,9 +22,16 @@ Related blog posts
 
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 #### 8/1/2018
+* New feature: Run effective rights report from the command line.
+* New feature: parameter from command line to get modified date of security descriptor in report.
 * Fixing problem when to running compare where objects are missing.
 
 ## New Features
+#### 8/1/2018
+* New feature: Run effective rights report from the command line.
+* New feature: parameter from command line to get modified date of security descriptor in report.
+![](https://github.com/canix1/ADACLScanner/blob/master/src/effectiverights.gif)
+
 #### 25/8/2017
 * New output format. Save to excel file without excel installed. Both from UI and command line. Requires ImportExcel PowerShell Module. You can install ImportExcel directly from the Powershell Gallery.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/SaveToExcel.jpg)

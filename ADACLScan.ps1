@@ -34,19 +34,24 @@
     Create a CSV file with the permissions of the object CORP.
 
 .EXAMPLE
-    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -HTML
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Output HTML
 
     Create a HTML file with the permissions of the object CORP.
 
 .EXAMPLE
-    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -EXCEL
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Output EXCEL
 
     Create a Excel file with the permissions of the object CORP.
 
 .EXAMPLE
-    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -HTML -Show
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Output HTML -Show
 
     Opens the HTML (HTA) file with the permissions of the object CORP.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Output HTML -Show -SDDate
+
+    Opens the HTML (HTA) file with the permissions of the object CORP including the modified date of the security descriptor.
 
 .EXAMPLE
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -OutputFolder C:\Temp
@@ -57,6 +62,11 @@
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree
 
     Create a CSV file with the permissions of the object CORP and all child objects of type OrganizationalUnit.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree -EffectiveRightsPrincipal joe"
+
+    Create a CSV file with the effective permissions of all the objects in the path for the user "joe".
 
 .EXAMPLE
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree -Filter "(objectClass=user)"
@@ -74,16 +84,26 @@
     Targeted search against server "DC1" on port 389 that will create a CSV file with the permissions of all the objects in the path and below that matches the filter (objectClass=user).
 
 .OUTPUTS
-    The output is an CSV or HTML report.
+    The output is an CSV,HTML or EXCEL report.
 
 .LINK
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.5.1
+    Version: 5.6
     8 January, 2018
 
     *SHA256:* 
+
+    *New Features*
+    ** Run effective rights report from the command line.
+    ** New parameter from command line to get modified date of security descriptor in report.
+ 
+    ----
+    Version: 5.5.1
+    8 January, 2018
+
+    *SHA256:* 2206815374C5CDCF4091F177B60CFDADC2B9BFBDBBCE4B208A061AC3B403F115
 
     *Fixed issues*
     ** Failed to run compare where objects are missing.
@@ -545,30 +565,33 @@ Param
     [String] 
     $Port,
 
-    # Output folder path for where results are written.
+    # EffectiveRightsPrincipal. Specify your security principal to chech for effective permissions
     [Parameter(Mandatory=$false, 
                 Position=5,
                 ParameterSetName='Default')]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $OutputFolder,
+    $EffectiveRightsPrincipal,
 
     # Generates a HTML report, default is a CSV.
     [Parameter(Mandatory=$false, 
+                Position=6,
                 ParameterSetName='Default')]
+    [ValidateSet("CSV", "HTML", "EXCEL")]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
-    [switch] 
-    $HTML,
-    
-    # Generates a EXCEL report, default is a CSV.
+    [String] 
+    $Output = "CSV",
+
+    # Output folder path for where results are written.
     [Parameter(Mandatory=$false, 
+                Position=7,
                 ParameterSetName='Default')]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
-    [switch] 
-    $EXCEL,
+    [String] 
+    $OutputFolder,
         
     # Open HTML report
     [Parameter(Mandatory=$false, 
@@ -577,6 +600,14 @@ Param
     [ValidateNotNullOrEmpty()]
     [switch] 
     $Show,
+
+    # Include Security Descriptor modified date in report
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $SDDate,
 
     # Data Managment Delegation OU Name
     [Parameter(Mandatory=$false, 
@@ -1159,7 +1190,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.5.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.6" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -1316,6 +1347,9 @@ $tabAdv.IsSelected= $true
 ###################
 #TODO: Place custom script here
 
+#### Check if UI should be loaded
+if(!($base))
+{
 
 $code = @"
 using System;
@@ -1349,8 +1383,8 @@ namespace System
 }
 "@
 
-Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
 
+Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
 
 $ADACLGui.Window.Add_Loaded({
     $Global:observableCollection = New-Object System.Collections.ObjectModel.ObservableCollection[System.Object]
@@ -3028,6 +3062,8 @@ if ($this.SelectedItem.Tag -eq "NotEnumerated")
 })
 
 
+}#### End of if $base , check if UI should be loaded
+
 <######################################################################
 
     Functions to Build Domains OU Tree XML Document
@@ -3225,14 +3261,22 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 		                            CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
                                 }
 
-	                            InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
-	                            InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
+	                            InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
+	                            InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
+
                                 $Format = "HTM"
+                                $Show = $true
                             }
                             else
                             {
                                 $Format = "EXCEL"
+                                $Show = $false
                             }
+                        }
+                        else
+                        {
+                            $Format = "CSV"
+                            $Show = $false
                         }
                         If (($txtBoxSelected.Text.ToString().Length -gt 0) -or (($chkBoxTemplateNodes.IsChecked -eq $true)))
                         {
@@ -3255,7 +3299,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                             #if any objects found compare ACLs
                             if($allSubOU.count -gt 0)
                             {			        
-                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $chkBoxGetOUProtected.IsChecked $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $true $Format
+                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $chkBoxGetOUProtected.IsChecked $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format
                             }	
                             else
                             {
@@ -3320,7 +3364,7 @@ If ($txtBoxSelected.Text)
         }
     }
     
-        If(($chkBoxEffectiveRights.IsChecked -eq $true) -and  ($global:tokens.count -eq 0))
+    If(($chkBoxEffectiveRights.IsChecked -eq $true) -and  ($global:tokens.count -eq 0))
     {
                     
                     $global:observableCollection.Insert(0,(LogMessage -strMessage "Effective rights enabled , but no service principal selected!" -strType "Error" -DateStamp ))
@@ -3389,12 +3433,19 @@ If ($txtBoxSelected.Text)
 	                InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
 	                InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxGetOUProtected.IsChecked $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked
                     $Format = "HTM"
+                    $Show = $true
                 }
                 else
                 {
                     $Format = "EXCEL"
+                    $Show = $false
                 }
-            }			
+            }
+            else
+            {
+                $Format = "CSV"
+                $Show = $false
+            }           		
 	        If ($txtBoxSelected.Text.ToString().Length -gt 0)
             {
                 #Select type of scope
@@ -3416,7 +3467,7 @@ If ($txtBoxSelected.Text)
                 #if any objects found read ACLs
                 if($allSubOU.count -gt 0)
                 {			        
-                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $chkBoxGetOUProtected.IsChecked $bolTranslateGUIDStoObject $true $Format
+                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $chkBoxGetOUProtected.IsChecked $bolTranslateGUIDStoObject $Show $Format
                 }
                 else
                 {
@@ -7830,6 +7881,11 @@ If($Excel)
     'Apply To' = $strApplyTo ;`
     Permission = $strPerm}
 
+    if($boolReplMetaDate)
+    {
+        $objhashtableACE | Add-Member NoteProperty "Security Descriptor Modified" $strReplMetaDate -PassThru 
+    }
+
     if($CompareMode)
     {
         $objhashtableACE | Add-Member NoteProperty State $($_.State.toString()) -PassThru 
@@ -9654,7 +9710,7 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType)
+    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType)
 $SDResult = $false
 $bolCompare = $false
 $bolACLExist = $true
@@ -9665,13 +9721,19 @@ $aclcount = 0
 $sdOUProtect = ""
 $global:ArrayAllACE = New-Object System.Collections.ArrayList
 
-If ($bolCSV)
+if($OutType -eq "CSV")
 {
+    $bolCSV = $true
 	If ((Test-Path $strFileCSV) -eq $true)
 	{
-	Remove-Item $strFileCSV
+	    Remove-Item $strFileCSV
 	}
 }
+else
+{
+    $bolCSV = $false
+}
+
 
 $count = 0
 $i = 0
@@ -10240,6 +10302,11 @@ else
         {
             $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
         }
+            #If Get-Perm was called with Show then open the CSV file.
+            if($Show)
+            {
+	            Invoke-Item $strFileCSV
+            }
     }
     else
     {
@@ -10255,6 +10322,13 @@ else
             else
             {
                 $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileEXCEL" -strType "Warning" -DateStamp ))
+            }
+            if($Show)
+            {
+                If (test-path HKLM:SOFTWARE\Classes\Excel.Application) 
+                {
+	                Invoke-Item $strFileEXCEL
+                }
             }
         }#End if EXCEL
         else
@@ -12691,6 +12765,7 @@ $global:strEffectiveRightAccount = ""
 $global:strSPNobjectClass = ""
 $global:strPrincipalDN = ""
 $strPrinName = ""
+$SPFound = $false
 
 if ($global:strPrinDomDir -eq 2)
 {
@@ -12740,13 +12815,29 @@ else
 }
 if ($global:strPrincipalDN -eq "")
 {
-    $global:observableCollection.Insert(0,(LogMessage -strMessage "Could not find $strPrincipal!" -strType "Error" -DateStamp ))
-    $lblEffectiveSelUser.Content = ""
+    if($global:bolCMD)
+    {
+        Write-host  "Could not find $strPrincipal!"
+    }
+    else
+    {
+        $global:observableCollection.Insert(0,(LogMessage -strMessage "Could not find $strPrincipal!" -strType "Error" -DateStamp ))
+        $lblEffectiveSelUser.Content = ""
+    }
 }
 else
 {
+    $SPFound = $true
     $global:strEffectiveRightAccount = $strPrincipal
-    $global:observableCollection.Insert(0,(LogMessage -strMessage "Found security principal" -strType "Info" -DateStamp ))
+    if($global:bolCMD)
+    {
+        Write-host "Found security principal"
+    }
+    else
+    {
+        $global:observableCollection.Insert(0,(LogMessage -strMessage "Found security principal" -strType "Info" -DateStamp ))
+    }
+    
     if ($global:strPrinDomDir -eq 2)
     {
         [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups $global:strPinDomDC $global:strPrincipalDN $true $Script:CredsExt)
@@ -12784,7 +12875,7 @@ else
     }
 
 }
-
+return $SPFound
 }
 
 
@@ -13031,7 +13122,18 @@ if($base)
     {
         $global:bolConnected = $false  
     }
-
+    $bolEffective = $false
+    if($EffectiveRightsPrincipal.Length -gt 0)
+    {
+        if($(GetEffectiveRightSP $EffectiveRightsPrincipal $global:strDomainDNName))
+         {
+            $bolEffective = $true
+        }
+        else
+        {
+            break;
+        }
+    }
     If ($NCSelect -eq $true)  
     {
 	    If (!($strLastCacheGuidsDom -eq $global:strDomainDNName))
@@ -13106,46 +13208,43 @@ if($base)
                 $strFileCSV = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
             }
             # Check if HTML switch is selected , creates a HTML file
-            if($HTML)
-            {			
-                $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
-                #Set the path for the HTM file name
-                if($OutputFolder -gt "")
-                {
-                    #Check if foler exist if not use current folder
-                    if(Test-Path $OutputFolder)
+            Switch ($Output)
+            {
+            "HTML"
+                {			
+                    $bolCSV = $false
+                    $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
+                    #Set the path for the HTM file name
+                    if($OutputFolder -gt "")
                     {
-                        $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm" 
+                        #Check if foler exist if not use current folder
+                        if(Test-Path $OutputFolder)
+                        {
+                            $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm" 
+                        }
+                        else
+                        {
+                            Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                            $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm" 
+                        }
                     }
                     else
                     {
-                        Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                        $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm" 
+                        $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm"  
                     }
-                }
-                else
-                {
-                    $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$Node-$global:SessionID"+".htm"  
-                }
-                CreateHTA "$global:strDomainShortName-$Node" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
-                CreateHTM "$global:strDomainShortName-$Node" $strFileHTM	
-                InitiateHTM $strFileHTA $Node $Base $false $false $false $false $false $false $false "" $false $false $false
-                InitiateHTM $strFileHTM $Node $Base $false $false $false $false $false $false $false "" $false $false $false
-                if($Show)
-                {
-                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $true "HTM"
-                }
-                else
-                {
-                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false $false "HTM"
-                }
+                    CreateHTA "$global:strDomainShortName-$Node" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+                    CreateHTM "$global:strDomainShortName-$Node" $strFileHTM	
+                    InitiateHTM $strFileHTA $Node $Base $SDDate $false $false $false $false $false $false "" $false $bolEffective $false
+                    InitiateHTM $strFileHTM $Node $Base $SDDate $false $false $false $false $false $false "" $false $bolEffective $false
 
-                Write-host "Report saved in $strFileHTM" -ForegroundColor Yellow
-            }
-            else 
-            {
-                if($EXCEL)
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $SDDate $false $bolEffective $false $false $Show "HTM"
+
+
+                    Write-host "Report saved in $strFileHTM" -ForegroundColor Yellow
+                }
+            "EXCEL"
                 {	
+                    $bolCSV = $false
                     $ExcelModuleExist = $true
                     if(!$(get-module ImportExcel))
                     { 
@@ -13183,14 +13282,16 @@ if($base)
                             $strFileEXCEL = $CurrentFSPath + "\" +$Node + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
                         }
 
-                        $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $false $false $false $false $false $false $false "EXCEL"
+                        $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $SDDate $false $bolEffective $false $false $Show "EXCEL"
 
                     }
                 }
-                else # Create CSV file
+            default
                 {
-                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $true $false $false $false $false $false $false "HTM"
+                    $bolCSV = $true
+                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $false $SDDate $false $bolEffective $false $false $Show "CSV"
                 }
+
             }
         }
         else
