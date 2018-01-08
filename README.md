@@ -3,9 +3,9 @@
 ## Current version
 **Version: 5.5.1**
 
-**1 January,2018**
+**8 January,2018**
 
-**SHA256:** F40459DC1C71475374896853167F7F7D4622E76D6F3B2B4CD15574DFA9A62F0E
+**SHA256:** 2206815374C5CDCF4091F177B60CFDADC2B9BFBDBBCE4B208A061AC3B403F115
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
@@ -21,7 +21,7 @@ Related blog posts
 ## History
 
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
-#### 22/10/2017
+#### 8/1/2018
 * Fixing problem when to running compare where objects are missing.
 
 ## New Features
