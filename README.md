@@ -3,9 +3,9 @@
 ## Current version
 **Version: 5.6.1**
 
-**8 January,2018**
+**9 July,2018**
 
-**SHA256:** 908819F1E2BAAC1B8BDBDB58C4DA7325606173555E1188CBEE22D54E2A3D612A
+**SHA256:** B51FB4F0F794934C98CEBE9E850957D508BCF2AF1FDCC4F06C12929DBC8D8F85
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
