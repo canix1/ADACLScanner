@@ -1,7 +1,7 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.6**
+**Version: 5.6.1**
 
 **8 January,2018**
 
@@ -21,6 +21,8 @@ Related blog posts
 ## History
 
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
+#### 9/7/2018
+* Change of encoding for CSV files from Unicode to UTF8.
 #### 8/1/2018
 * New feature: Run effective rights report from the command line.
 * New feature: parameter from command line to get modified date of security descriptor in report.

@@ -90,10 +90,19 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
+    Version: 5.6.1
+    9 July, 2018
+
+    *SHA256:* 
+
+    *Fixed issues*
+    ** Changed CSV file encoding from Unicode to UTF8.
+ 
+    ----
     Version: 5.6
     8 January, 2018
 
-    *SHA256:* 
+    *SHA256:* 908819F1E2BAAC1B8BDBDB58C4DA7325606173555E1188CBEE22D54E2A3D612A
 
     *New Features*
     ** Run effective rights report from the command line.
@@ -1190,7 +1199,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.6" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.6.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -6650,7 +6659,7 @@ $sd  | foreach {
         $(if($compare)
         {
         [char]34+$_.State.toString()+[char]34
-        }) | Out-File -Append -FilePath $fileout 
+        }) | Out-File -Append -FilePath $fileout -Encoding UTF8
 
 
 
@@ -7876,7 +7885,12 @@ if ($bolACLExist)
 
 If($Excel)
 {
-    $objhashtableACE = [pscustomobject][ordered]@{    Object = $DSObject ;`    ObjectClass = $strObjClass ;`    IdentityReference = $IdentityReference ;`    Trustee = $strNTAccount ;`    Access = $objAccess ;`
+    $objhashtableACE = [pscustomobject][ordered]@{
+    Object = $DSObject ;`
+    ObjectClass = $strObjClass ;`
+    IdentityReference = $IdentityReference ;`
+    Trustee = $strNTAccount ;`
+    Access = $objAccess ;`
     Inhereted = $objIsInheried ;`
     'Apply To' = $strApplyTo ;`
     Permission = $strPerm}
@@ -10149,7 +10163,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                             if($intCSV -eq 0)
                             {
 
-                            $strCSVHeader | Out-File -FilePath $strFileCSV
+                            $strCSVHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                             }
                             $intCSV++
 				 		    WritePermCSV $sd[$index] $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $false
@@ -10804,7 +10818,7 @@ while($count -le $ALOUdn.count -1)
                                         if($intCSV -eq 0)
                                         {
 
-                                        $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                                        $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                                         }
                                         $intCSV++
 				 		                WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
@@ -10996,7 +11010,7 @@ while($count -le $ALOUdn.count -1)
                             if($intCSV -eq 0)
                             {
 
-                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                             }
                             $intCSV++
 				 		    WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
@@ -11023,7 +11037,7 @@ while($count -le $ALOUdn.count -1)
                             if($intCSV -eq 0)
                             {
 
-                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                             }
                             $intCSV++
 				 		    WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
@@ -11240,7 +11254,7 @@ while($count -le $ALOUdn.count -1)
                             if($intCSV -eq 0)
                             {
 
-                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                            $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                             }
                             $intCSV++
 				 		    WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
@@ -11330,7 +11344,7 @@ while($count -le $ALOUdn.count -1)
                                 if($intCSV -eq 0)
                                 {
 
-                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                                 }
                                 $intCSV++
 				 		        WritePermCSV $MissingOUSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
@@ -11365,7 +11379,7 @@ while($count -le $ALOUdn.count -1)
                                 if($intCSV -eq 0)
                                 {
 
-                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                                 }
                                 $intCSV++
 				 		        WritePermCSV $MissingOUSdObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
@@ -11456,7 +11470,7 @@ while($count -le $ALOUdn.count -1)
                 if($intCSV -eq 0)
                 {
 
-                $strCSVCompareHeader | Out-File -FilePath $strFileCSV
+                $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
                 }
                 $intCSV++
 				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $true
@@ -12650,7 +12664,7 @@ If ((Test-Path $fileout) -eq $true)
     Remove-Item $fileout
 }
 
-$strCSVHeaderDefsd | Out-File -FilePath $fileout
+$strCSVHeaderDefsd | Out-File -FilePath $fileout -Encoding UTF8
 
 
 
@@ -12725,7 +12739,7 @@ while ($true)
         $strDistinguishedName+[char]34+","+[char]34+`
         $strVersion+[char]34+","+[char]34+`
         $strLastChangeDate+[char]34+","+[char]34+`
-        $strSDDL+[char]34 | Out-File -Append -FilePath $fileout 
+        $strSDDL+[char]34 | Out-File -Append -FilePath $fileout  -Encoding UTF8
 
     
     }
