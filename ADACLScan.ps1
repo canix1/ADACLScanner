@@ -90,14 +90,26 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.6.1
-    9 July, 2018
+    Version: 5.6.2
+    27 Mars, 2019
 
     *SHA256:* 
 
     *Fixed issues*
+    ** Wrong state of ACE in CSV when running a compare, "New" was shown as "Match"
+    
+    *New Features*
+    ** IF MSHTA.EXE is blocked or missing a browser will show the result in a HTML file. 
+
+    ----
+    Version: 5.6.1
+    9 July, 2018
+
+    *SHA256:* B51FB4F0F794934C98CEBE9E850957D508BCF2AF1FDCC4F06C12929DBC8D8F85
+
+    *Fixed issues*
     ** Changed CSV file encoding from Unicode to UTF8.
- 
+
     ----
     Version: 5.6
     8 January, 2018
@@ -1199,7 +1211,7 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.6.1" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.6.2" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
                         <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -10350,7 +10362,24 @@ else
             #If Get-Perm was called with Show then open the HTA file.
             if($Show)
             {
-	            Invoke-Item $strFileHTA
+	            try
+                {
+                    Invoke-Item $strFileHTA
+                }
+                catch
+                {
+                    if($bolCMD)
+                    {
+                        Write-host "Failed to launch MSHTA.exe" -ForegroundColor Red
+                        Write-host "Instead opening the following file directly: $strFileHTM" -ForegroundColor Yellow
+                    }
+                    else
+                    {
+                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to launch MSHTA.exe" -strType "Error" -DateStamp ))
+                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Instead opening the following file directly: $strFileHTM" -strType "Ino" -DateStamp ))
+                    }   
+                    invoke-item $strFileHTM
+                }
             }
         }
     }
@@ -11032,7 +11061,8 @@ while($count -le $ALOUdn.count -1)
                     }
 		            If ($OUMatchResult -And !($SDResult))
 		            {
-					    If ($bolCSV)
+                        $newSdObject.State = "New"
+                        If ($bolCSV)
 					    {
                             if($intCSV -eq 0)
                             {
@@ -11051,7 +11081,6 @@ while($count -le $ALOUdn.count -1)
                                 $bolOUHeader = $true 
                                 WriteOUT $false $sd $DSobject.distinguishedname.toString() $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                             }   
-                            $newSdObject.State = "New"
                             $bolOUHeader = $false 
                             WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
                         }#End !$bolCSVO
@@ -11576,7 +11605,24 @@ if (($count -gt 0))
                 #If Get-Perm was called with Show then open the HTA file.
                 if($Show)
                 {
-	                Invoke-Item $strFileHTA
+                    try
+                    {
+                        Invoke-Item $strFileHTA
+                    }
+                    catch
+                    {
+                        if($bolCMD)
+                        {
+                            Write-host "Failed to launch MSHTA.exe" -ForegroundColor Red
+                            Write-host "Instead opening the following file directly: $strFileHTM" -ForegroundColor Yellow
+                        }
+                        else
+                        {
+                            $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to launch MSHTA.exe" -strType "Error" -DateStamp ))
+                            $global:observableCollection.Insert(0,(LogMessage -strMessage "Instead opening the following file directly: $strFileHTM" -strType "Ino" -DateStamp ))
+                        }                        
+                        Invoke-Item $strFileHTM
+                    }
                 }
             }
         }
