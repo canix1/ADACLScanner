@@ -1,11 +1,11 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.6.2**
+**Version: 5.6.3**
 
-**27 Mars,2019**
+**16 May,2019**
 
-**SHA256:** 55CB7745DB9B5B5CC0E74E7294A5847A49180D96B0A235EED0B7C6D323800905
+**SHA256:** A7A9CFD7B8385FE9772C8181365D060B9D2990C34CCEB0840F1E7913371A7453
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
@@ -21,21 +21,16 @@ Related blog posts
 ## History
 
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
-#### 9/7/2018
-* Change of encoding for CSV files from Unicode to UTF8.
-#### 8/1/2018
-* New feature: Run effective rights report from the command line.
-* New feature: parameter from command line to get modified date of security descriptor in report.
-* Fixing problem when to running compare where objects are missing.
+#### 16 May,2019
+
+* Fixing problem with effective rights.
 
 ## New Features
-#### 8/1/2018
-* New feature: Run effective rights report from the command line.
-* New feature: parameter from command line to get modified date of security descriptor in report.
+* Run effective rights report from the command line.
+* parameter from command line to get modified date of security descriptor in report.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/effectiverights.gif)
 
-#### 25/8/2017
-* New output format. Save to excel file without excel installed. Both from UI and command line. Requires ImportExcel PowerShell Module. You can install ImportExcel directly from the Powershell Gallery.
+* Save to excel file without excel installed. Both from UI and command line. Requires ImportExcel PowerShell Module. You can install ImportExcel directly from the Powershell Gallery.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/SaveToExcel.jpg)
 
 * Command line support.
