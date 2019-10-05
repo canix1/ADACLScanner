@@ -2,23 +2,12 @@
 .Synopsis
     ADACLScan.ps1
      
-    AUTHOR: Robin Granberg (robin.granberg@microsoft.com)
+    AUTHOR: Robin Granberg (robin.g@home.se)
     
     THIS CODE-SAMPLE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED 
     OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR 
     FITNESS FOR A PARTICULAR PURPOSE.
     
-    This sample is not supported under any Microsoft standard support program or service. 
-    The script is provided AS IS without warranty of any kind. Microsoft further disclaims all
-    implied warranties including, without limitation, any implied warranties of merchantability
-    or of fitness for a particular purpose. The entire risk arising out of the use or performance
-    of the sample and documentation remains with you. In no event shall Microsoft, its authors,
-    or anyone else involved in the creation, production, or delivery of the script be liable for 
-    any damages whatsoever (including, without limitation, damages for loss of business profits, 
-    business interruption, loss of business information, or other pecuniary loss) arising out of 
-    the use of or inability to use the sample or documentation, even if Microsoft has been advised 
-    of the possibility of such damages.
-
 .DESCRIPTION
     A tool with GUI or command linte used to create reports of access control lists (DACLs) and system access control lists (SACLs) in Active Directory.
     See https://github.com/canix1/ADACLScanner
@@ -90,13 +79,18 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.6.3
-    16 May, 2019
+    Version: 5.7
+    5 October, 2019
 
     *SHA256:* 
 
+    *New Feature*
+    ** Templates for Windows Server 2019 1809
+
     *Fixed issues*
-    ** Effective rights report did not work. User group membership failed to comapair identity reference.
+    ** When a template contained a missing object the compare function stoped.
+    ** Corrected templates according the same standard with both SID and Principal Name.
+
 #>
 Param
 (
@@ -775,8 +769,8 @@ $sd = ""
                         <Label x:Name="lblStyleVersion4" Content="d" HorizontalAlignment="Left" Height="38" Margin="0,3,0,0" VerticalAlignment="Top"  Width="40" Background="#FFFF5300" FontFamily="Webdings" FontSize="36" VerticalContentAlignment="Center" HorizontalContentAlignment="Center" Padding="2,0,0,0" />
                     </StackPanel>
                     <StackPanel Orientation="Vertical" >
-                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.6.3" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
-                        <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.granberg@microsoft.com" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
+                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.7" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontWeight="Bold"/>
+                        <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.g@home.se" HorizontalAlignment="Left" Height="40" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="#FF004080" FontSize="10"/>
                         <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                             <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
                             <Button.Template>
@@ -3822,6 +3816,7 @@ Function GenerateTemplateDownloaderSchemaDefSD
             <Label x:Name="lblDownloadLinks" Content="Download links for defaultSecuritydescriptor CSV templates:" Margin="10,05,00,00"/>
                 <GroupBox x:Name="gBoxTemplate" Header="Templates" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210">
                     <StackPanel Orientation="Vertical" Margin="0,0">
+                        <Button x:Name="btnDownloadCSVFileSchema2019_1809" Content="Windows Server 2019 1809" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>                    
                         <Button x:Name="btnDownloadCSVFileSchema2016" Content="Windows Server 2016" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         <Button x:Name="btnDownloadCSVFileSchema2012R2" Content="Windows Server 2012 R2" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         <Button x:Name="btnDownloadCSVFileSchema2012" Content="Windows Server 2012" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -3846,6 +3841,8 @@ $xamlTemplateDownloaderSchemaDefSD.Window.RemoveAttribute("x:Class")
 $reader=(New-Object System.Xml.XmlNodeReader $xamlTemplateDownloaderSchemaDefSD)
 $TemplateDownloaderSchemaDefSDGui=[Windows.Markup.XamlReader]::Load( $reader )
 $btnOK = $TemplateDownloaderSchemaDefSDGui.FindName("btnOK")
+
+$btnDownloadCSVFileSchema2019_1809 = $TemplateDownloaderSchemaDefSDGui.FindName("btnDownloadCSVFileSchema2019_1809")
 $btnDownloadCSVFileSchema2016 = $TemplateDownloaderSchemaDefSDGui.FindName("btnDownloadCSVFileSchema2016")
 $btnDownloadCSVFileSchema2012R2 = $TemplateDownloaderSchemaDefSDGui.FindName("btnDownloadCSVFileSchema2012R2")
 $btnDownloadCSVFileSchema2012 = $TemplateDownloaderSchemaDefSDGui.FindName("btnDownloadCSVFileSchema2012")
@@ -3858,8 +3855,9 @@ $btnDownloadCSVFileSchema2000SP4 = $TemplateDownloaderSchemaDefSDGui.FindName("b
 $btnOK.add_Click({
 $TemplateDownloaderSchemaDefSDGui.Close()
 })
-
-
+$btnDownloadCSVFileSchema2019_1809.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!252&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+})
 $btnDownloadCSVFileSchema2016.add_Click({
  [System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21173&authkey=!ANmZFP4r67-yvGs&ithint=file%2ccsv")
  })
@@ -3900,7 +3898,7 @@ Function GenerateTemplateDownloader
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="CSV Templates" WindowStartupLocation = "CenterScreen"
-        Width = "650" Height = "400" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
+        Width = "390" Height = "290" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
     <Window.Resources>
     
         <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
@@ -3925,84 +3923,97 @@ Function GenerateTemplateDownloader
             </Setter>
          </Style>
     </Window.Resources>
-<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
         <Grid>
-        <StackPanel Orientation="Vertical">
-            <Label x:Name="lblDownloadLinks" Content="Download links for operating system default DACL templates:" Margin="10,05,00,00"/>
-            <StackPanel Orientation="Horizontal" Margin="0,0">
-                <GroupBox x:Name="gBox2016" Header="Windows Server 2016" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210">
-                    <StackPanel Orientation="Vertical" Margin="0,0">
-                        <Button x:Name="btnDownloadCSVFile2016" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2016Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2016Config" Content="Configration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2016Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2016DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2016ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2016AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                    </StackPanel>
-                </GroupBox>
-                <GroupBox x:Name="gBox2012R2" Header="Windows Server 2012 R2" HorizontalAlignment="Left"  Margin="2,1,0,0" VerticalAlignment="Top" Width="210">
-                    <StackPanel Orientation="Vertical" Margin="0,0">
-                        <Button x:Name="btnDownloadCSVFile2012R2" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012R2Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012R2Config" Content="Configration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012R2Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012R2DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012R2ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012R2AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                    </StackPanel>
-                </GroupBox>     
-                <GroupBox x:Name="gBox2012" Header="Windows Server 2012" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210">
-                    <StackPanel Orientation="Vertical" Margin="0,0">
-                        <Button x:Name="btnDownloadCSVFile2012" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012Config" Content="Configration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2012AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                    </StackPanel>
-                </GroupBox>  
+            <StackPanel Orientation="Vertical" Margin="0,0,0,0">
+                <Label x:Name="lblDownloadLinks" Content="Download links for operating system default DACL templates:" Margin="5,05,00,00"/>
+                <StackPanel Orientation="Horizontal">
+                <Label x:Name="lblDownloadSelect" Content="Select OS:" Margin="5,00,00,00"/>
+                <ComboBox x:Name="SelectOS"  Width="190" Margin="0,0,0,0" HorizontalAlignment="Left" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0">    
-                <GroupBox x:Name="gBox2008R2" Header="Windows Server 2008 R2" HorizontalAlignment="Left"  Margin="2,0,0,0" VerticalAlignment="Top" Width="210">
-                    <StackPanel Orientation="Vertical" Margin="0,0">
-                        <Button x:Name="btnDownloadCSVFile2008R2" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2008R2Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2008R2Config" Content="Configration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2008R2Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2008R2DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2008R2ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2008R2AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                    </StackPanel>
-                </GroupBox>
-                <GroupBox x:Name="gBox2003" Header="Windows Server 2003" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210">
-                    <StackPanel Orientation="Vertical" Margin="0,0">
-                        <Button x:Name="btnDownloadCSVFile2003" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2003Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2003Config" Content="Configration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2003Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2003DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2003ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2003AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                    </StackPanel>
-                </GroupBox>
-                <GroupBox x:Name="gBox2000SP4" Header="Windows 2000 Server SP4" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210">
-                    <StackPanel Orientation="Vertical" Margin="0,0">
-                        <Button x:Name="btnDownloadCSVFile2000SP4" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2000SP4Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2000SP4Config" Content="Configration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2000SP4Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                        <Button x:Name="btnDownloadCSVFile2000SP4AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
-                    </StackPanel>
-                </GroupBox>                               
-            </StackPanel>            
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                <Button x:Name="btnOK" Content="OK" Margin="00,05,00,00" Width="50" Height="20"/>
+                <StackPanel Orientation="Vertical" Margin="0,10">
+                    <GroupBox x:Name="gBox2019_1809" Header="Windows Server 2019 1809" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Visible">
+                        <StackPanel Orientation="Vertical" Margin="0,0">
+                            <Button x:Name="btnDownloadCSVFile2019_1809" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2019_1809Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2019_1809Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2019_1809Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2019_1809DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2019_1809ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2019_1809AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>                    
+                    <GroupBox x:Name="gBox2016" Header="Windows Server 2016" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                        <StackPanel Orientation="Vertical" Margin="0,0">
+                            <Button x:Name="btnDownloadCSVFile2016" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2016Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2016Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2016Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2016DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2016ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2016AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>
+                    <GroupBox x:Name="gBox2012R2" Header="Windows Server 2012 R2" HorizontalAlignment="Left"  Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                        <StackPanel Orientation="Vertical" Margin="0,0" >
+                            <Button x:Name="btnDownloadCSVFile2012R2" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012R2Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012R2Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012R2Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012R2DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012R2ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012R2AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>
+                    <GroupBox x:Name="gBox2012" Header="Windows Server 2012" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                        <StackPanel Orientation="Vertical" Margin="0,0">
+                            <Button x:Name="btnDownloadCSVFile2012" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2012AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>
+                    <GroupBox x:Name="gBox2008R2" Header="Windows Server 2008 R2" HorizontalAlignment="Left"  Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                        <StackPanel Orientation="Vertical" Margin="0,0">
+                            <Button x:Name="btnDownloadCSVFile2008R2" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2008R2Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2008R2Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2008R2Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2008R2DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2008R2ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2008R2AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>
+                    <GroupBox x:Name="gBox2003" Header="Windows Server 2003" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                        <StackPanel Orientation="Vertical" Margin="0,0">
+                            <Button x:Name="btnDownloadCSVFile2003" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2003Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2003Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2003Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2003DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2003ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2003AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>
+                    <GroupBox x:Name="gBox2000SP4" Header="Windows 2000 Server SP4" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                        <StackPanel Orientation="Vertical" Margin="0,0">
+                            <Button x:Name="btnDownloadCSVFile2000SP4" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2000SP4Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2000SP4Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2000SP4Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2000SP4AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="btnOK" Content="OK" Margin="00,05,00,00" Width="50" Height="20"/>
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
         </Grid>
- </ScrollViewer>
+    </ScrollViewer>
 </Window>
 
 "@
@@ -4011,7 +4022,17 @@ $xamlTemplateDownloader.Window.RemoveAttribute("x:Class")
 
 $reader=(New-Object System.Xml.XmlNodeReader $xamlTemplateDownloader)
 $TemplateDownloaderGui=[Windows.Markup.XamlReader]::Load( $reader )
+
 $btnOK = $TemplateDownloaderGui.FindName("btnOK")
+
+$btnDownloadCSVFile2019_1809 = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2019_1809")
+$btnDownloadCSVFile2019_1809Domain = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2019_1809Domain")
+$btnDownloadCSVFile2019_1809Config = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2019_1809Config")
+$btnDownloadCSVFile2019_1809Schema = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2019_1809Schema")
+$btnDownloadCSVFile2019_1809DomainDNS = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2019_1809DomainDNS")
+$btnDownloadCSVFile2019_1809ForestDNS = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2019_1809ForestDNS")
+$btnDownloadCSVFile2019_1809AllFiles = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2019_1809AllFiles")
+
 $btnDownloadCSVFile2016 = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2016")
 $btnDownloadCSVFile2016Domain = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2016Domain")
 $btnDownloadCSVFile2016Config = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2016Config")
@@ -4019,6 +4040,7 @@ $btnDownloadCSVFile2016Schema = $TemplateDownloaderGui.FindName("btnDownloadCSVF
 $btnDownloadCSVFile2016DomainDNS = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2016DomainDNS")
 $btnDownloadCSVFile2016ForestDNS = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2016ForestDNS")
 $btnDownloadCSVFile2016AllFiles = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2016AllFiles")
+
 $btnDownloadCSVFile2012R2 = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2012R2")
 $btnDownloadCSVFile2012R2Domain = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2012R2Domain")
 $btnDownloadCSVFile2012R2Config = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2012R2Config")
@@ -4052,154 +4074,267 @@ $btnDownloadCSVFile2000SP4Domain = $TemplateDownloaderGui.FindName("btnDownloadC
 $btnDownloadCSVFile2000SP4Config = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2000SP4Config")
 $btnDownloadCSVFile2000SP4Schema = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2000SP4Schema")
 $btnDownloadCSVFile2000SP4AllFiles = $TemplateDownloaderGui.FindName("btnDownloadCSVFile2000SP4AllFiles")
+$SelectOS = $TemplateDownloaderGui.FindName("SelectOS")
+$gBox2019_1809 = $TemplateDownloaderGui.FindName("gBox2019_1809")
+$gBox2016 = $TemplateDownloaderGui.FindName("gBox2016")
+$gBox2012R2 = $TemplateDownloaderGui.FindName("gBox2012R2")
+$gBox2012 = $TemplateDownloaderGui.FindName("gBox2012")
+$gBox2008R2 = $TemplateDownloaderGui.FindName("gBox2008R2")
+$gBox2003 = $TemplateDownloaderGui.FindName("gBox2003")
+$gBox2000SP4 = $TemplateDownloaderGui.FindName("gBox2000SP4")
+
+[void]$SelectOS.Items.Add("Windows Server 2019 1809")
+[void]$SelectOS.Items.Add("Windows Server 2016")
+[void]$SelectOS.Items.Add("Windows Server 2012 R2")
+[void]$SelectOS.Items.Add("Windows Server 2008 R2")
+[void]$SelectOS.Items.Add("Windows Server 2003")
+[void]$SelectOS.Items.Add("Windows 2000 Server SP4")
+
+$SelectOS.SelectedValue="Windows Server 2019 1809"
+
+$SelectOS.add_SelectionChanged({
+
+Switch ($SelectOS.SelectedValue)
+{
+    "Windows Server 2019 1809"
+    {
+        $gBox2019_1809.Visibility = "Visible"
+        $gBox2016.Visibility = "Collapsed"
+        $gBox2012R2.Visibility = "Collapsed"
+        $gBox2012.Visibility = "Collapsed"
+        $gBox2008R2.Visibility = "Collapsed"
+        $gBox2003.Visibility = "Collapsed"
+        $gBox2000SP4.Visibility = "Collapsed"
+    }
+    "Windows Server 2016"
+    {
+        $gBox2019_1809.Visibility = "Collapsed"
+        $gBox2016.Visibility = "Visible"
+        $gBox2012R2.Visibility = "Collapsed"
+        $gBox2012.Visibility = "Collapsed"
+        $gBox2008R2.Visibility = "Collapsed"
+        $gBox2003.Visibility = "Collapsed"
+        $gBox2000SP4.Visibility = "Collapsed"
+    }
+    "Windows Server 2012 R2"
+    {
+        $gBox2019_1809.Visibility = "Collapsed"
+        $gBox2016.Visibility = "Collapsed"
+        $gBox2012R2.Visibility = "Visible"
+        $gBox2012.Visibility = "Collapsed"
+        $gBox2008R2.Visibility = "Collapsed"
+        $gBox2003.Visibility = "Collapsed"
+        $gBox2000SP4.Visibility = "Collapsed"
+    }
+        "Windows Server 2012"
+    {
+        $gBox2019_1809.Visibility = "Collapsed"
+        $gBox2016.Visibility = "Collapsed"
+        $gBox2012R2.Visibility = "Collapsed"
+        $gBox2012.Visibility = "Visible"
+        $gBox2008R2.Visibility = "Collapsed"
+        $gBox2003.Visibility = "Collapsed"
+        $gBox2000SP4.Visibility = "Collapsed"
+    }
+    "Windows Server 2008 R2"
+    {
+        $gBox2019_1809.Visibility = "Collapsed"
+        $gBox2016.Visibility = "Collapsed"
+        $gBox2012R2.Visibility = "Collapsed"
+        $gBox2012.Visibility = "Collapsed"
+        $gBox2008R2.Visibility = "Visible"
+        $gBox2003.Visibility = "Collapsed"
+        $gBox2000SP4.Visibility = "Collapsed"
+    }
+    "Windows Server 2003"
+    {
+        $gBox2019_1809.Visibility = "Collapsed"
+        $gBox2016.Visibility = "Collapsed"
+        $gBox2012R2.Visibility = "Collapsed"
+        $gBox2012.Visibility = "Collapsed"
+        $gBox2008R2.Visibility = "Collapsed"
+        $gBox2003.Visibility = "Visible"
+        $gBox2000SP4.Visibility = "Collapsed"
+    }
+    "Windows 2000 Server SP4"
+    {
+        $gBox2019_1809.Visibility = "Collapsed"
+        $gBox2016.Visibility = "Collapsed"
+        $gBox2012R2.Visibility = "Collapsed"
+        $gBox2012.Visibility = "Collapsed"
+        $gBox2008R2.Visibility = "Collapsed"
+        $gBox2003.Visibility = "Collapsed"
+        $gBox2000SP4.Visibility = "Visible"
+    }
+    default
+    {}
+}
+
+})
 
 $btnOK.add_Click({
 $TemplateDownloaderGui.Close()
 })
 
+## START 2019 1809
+$btnDownloadCSVFile2019_1809.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!230&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv
+")
+})
+$btnDownloadCSVFile2019_1809Domain.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!227&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+})
+$btnDownloadCSVFile2019_1809Config.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!226&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+})
+$btnDownloadCSVFile2019_1809Schema.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!231&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+})
+$btnDownloadCSVFile2019_1809DomainDNS.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!229&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+})
+$btnDownloadCSVFile2019_1809ForestDNS.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!228&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+})
+$btnDownloadCSVFile2019_1809AllFiles.add_Click({
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!225&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+})
+## END 2019 1809
 
 ## START 2016
 $btnDownloadCSVFile2016.add_Click({
- #[System.Diagnostics.Process]::Start("https://1drv.ms/u/s!Aqm6M_BmY8U_gSlxzW6CZ2_noQUX")
- [System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21169&authkey=!AHHNboJnb-ehBRc&ithint=file%2ccsv")
- 
+ [System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!247&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv ")
 })
 $btnDownloadCSVFile2016Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21167&authkey=!APh1fzUu8ndLvho&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!243&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2016Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21171&authkey=!AG5nGAGqOAAZ3kg&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!244&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2016Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21170&authkey=!AM7EwzODPD7wlrM&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!248&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2016DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21168&authkey=!AI4FI10Y20fOMXY&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!246&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2016ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21166&authkey=!APGNhnXbQ1nMlmY&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!245&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2016AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21172&authkey=!AHHbU-CV7iYSqCM&ithint=file%2czip")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!242&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
 })
 ## END 2016
+
 ## START 2012 R2
 $btnDownloadCSVFile2012R2.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!118&authkey=!AEsPNFM4NNDs-NY&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!209&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
-
 $btnDownloadCSVFile2012R2Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!117&authkey=!ACGO_auHv7nVuFA&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!206&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
-
 $btnDownloadCSVFile2012R2Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!120&authkey=!AAUMJ01QN18vWz0&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!205&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012R2Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!119&authkey=!ACZnOYr_JsYL_1A&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!210&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012R2DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!115&authkey=!ABibK0uHLccRXXE&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!207&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012R2ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!116&authkey=!AN76snGTmVRqYUg&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!208&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012R2AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!134&authkey=!AJ9zhCQSjhPCiA4&ithint=file%2czip")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!204&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
 })
 ## END 2012 R2
 ## START 2012
 $btnDownloadCSVFile2012.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!132&authkey=!AA1HBqNDu3g07YA&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!216&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!127&authkey=!AFOrTjNj77zbe5M&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!213&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
-
 $btnDownloadCSVFile2012Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!128&authkey=!AIoukl1--XMqH0o&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!212&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!129&authkey=!APUXZph0_yhzXns&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!217&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!130&authkey=!ABuBOH9pXKlgUo0&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!214&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!131&authkey=!AHmopj2Fc9L7pS4&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!215&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2012AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!133&authkey=!AJhM8XTSi_eboFs&ithint=file%2czip")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!211&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
 })
 ## END 2012
 ## START 2008 R2
 $btnDownloadCSVFile2008R2.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!157&authkey=!APMwORrenMZF2Dw&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!201&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2008R2Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!140&authkey=!ALgAYQdynKvUZLs&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!198&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2008R2Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!158&authkey=!ACm5uljC8HQGU00&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!197&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2008R2Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!158&authkey=!ACm5uljC8HQGU00&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!237&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2008R2DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!136&authkey=!AD_CYsd2dEM7Pf8&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!199&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2008R2ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!137&authkey=!AKXfX52VtuirzFw&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!200&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2008R2AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!159&authkey=!AE4AIrkTKhM-Xcg&ithint=file%2czip")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!236&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
 })
 ## END 2008 R2
 ## START 2003
 
 $btnDownloadCSVFile2003.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!150&authkey=!AF98uOT5coGagCQ&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!194&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2003Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!147&authkey=!AA5j_FLH3sfAk5Q&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!191&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
-
 $btnDownloadCSVFile2003Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!148&authkey=!AE1-jkVztfOqIJw&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!190&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2003Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!145&authkey=!AFa88cyZdDJsYVk&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!195&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2003DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!146&authkey=!AJ6CtlNI0he9OgM&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!192&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2003ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!144&authkey=!AKoTCcfQnKHYpMc&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!193&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2003AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!160&authkey=!AEiUpr6LOCkiQ94&ithint=file%2czip")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!189&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
 })
 ## END 2003
 
 ## START 2000 SP4
 
 $btnDownloadCSVFile2000SP4.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!152&authkey=!AKO49fQePeRrCKY&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!187&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
-
 $btnDownloadCSVFile2000SP4Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!155&authkey=!AFGHVo-wCZoWXYw&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!183&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
-
 $btnDownloadCSVFile2000SP4Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!156&authkey=!AEoB4RiacNQci4s&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!186&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
 $btnDownloadCSVFile2000SP4Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!154&authkey=!AHy8rar_9lJ8KQo&ithint=file%2ccsv")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!188&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
 })
-
 $btnDownloadCSVFile2000SP4AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!153&authkey=!AKsmuhvoig_CKfs&ithint=file%2czip")
+[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!182&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
 })
 ## END 2000
 
@@ -4353,22 +4488,7 @@ INCLUDING BUT NOT LIMITED TO THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR
 A PARTICULAR PURPOSE.
 
-This sample is not supported under any Microsoft standard 
-support program or service. The script is provided AS IS
-without warranty of any kind. Microsoft further disclaims
-all implied warranties including, without limitation, any
-implied warranties of merchantability or of fitness for a
-particular purpose.
-The entire risk arising out of the use or performance of the
-sample and documentation remains with you. In no event
-shall Microsoft, its authors,or anyone else involved in the 
-creation, production, or delivery of the script be liable 
-for any damages whatsoever (including, without limitation,
-damages for loss of business profits, business interruption,
-loss of business information, or other pecuniary loss) 
-arising out of the use of or inability to use the sample or
-documentation, even if Microsoft has been advised of the 
-possibility of such damages.
+
 "@
 $lblSupportStatement.Content = $txtSupoprt
 
@@ -10148,7 +10268,25 @@ while($count -le $ALOUdn.count -1)
         $SecurityMasks = [System.DirectoryServices.Protocols.SecurityMasks]'Owner' -bor [System.DirectoryServices.Protocols.SecurityMasks]'Group'-bor [System.DirectoryServices.Protocols.SecurityMasks]'Dacl' #-bor [System.DirectoryServices.Protocols.SecurityMasks]'Sacl'
         $control = New-Object System.DirectoryServices.Protocols.SecurityDescriptorFlagControl($SecurityMasks)
         [void]$request.Controls.Add($control)
-        $response = $LDAPConnection.SendRequest($request)
+        $SendRequest = $false
+        try
+        {
+            $response = $LDAPConnection.SendRequest($request)
+            $SendRequest = $true
+        }
+        catch
+        {
+            if($global:bolCMD)
+            {
+                Write-host "Failed to connect to:$ADObjDN"
+            }
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to connect to:$ADObjDN" -strType "Error" -DateStamp ))
+            }
+        }
+        if($SendRequest)
+        {
         $DSobject = $response.Entries[0]
         #Check if any NTsecuritydescr
         if($null -ne $DSobject.Attributes.ntsecuritydescriptor)
@@ -10233,6 +10371,7 @@ while($count -le $ALOUdn.count -1)
             #Fail futher scan when NTsecurityDescriptor is null
             $global:GetSecErr = $true
         }
+        }#End If failed Send Request
      
     }
     else
