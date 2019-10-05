@@ -7,12 +7,12 @@
 
 **SHA256:** FCF503540143755E7B6EB027E44E73831B181E2F71752E6072093131278C0B2C
 
-*New Feature*
-** Templates for Windows Server 2019 1809
+### New Feature
+Templates for Windows Server 2019 1809
 
-*Fixed issues*
-** When a template contained a missing object the compare function stoped.
-** Corrected templates according the same standard with both SID and Principal Name.
+### Fixed issues
+* When a template contained a missing object the compare function stoped.
+* Corrected templates according the same standard with both SID and Principal Name.
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
