@@ -1,13 +1,15 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.7**
+**Version: 5.8**
 
-**5 October,2019**
+**6 October,2019**
 
-**SHA256:** FCF503540143755E7B6EB027E44E73831B181E2F71752E6072093131278C0B2C
+**SHA256:** 5B09281C6C9C6EB0BB942C1957EA8D9642814F9BD4454668B08B734444BE10FA
 
 ### New Feature
+* Filter result on severity level
+* Filter result when comparing on ALL, MATCH, NEW, MISSING
 * Templates for Windows Server 2019 1809
 
 ### Fixed issues
