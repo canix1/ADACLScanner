@@ -8,7 +8,7 @@
 **SHA256:** FCF503540143755E7B6EB027E44E73831B181E2F71752E6072093131278C0B2C
 
 ### New Feature
-Templates for Windows Server 2019 1809
+* Templates for Windows Server 2019 1809
 
 ### Fixed issues
 * When a template contained a missing object the compare function stoped.
@@ -47,8 +47,8 @@ Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 * Added formated synopsis to the script.
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/GUICustomSearch.gif)
-## Features
-It has the following features:
+## Feature list
+
 * View HTML reports of DACLs/SACLs and save it to disk. 
 * Export DACLs/SACLs on Active Directory objects in a CSV format. 
 * Export DACLs/SACLs on Active Directory objects in a Excel sheet. 
