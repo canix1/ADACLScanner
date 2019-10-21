@@ -1,20 +1,19 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.8**
+**Version: 5.9**
 
-**6 October,2019**
+**21 November,2019**
 
-**SHA256:** 5B09281C6C9C6EB0BB942C1957EA8D9642814F9BD4454668B08B734444BE10FA
+**SHA256:** C276923318ED324EA213B4F7DEF36799CB1800294B39148E2804BFB0D315EE95
 
 ### New Feature
-* Filter result on severity level
-* Filter result when comparing on ALL, MATCH, NEW, MISSING
-* Templates for Windows Server 2019 1809
+* Compare from the command line:
+* Example that returns only new entries compared with the defaults for Win 2019 1809 on the Domain NC.
+* .\ADACLScan.ps1 -Base "dc=contoso,dC=com" -Template .\Win_2019_1809_Default_DACL_Domain.csv -Returns NEW -Output EXCEL
 
 ### Fixed issues
-* When a template contained a missing object the compare function stoped.
-* Corrected templates according the same standard with both SID and Principal Name.
+* Owner parameter was missing when running from the command line
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
