@@ -79,17 +79,16 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.8
-    5 October, 2019
+    Version: 5.9
+    21 November, 2019
 
     *SHA256:* 
 
     *New Feature*
-    ** Templates for Windows Server 2019 1809
+    ** Compare using templates from command line
 
     *Fixed issues*
-    ** When a template contained a missing object the compare function stoped.
-    ** Corrected templates according the same standard with both SID and Principal Name.
+    ** Owner parameter was missing
 
 #>
 Param
@@ -171,6 +170,33 @@ Param
     [ValidateNotNullOrEmpty()]
     [String] 
     $OutputFolder,
+
+    # Template to compare with.
+    [Parameter(Mandatory=$false, 
+                Position=8,
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Template,
+
+    # Template to compare with.
+    [Parameter(Mandatory=$false, 
+                Position=8,
+                ParameterSetName='Default')]
+    [ValidateSet("ALL", "MATCH", "NEW","MISSING")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Returns="ALL",
+
+    # Template to compare with.
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $ExcelFile="",
         
     # Open HTML report
     [Parameter(Mandatory=$false, 
@@ -188,13 +214,28 @@ Param
     [switch] 
     $SDDate,
 
+    # Include Owner in report
+    [Parameter(Mandatory=$false, 
+    ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $Owner,
+
     # Data Managment Delegation OU Name
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [switch] 
-    $help
+    $help,
+    # Scan Default Security Descriptor
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $DefaultSecurityDescriptor
+    
 )
 
 [string]$global:SessionID = [GUID]::NewGuid().Guid
@@ -772,7 +813,7 @@ $xamlBase = @"
                         <StackPanel Orientation="Horizontal" Margin="62,0,0,0">
 
                             <StackPanel Orientation="Vertical" >
-                                <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.8" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.9" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                 <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.g@home.se" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontSize="12"/>
                                 <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                                     <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
@@ -14555,7 +14596,7 @@ if($base)
 
                 if($Template)
                 {
-                    $rsl = Get-PermCompare $allSubOU $false $false $false $true $bolCSV $false $false $false $Show "HTM" $Returns
+                    $rsl = Get-PermCompare $allSubOU $false $false $false $Owner $bolCSV $false $false $false $Show "HTM" $Returns
                 }
                 else
                 {
@@ -14613,7 +14654,7 @@ if($base)
 
                         if($Template)
                         {
-                            $rsl = Get-PermCompare $allSubOU $false $false $SDDate $true $bolCSV $false $false $false $Show "EXCEL" $Returns
+                            $rsl = Get-PermCompare $allSubOU $false $false $SDDate $Owner $bolCSV $false $false $false $Show "EXCEL" $Returns
                         }
                         else
                         {
@@ -14628,7 +14669,7 @@ if($base)
                     {
                         #######
                         #$rsl = Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $chkBoxGetOUProtected.IsChecked $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format
-                        $rsl = Get-PermCompare $allSubOU $false $false $false $true $bolCSV $false $false $false $Show "CSV" $Returns
+                        $rsl = Get-PermCompare $allSubOU $false $false $false $Owner $bolCSV $false $false $false $Show "CSV" $Returns
                     }
                     else
                     {
