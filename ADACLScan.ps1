@@ -79,16 +79,13 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.9
-    21 November, 2019
+    Version: 5.9.1
+    18 November, 2019
 
     *SHA256:* 
 
-    *New Feature*
-    ** Compare using templates from command line
-
     *Fixed issues*
-    ** Owner parameter was missing
+    ** Replaced method for fetching script path
 
 #>
 Param
@@ -805,7 +802,7 @@ $xamlBase = @"
                         <StackPanel Orientation="Horizontal" Margin="62,0,0,0">
 
                             <StackPanel Orientation="Vertical" >
-                                <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.9" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.9.1" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                 <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.g@home.se" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontSize="12"/>
                                 <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
                                     <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
