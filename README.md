@@ -8,8 +8,8 @@
 **SHA256:** 651DE92F13A4C759BB043F2C34233E9E4EB7EB9D097D1254782F5FB110738348
 
 ### Fixed issues
-** Replaced method for fetching script path
-** Problem with Open File Dialog box.
+* Replaced method for fetching script path
+* Problem with Open File Dialog box.
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
