@@ -1,19 +1,14 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.9**
+**Version: 5.9.1**
 
-**21 November,2019**
+**18 November,2019**
 
-**SHA256:** C276923318ED324EA213B4F7DEF36799CB1800294B39148E2804BFB0D315EE95
-
-### New Feature
-* Compare from the command line:
-* Example that returns only new entries compared with the defaults for Win 2019 1809 on the Domain NC.
-* .\ADACLScan.ps1 -Base "dc=contoso,dC=com" -Template .\Win_2019_1809_Default_DACL_Domain.csv -Returns NEW -Output EXCEL
+**SHA256:** 43CBACBF73BA6A5AAE58BA92BF41A4F1BD78A20CF4AE55AF2D237C393639F2D1
 
 ### Fixed issues
-* Owner parameter was missing when running from the command line
+** Replaced method for fetching script path
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
