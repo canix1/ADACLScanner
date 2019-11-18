@@ -364,14 +364,6 @@ BuildSchemaDic
 
 Add-Type -Assembly PresentationFramework
 
-$ADACLGui = [hashtable]::Synchronized(@{})
-
-$global:myPID = $PID
-$CurrentFSPath = split-path -parent $MyInvocation.MyCommand.Path
-$strLastCacheGuidsDom = ""
-$sd = ""
-
-
 $xamlBase = @"
 <Window x:Class="ADACLScanXAMLProj.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -14138,7 +14130,7 @@ $strCSVCompareHeader = @"
 
 $global:myPID = $PID
 $global:csvHistACLs = New-Object System.Collections.ArrayList
-$CurrentFSPath = split-path -parent $MyInvocation.MyCommand.Path
+$CurrentFSPath = $PSScriptRoot
 $strLastCacheGuidsDom = ""
 $sd = ""
 $global:intObjeComputer = 0
