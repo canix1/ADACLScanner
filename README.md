@@ -5,10 +5,11 @@
 
 **18 November,2019**
 
-**SHA256:** 43CBACBF73BA6A5AAE58BA92BF41A4F1BD78A20CF4AE55AF2D237C393639F2D1
+**SHA256:** 651DE92F13A4C759BB043F2C34233E9E4EB7EB9D097D1254782F5FB110738348
 
 ### Fixed issues
 ** Replaced method for fetching script path
+** Problem with Open File Dialog box.
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
