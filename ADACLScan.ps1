@@ -359,6 +359,8 @@ $global:dicNameToSchemaIDGUIDs = @{"user"="BF967ABA-0DE6-11D0-A285-00AA003049E2"
 
 BuildSchemaDic
 
+$CurrentFSPath = $PSScriptRoot
+
 Add-Type -Assembly PresentationFramework
 
 $xamlBase = @"
@@ -10669,7 +10671,7 @@ function Select-File
     $dialog.InitialDirectory = $initialDirectory
     $dialog.ShowHelp = $true
     $dialog.Title = $title
-    $result = $dialog.ShowDialog($owner)
+    $result = $dialog.ShowDialog()
 
     if ($result -eq "OK")
     {
@@ -14127,7 +14129,7 @@ $strCSVCompareHeader = @"
 
 $global:myPID = $PID
 $global:csvHistACLs = New-Object System.Collections.ArrayList
-$CurrentFSPath = $PSScriptRoot
+
 $strLastCacheGuidsDom = ""
 $sd = ""
 $global:intObjeComputer = 0
