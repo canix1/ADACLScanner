@@ -1,11 +1,11 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.9.1**
+**Version: 5.9.2**
 
-**18 November,2019**
+**21 November,2019**
 
-**SHA256:** 651DE92F13A4C759BB043F2C34233E9E4EB7EB9D097D1254782F5FB110738348
+**SHA256:** D1820EE9C3FB72A7417B2E2942B58BEAE1EA5F98AEDF8E513FD7C3FBE5F61841
 
 ### Fixed issues
 * Replaced method for fetching script path
