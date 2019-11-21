@@ -7,9 +7,9 @@
 
 **SHA256:** D1820EE9C3FB72A7417B2E2942B58BEAE1EA5F98AEDF8E513FD7C3FBE5F61841
 
-### Fixed issues
-* Replaced method for fetching script path
-* Problem with Open File Dialog box.
+*New Feature*
+* Including CanonicalName in output
+* Including Inheritance Disabled in CSV
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
