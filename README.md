@@ -14,7 +14,7 @@
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
 
-# Donate
+## Donate
 Do you appreciate my work and want to buy me a beer? You can donate via PayPal: https://www.paypal.me/canix1 or send Bitcoins to <b>bc1qte7vlwhvrju7msv9hzfytwy7jd9vlmnjfpm0366d62yx4ke89czsavk0hr</b>
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/DonateBitCoin.png)
