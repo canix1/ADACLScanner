@@ -1,15 +1,21 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 5.9.2**
+**Version: 6.0**
 
-**21 November,2019**
+**9 February, 2020**
 
-**SHA256:** D1820EE9C3FB72A7417B2E2942B58BEAE1EA5F98AEDF8E513FD7C3FBE5F61841
+**SHA256:** E50D408747E98CE7575A845DE82234A23A08632D45DEC1AF8FC2BAADF94EE92C
 
 *New Feature*
-* Including CanonicalName in output
-* Including Inheritance Disabled in CSV
+* New improved UI
+* More functions available from the command line
+* Scan GPO permissions
+* Filter permissions on criticality [Critical, Warning, Medium, Low, Info]
+* Filter on Default Permissions
+* Filter on Built-in Security Principals
+* Recursive find group members, will list all resulting security principals in the ACL
+* Recursive find filter, filter recursive results [*, User, Group, Computer] 
 
 ## Download
 **Right click and save as** - **[Here](https://github.com/canix1/ADACLScanner/raw/master/ADACLScan.ps1)**
@@ -48,7 +54,7 @@ Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 * Support input from pipeline. You can call ADACLScan.ps1 by sending a distinguishedName via pipeline.
 * Added formated synopsis to the script.
 
-![](https://github.com/canix1/ADACLScanner/blob/master/src/GUICustomSearch.gif)
+![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan6.0.png)
 ## Feature list
 
 * View HTML reports of DACLs/SACLs and save it to disk. 
@@ -86,6 +92,6 @@ Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 * Display group members in groups in the HTLM report. 
 * Present the value of the true SDDL in NTsecurityDescriptor, bypassing Object-Specific ACE merge done when a new instance of the ObjectSecurity class is initialized.
 ## System requirements
-* Powershell 2.0 or above 
+* Powershell 3.0 or above 
 * PowerShell using a single-threaded apartment 
 * Some functions requires Microsoft .NET Framework version 4.0

@@ -1,4 +1,4 @@
-﻿<#
+﻿ <#
 .Synopsis
     ADACLScan.ps1
      
@@ -79,19 +79,26 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 5.9.2
-    21 November, 2019
+    Version: 6.0
+    8 February, 2020
 
     *SHA256:* 
 
     *New Feature*
-    ** Including CanonicalName in output
-    ** Including Inheritance Disabled in CSV
+    * New improved UI
+    * More functions available from the command line
+    * Scan GPO permissions
+    * Filter permissions on criticality [Critical, Warning, Medium, Low, Info]
+    * Filter on Default Permissions
+    * Filter on Built-in Security Principals
+    * Recursive find group members, will list all resulting security principals in the ACL
+    * Recursive find filter, filter recursive results [*, User, Group, Computer] 
 
 #>
 Param
 (
     # DistinguishedName to start your search at. Always included as long as your filter matches your object.
+    [Alias("b")]
     [Parameter(Mandatory=$false, 
                 ValueFromPipeline=$true,
                 ValueFromPipelineByPropertyName=$true, 
@@ -104,6 +111,7 @@ Param
     $Base,
 
     # Filter. Specify your custom filter. Default is OrganizationalUnit.
+    [Alias("f")]
     [Parameter(Mandatory=$false, 
                 Position=1,
                 ParameterSetName='Default')]
@@ -158,7 +166,7 @@ Param
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $Output = "CSV",
+    $Output = "",
 
     # Output folder path for where results are written.
     [Parameter(Mandatory=$false, 
@@ -195,8 +203,73 @@ Param
     [ValidateNotNullOrEmpty()]
     [String] 
     $ExcelFile="",
-        
+
+    # Filter on Criticality.
+    [Alias("c")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateSet("Critical", "Warning", "Medium","Low","Info")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Criticality="",
+
+    # Skip default permissions
+    [Alias("sd")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $SkipDefaults,
+
+    # Skip Built-in security principals
+    [Alias("sb")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $SkipBuiltIn,
+
+    # Expand groups
+    [Alias("rf")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $RecursiveFind,
+
+    # Filter on Criticality.
+    [Alias("ro")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateSet("User", "Computer", "Group","*")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $RecursiveObjectType="*",
+
+    # Skip Built-in security principals
+    [Alias("tr")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $Translate,
+
+    # Get Group Policy Objects linked 
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $GPO,
+            
     # Open HTML report
+    [Alias("s")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -213,6 +286,7 @@ Param
     $SDDate,
 
     # Include Owner in report
+    [Alias("o")]
     [Parameter(Mandatory=$false, 
     ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -221,6 +295,7 @@ Param
     $Owner,
 
     # Include Canonical Names in report
+    [Alias("cn")]
     [Parameter(Mandatory=$false, 
     ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -229,6 +304,7 @@ Param
     $CanonicalNames,
 
     # Include if inheritance is disabled in report
+    [Alias("p")]
     [Parameter(Mandatory=$false, 
     ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -244,12 +320,29 @@ Param
     [switch] 
     $help,
     # Scan Default Security Descriptor
+    [Alias("dsd")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [switch] 
-    $DefaultSecurityDescriptor
-    
+    $DefaultSecurityDescriptor,
+
+    # Filter Default Security Descriptor on ObjectName
+    [Alias("on")]
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $ObjectName="*",
+
+    # Filter Default Security Descriptor on modified with version number higher than 1
+    [Alias("om")]
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $OnlyModified
+
 )
 
 [string]$global:SessionID = [GUID]::NewGuid().Guid
@@ -384,7 +477,7 @@ $xamlBase = @"
 <Window x:Class="ADACLScanXAMLProj.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AD ACL Scanner"  WindowStartupLocation="CenterScreen" Height="890" Width="1023" ResizeMode="CanResizeWithGrip" WindowState="Normal" Background="#FFE7E8EC" >
+        Title="AD ACL Scanner"  WindowStartupLocation="CenterScreen" Height="690" Width="1035" ResizeMode="CanResizeWithGrip" WindowState="Normal" Background="#2A3238" >
     <Window.Resources>
         <XmlDataProvider x:Name="xmlprov" x:Key="DomainOUData"/>
         <DrawingImage x:Name="FolderImage" x:Key="FolderImage"  >
@@ -411,11 +504,11 @@ $xamlBase = @"
         </HierarchicalDataTemplate>
     </Window.Resources>
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-        <Grid HorizontalAlignment="Left" VerticalAlignment="Top" Height="850" Width="990">
-            <StackPanel Orientation="Vertical" Margin="10,0,0,0">
+        <Grid HorizontalAlignment="Left" VerticalAlignment="Top" Height="640" Width="1000">
+            <StackPanel Orientation="Vertical" Margin="10,0,0,0" >
                 <StackPanel Orientation="Horizontal">
                     <StackPanel Orientation="Vertical">
-                        <TabControl x:Name="tabConnect" Background="#FFC9C9C9"  HorizontalAlignment="Left" Height="250" Margin="0,10,0,0" VerticalAlignment="Top" Width="350">
+                        <TabControl x:Name="tabConnect"   HorizontalAlignment="Left" Height="245" Margin="0,10,0,0" VerticalAlignment="Top" Width="350">
                             <TabItem x:Name="tabNCSelect" Header="Connect" Width="85">
                                 <StackPanel Orientation="Vertical" Margin="05,0">
                                     <StackPanel Orientation="Horizontal">
@@ -498,9 +591,9 @@ $xamlBase = @"
                                 </StackPanel>
                             </TabItem>
                         </TabControl>
-                        <GroupBox x:Name="gBoxSelectNodeTreeView" Grid.Column="0" Header="Nodes" HorizontalAlignment="Left" Height="355" Margin="0,0,0,0" VerticalAlignment="Top" Width="350" BorderBrush="Black">
+                        <GroupBox x:Name="gBoxSelectNodeTreeView" Grid.Column="0" Header="Nodes" HorizontalAlignment="Left" Height="330" Margin="0,0,0,0" VerticalAlignment="Top" Width="350"  Foreground="White" BorderThickness="0" BorderBrush="#FF2A3238" >
                             <StackPanel Orientation="Vertical">
-                                <TreeView x:Name="treeView1"  Height="330" Width="340"  Margin="0,5,0,5" HorizontalAlignment="Left"
+                                <TreeView x:Name="treeView1"  Height="320" Width="340"  Margin="0,5,0,0" HorizontalAlignment="Left"
                 DataContext="{Binding Source={StaticResource DomainOUData}, XPath=/DomainRoot}"
                 ItemTemplate="{StaticResource NodeTemplate}"
                 ItemsSource="{Binding}">
@@ -522,285 +615,30 @@ $xamlBase = @"
                                 </TreeView>
                             </StackPanel>
                         </GroupBox>
-                    </StackPanel>
-                    <TabControl x:Name="tabConWiz" HorizontalAlignment="Left" Height="610" Margin="10,10,0,0" VerticalAlignment="Top" Width="612">
-                        <TabItem x:Name="tabAdv" Header="Advanced" Height="22" VerticalAlignment="Top" >
-                            <Grid Background="#FFC9C9C9" HorizontalAlignment="Left" VerticalAlignment="Top" Height="580">
-                                <StackPanel Orientation="Vertical">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TabControl x:Name="tabScanTop" Background="#FFC9C9C9"  HorizontalAlignment="Left" Height="550"  VerticalAlignment="Top" Width="300">
-                                            <TabItem x:Name="tabScan" Header="Scan Options" Width="85">
-                                                <Grid >
-                                                    <StackPanel Orientation="Vertical" Margin="0,0">
-                                                        <GroupBox x:Name="gBoxScanType" Header="Scan Type" HorizontalAlignment="Left" Height="71" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <RadioButton x:Name="rdbDACL" Content="DACL (Access)" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="95" IsChecked="True"/>
-                                                                    <RadioButton x:Name="rdbSACL" Content="SACL (Audit)" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="90"/>
-
-                                                                </StackPanel>
-                                                                <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
-                                                                    <CheckBox x:Name="chkBoxRAWSDDL" Content="RAW SDDL" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                        <GroupBox x:Name="gBoxScanDepth" Header="Scan Depth" HorizontalAlignment="Left" Height="51" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <RadioButton x:Name="rdbBase" Content="Base" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True"/>
-                                                                    <RadioButton x:Name="rdbOneLevel" Content="One Level" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
-                                                                    <RadioButton x:Name="rdbSubtree" Content="Subtree" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                        <GroupBox x:Name="gBoxRdbScan" Header="Objects to scan" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <RadioButton x:Name="rdbScanOU" Content="OUs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True" GroupName="rdbGroupFilter"/>
-                                                                    <RadioButton x:Name="rdbScanContainer" Content="Containers" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
-                                                                    <RadioButton x:Name="rdbScanAll" Content="All Objects" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
-                                                                </StackPanel>
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <RadioButton x:Name="rdbScanFilter" Content="" HorizontalAlignment="Left" Height="18" Margin="5,5,0,0" VerticalAlignment="Top" Width="15" GroupName="rdbGroupFilter"/>
-                                                                    <TextBox x:Name="txtCustomFilter" Text="(objectClass=*)" HorizontalAlignment="Left" Height="18" Width="250" Margin="0,0,0.0,0" IsEnabled="False"/>
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                        <GroupBox x:Name="gBoxReportOpt" Header="View in report" HorizontalAlignment="Left" Height="165" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <CheckBox x:Name="chkBoxGetOwner" Content="View Owner" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                                    <CheckBox x:Name="chkBoxACLSize" Content="DACL Size" HorizontalAlignment="Left" Height="18" Margin="30,05,0,0" VerticalAlignment="Top" Width="80"/>
-                                                                </StackPanel>
-                                                                <StackPanel Orientation="Horizontal" Margin="0,0,0.2,0" Height="35">
-                                                                    <CheckBox x:Name="chkInheritedPerm" Content="Inherited&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                                    <CheckBox x:Name="chkBoxGetOUProtected" Content="Inheritance&#10;Disabled" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                                </StackPanel>
-                                                                <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
-                                                                    <CheckBox x:Name="chkBoxDefaultPerm" Content="Skip Default&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                                    <CheckBox x:Name="chkBoxReplMeta" Content="SD Modified date" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
-
-                                                                </StackPanel>
-                                                                <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
-                                                                    <CheckBox x:Name="chkBoxSkipProtectedPerm" Content="Skip Protected&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                                    <CheckBox x:Name="chkBoxObjType" Content="Object Class" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="90"/>
-                                                                </StackPanel>
-                                                                <StackPanel Orientation="Horizontal" Height="34" Margin="0,0,0,0">
-                                                                    <CheckBox x:Name="chkBoxUseCanonicalName" Content="Canonical Name" HorizontalAlignment="Left" Height="30" Margin="155,00,0,0" VerticalAlignment="Top" Width="120"/>
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                        <GroupBox x:Name="gBoxRdbFile" Header="Output Options" HorizontalAlignment="Left" Height="158" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <RadioButton x:Name="rdbOnlyHTA" Content="HTML" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput" IsChecked="True"/>
-                                                                    <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
-                                                                </StackPanel>
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
-                                                                </StackPanel>
-                                                                <CheckBox x:Name="chkBoxTranslateGUID" Content="Translate GUID's in CSV output" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="200"/>
-                                                                <Label x:Name="lblTempFolder" Content="CSV file destination" />
-                                                                <TextBox x:Name="txtTempFolder" Margin="0,0,02,0"/>
-                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" >
-                                                                    <Button x:Name="btnGetTemplateFolder" Content="Change Folder" Width="90" Margin="-100,00,0,0"  />
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </TabItem>
-                                            <TabItem x:Name="tabOfflineScan" Header="Additional Options">
-                                                <Grid>
-                                                    <StackPanel>
-                                                        <GroupBox x:Name="gBoxImportCSV" Header="CSV to HTML" HorizontalAlignment="Left" Height="136" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <Label x:Name="lblCSVImport" Content="This file will be converted HTML:" />
-                                                                <TextBox x:Name="txtCSVImport"/>
-                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                                    <Button x:Name="btnGetCSVFile" Content="Select CSV" />
-                                                                </StackPanel>
-                                                                <CheckBox x:Name="chkBoxTranslateGUIDinCSV" Content="CSV file do not contain object GUIDs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="290"/>
-                                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                                    <Button x:Name="btnCreateHTML" Content="Create HTML View" />
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                        <GroupBox x:Name="gBoxProgress" Header="Progress Bar" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <CheckBox x:Name="chkBoxSkipProgressBar" Content="Use Progress Bar" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True" IsChecked="True"/>
-                                                                <Label x:Name="lblSkipProgressBar" Content="For speed you could disable the progress bar." />
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </TabItem>
-                                            <TabItem x:Name="tabOther" Header="Default SD">
-                                                <Grid>
-                                                    <StackPanel>
-                                                        <StackPanel Orientation="Vertical" Margin="0,0,0,-40">
-                                                            <GroupBox x:Name="gBoxdDefSecDesc" Header="Output Format" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="290">
-                                                                <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                                    <RadioButton x:Name="rdbDefSD_Access" Content="DACL" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="50" IsChecked="True"/>
-                                                                    <RadioButton x:Name="rdbDefSD_SDDL" Content="SDDL" HorizontalAlignment="Left" Height="18" Margin="10,05,0,0" VerticalAlignment="Top" Width="50"/>
-                                                                </StackPanel>
-                                                            </GroupBox>
-                                                            <CheckBox x:Name="chkModifedDefSD" Content="Only modified defaultSecurityDescriptors" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top"/>
-                                                            <Label x:Name="lblObjectDefSD" Content="Select objects to scan:" />
-                                                            <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                                <ComboBox x:Name="combObjectDefSD" HorizontalAlignment="Left" Margin="05,05,00,00" VerticalAlignment="Top" Width="120" IsEnabled="True" SelectedValue="*"/>
-                                                                <Button x:Name="btnScanDefSD" Content="Run Scan" HorizontalAlignment="Right" Width="90" Height="19" Margin="37,05,00,00" IsEnabled="True"/>
-                                                            </StackPanel>
-                                                            <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                                <Button x:Name="btnGetSchemaClass" Content="Load all classSchema" HorizontalAlignment="Left" Width="120" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
-                                                                <Button x:Name="btnExportDefSD" Content="Export to CSV" HorizontalAlignment="Right" Width="90" Height="19" Margin="37,05,00,00" IsEnabled="True"/>
-                                                            </StackPanel>
-
-                                                            <GroupBox x:Name="gBoxdDefSecDescCompare" Header="Compare" HorizontalAlignment="Left" Height="260" Margin="0,0,0,0" VerticalAlignment="Top" Width="290">
-                                                                <StackPanel  Margin="0,0">
-
-                                                                    <Label x:Name="lblCompareDefSDText" Content="You can compare the current state with  &#10;a previously created CSV file." />
-                                                                    <Label x:Name="lblCompareDefSDTemplate" Content="CSV Template File" />
-                                                                    <TextBox x:Name="txtCompareDefSDTemplate" Margin="2,0,0,0" Width="275" IsEnabled="True"/>
-                                                                    <Button x:Name="btnGetCompareDefSDInput" Content="Select Template" HorizontalAlignment="Right" Width="90" Height="19" Margin="162,05,00,00" IsEnabled="True"/>
-                                                                    <Button x:Name="btnCompDefSD" Content="Run Compare" HorizontalAlignment="Right" Width="90" Height="19" Margin="162,05,00,00" IsEnabled="True"/>
-                                                                    <Label x:Name="lblDownloadCSVDefSD" Content="Download CSV templates for comparing with&#10;your defaultSecurityDescriptors:" Margin="05,20,00,00" />
-                                                                    <Button x:Name="btnDownloadCSVDefSD" Content="Download CSV Templates" HorizontalAlignment="Left" Width="140" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
-                                                                </StackPanel>
-                                                            </GroupBox>
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </TabItem>
-                                        </TabControl>
-                                        <TabControl x:Name="tabFilterTop" Background="#FFC9C9C9"  HorizontalAlignment="Left" Height="550" Margin="4,0,0,0" VerticalAlignment="Top" Width="300">
-                                            <TabItem x:Name="tabCompare" Header="Compare">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="34*"/>
-                                                        <ColumnDefinition Width="261*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Orientation="Vertical" Margin="0,0" HorizontalAlignment="Left" Grid.ColumnSpan="2">
-
-                                                        <CheckBox x:Name="chkBoxCompare" Content="Enable Compare" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top"/>
-                                                        <Label x:Name="lblCompareDescText" Content="You can compare the current state with  &#10;a previously created CSV file." />
-                                                        <Label x:Name="lblCompareTemplate" Content="CSV Template File" />
-                                                        <TextBox x:Name="txtCompareTemplate" Margin="2,0,0,0" Width="275" IsEnabled="False"/>
-                                                        <Button x:Name="btnGetCompareInput" Content="Select Template" HorizontalAlignment="Right" Height="19" Margin="65,00,00,00" IsEnabled="False"/>
-                                                        <StackPanel Orientation="Horizontal">
-                                                            <Label x:Name="lblReturn" Content="Return:" />
-                                                            <ComboBox x:Name="combReturns" HorizontalAlignment="Left" Margin="05,02,00,00" VerticalAlignment="Top" Width="80" IsEnabled="False" SelectedValue="ALL"/>
-                                                        </StackPanel>
-                                                        <StackPanel Orientation="Vertical">
-                                                            <CheckBox x:Name="chkBoxTemplateNodes" Content="Use nodes from template." HorizontalAlignment="Left" Width="160" Margin="2,5,00,00" IsEnabled="False" />
-                                                            <CheckBox x:Name="chkBoxScanUsingUSN" Content="Faster compare using USNs of the&#10;NTSecurityDescriptor. This requires that your &#10;template to contain USNs.Requires SD Modified&#10;date selected when creating the template." HorizontalAlignment="Left"  Width="280" Margin="2,5,00,00" IsEnabled="False" />
-                                                        </StackPanel>
-                                                        <Label x:Name="lblReplaceDN" Content="Replace DN in file with current domain DN.&#10;E.g. DC=contoso,DC=com&#10;Type the old DN to be replaced:" />
-                                                        <TextBox x:Name="txtReplaceDN" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
-                                                        <Label x:Name="lblReplaceNetbios" Content="Replace principals prefixed domain name with&#10;current domain. E.g. CONTOSO&#10;Type the old NETBIOS name to be replaced:" />
-                                                        <TextBox x:Name="txtReplaceNetbios" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
-                                                        <Label x:Name="lblDownloadCSVDefACLs" Content="Download CSV templates for comparing with&#10;your environment:" Margin="05,20,00,00" />
-                                                        <Button x:Name="btnDownloadCSVDefACLs" Content="Download CSV Templates" HorizontalAlignment="Left" Width="140" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </TabItem>
-                                            <TabItem x:Name="tabFilter" Header="Filter">
-                                                <Grid>
-                                                    <StackPanel Orientation="Vertical" Margin="0,0">
-                                                        <CheckBox x:Name="chkBoxFilter" Content="Enable Filter" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top"/>
-                                                        <Label x:Name="lblAccessCtrl" Content="Filter by Access Type:(example: Allow)" />
-                                                        <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                            <CheckBox x:Name="chkBoxType" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                            <ComboBox x:Name="combAccessCtrl" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
-                                                        </StackPanel>
-                                                        <Label x:Name="lblFilterExpl" Content="Filter by Object:(example: user)" />
-                                                        <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                            <CheckBox x:Name="chkBoxObject" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                            <ComboBox x:Name="combObjectFilter" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
-                                                        </StackPanel>
-                                                        <Label x:Name="lblGetObj" Content="The list box contains a few  number of standard &#10;objects. To load all objects from schema &#10;press Load." />
-                                                        <StackPanel  Orientation="Horizontal" Margin="0,0">
-
-                                                            <Label x:Name="lblGetObjExtend" Content="This may take a while!" />
-                                                            <Button x:Name="btnGetObjFullFilter" Content="Load" IsEnabled="False" Width="50" />
-                                                        </StackPanel>
-                                                        <Label x:Name="lblFilterTrusteeExpl" Content="Filter by Trustee:&#10;Examples:&#10;CONTOSO\User&#10;CONTOSO\JohnDoe*&#10;*Smith&#10;*Doe*" />
-                                                        <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                            <CheckBox x:Name="chkBoxTrustee" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                            <TextBox x:Name="txtFilterTrustee" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </TabItem>
-                                            <TabItem x:Name="tabEffectiveR" Header="Effective Rights">
-                                                <Grid >
-                                                    <StackPanel Orientation="Vertical" Margin="0,0">
-                                                        <CheckBox x:Name="chkBoxEffectiveRights" Content="Enable Effective Rights" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top"/>
-                                                        <Label x:Name="lblEffectiveDescText" Content="Effective Access allows you to view the effective &#10;permissions for a user, group, or device account." />
-                                                        <Label x:Name="lblEffectiveText" Content="Type the account name (samAccountName) for a &#10;user, group or computer" />
-                                                        <Label x:Name="lblSelectPrincipalDom" Content=":" />
-                                                        <TextBox x:Name="txtBoxSelectPrincipal" IsEnabled="False"  />
-                                                        <StackPanel  Orientation="Horizontal" Margin="0,0">
-                                                            <Button x:Name="btnGetSPAccount" Content="Get Account" Margin="5,0,0,0" IsEnabled="False"/>
-                                                            <Button x:Name="btnListLocations" Content="Locations..." Margin="50,0,0,0" IsEnabled="False"/>
-                                                        </StackPanel>
-                                                        <StackPanel  Orientation="Vertical" Margin="0,0"   >
-                                                            <GroupBox x:Name="gBoxEffectiveSelUser" Header="Selected Security Principal:" HorizontalAlignment="Left" Height="50" Margin="2,2,0,0" VerticalAlignment="Top" Width="290">
-                                                                <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                    <Label x:Name="lblEffectiveSelUser" Content="" />
-                                                                </StackPanel>
-                                                            </GroupBox>
-                                                            <Button x:Name="btnGETSPNReport" HorizontalAlignment="Left" Content="View Account" Margin="5,2,0,0" IsEnabled="False" Width="110"/>
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </TabItem>
-                                            <TabItem x:Name="tabAssess" Header="Assessment">
-                                                <Grid >
-                                                    <StackPanel Orientation="Vertical" Margin="0,0">
-                                                        <GroupBox x:Name="gBoxdCriticals" Header="Assessment Options" HorizontalAlignment="Left" Height="200" Margin="0,5,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel>
-                                                                <Label x:Name="lblFilterServerity" Content="Filter by Severity" />
-                                                                <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                                    <CheckBox x:Name="chkBoxSeverity" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="True"/>
-                                                                    <ComboBox x:Name="combServerity" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="false"/>
-                                                                </StackPanel>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                        <GroupBox x:Name="gBoxCriticality" Header="Access Rights Criticality" HorizontalAlignment="Left" Height="150" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                                <CheckBox x:Name="chkBoxEffectiveRightsColor" Content="Show color coded criticality" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True"/>
-                                                                <Label x:Name="lblEffectiveRightsColor" Content="Use colors in report to identify criticality level of &#10;permissions.This might help you in implementing &#10;Least-Privilege Administrative Models" />
-                                                                <Button x:Name="btnViewLegend" Content="View Color Legend" HorizontalAlignment="Left" Margin="5,0,0,0" IsEnabled="True" Width="110"/>
-                                                            </StackPanel>
-                                                        </GroupBox>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </TabItem>
-                                        </TabControl>
+                        <StackPanel Orientation="Horizontal" >
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
+                                <StackPanel Orientation="Vertical" >
+                                    <StackPanel Orientation="Horizontal" >
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.0" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
-                                    <Button x:Name="btnScan" Content="Run Scan" HorizontalAlignment="Left" Height="19" Margin="500,5,0,0" VerticalAlignment="Top" Width="66"/>
+                                    <StackPanel Orientation="Horizontal" >
+                                        <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
+                                        <Image x:Name="imgTwitter" HorizontalAlignment="Left" Height="15" VerticalAlignment="Center" Width="15"  />
+                                        <Label x:Name="lblStyleVersion3" Content="@ipcdollar1" HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="72" Foreground="White" Background="{x:Null}" FontSize="12"/>
+                                        <Image x:Name="imgGithub" HorizontalAlignment="Left" Height="15" VerticalAlignment="Center" Width="15"  />
+                                        <Label x:Name="lblStyleVersion4" Content="@canix1" HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="53" Foreground="White" Background="{x:Null}" FontSize="12"/>
+                                    </StackPanel>
                                 </StackPanel>
-                            </Grid>
-                        </TabItem>
-                    </TabControl>
-                </StackPanel>
-                <StackPanel >
-
-                    <Label x:Name="lblSelectedNode" Content="Selected Object:" HorizontalAlignment="Left" Height="26" Margin="0,0,0,0" VerticalAlignment="Top" Width="158"/>
-
-                    <StackPanel Orientation="Horizontal" >
-                        <TextBox x:Name="txtBoxSelected" HorizontalAlignment="Left" Height="20" Margin="0,0,0,0" TextWrapping="NoWrap" VerticalAlignment="Top" Width="710"/>
-                        <Button x:Name="btnExit" Content="Exit" HorizontalAlignment="Left" Margin="150,0,0,0" VerticalAlignment="Top" Width="75"/>
+                            </StackPanel>
+                        </StackPanel>
                     </StackPanel>
-                    <Label x:Name="lblExcludeddNode" Content="Excluded Path (matching string in distinguishedName):" HorizontalAlignment="Left" Height="26" Margin="0,0,0,0" VerticalAlignment="Top" Width="300"/>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBox x:Name="txtBoxExcluded" HorizontalAlignment="Left" Height="20" Margin="0,0,0,0" TextWrapping="NoWrap" VerticalAlignment="Top" Width="710" />
-                        <Button x:Name="btnClearExcludedBox" Content="Clear"  Height="21" Margin="10,0,0,0" IsEnabled="true" Width="100"/>
-                    </StackPanel>
-                    <Label x:Name="lblStatusBar" Content="Log:" HorizontalAlignment="Left" Height="26" Margin="0,0,0,0" VerticalAlignment="Top" Width="158"/>
-                    <StackPanel Orientation="Horizontal" >
-                        <ListBox x:Name="TextBoxStatusMessage" DisplayMemberPath="Message" SelectionMode="Extended" HorizontalAlignment="Left" Height="100" Margin="0,0,0,0" VerticalAlignment="Top" Width="710" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                    <StackPanel Orientation="Vertical">
+                        <Label x:Name="lblSelectedNode" Content="Selected Object:" HorizontalAlignment="Left" Height="26" Margin="0,0,0,0" VerticalAlignment="Top" Width="158" Foreground="White" />
+                        <StackPanel Orientation="Horizontal" >
+                            <TextBox x:Name="txtBoxSelected" HorizontalAlignment="Left" Height="20" Margin="5,0,0,0" TextWrapping="NoWrap" VerticalAlignment="Top" Width="630"/>
+                        </StackPanel>
+                        <Label x:Name="lblStatusBar" Content="Log:" HorizontalAlignment="Left" Height="26" Margin="0,0,0,0" VerticalAlignment="Top" Width="158" Foreground="White" />
+                        <ListBox x:Name="TextBoxStatusMessage" DisplayMemberPath="Message" SelectionMode="Extended" HorizontalAlignment="Left" Height="80" Margin="5,0,0,0" VerticalAlignment="Top" Width="630" ScrollViewer.HorizontalScrollBarVisibility="Auto">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="{x:Type ListBoxItem}">
                                     <Style.Triggers>
@@ -820,29 +658,319 @@ $xamlBase = @"
                                 </Style>
                             </ListBox.ItemContainerStyle>
                         </ListBox>
-                        <StackPanel Orientation="Horizontal" Margin="62,0,0,0">
+                        <TabControl x:Name="tabScanTop"   HorizontalAlignment="Left" Height="315"  VerticalAlignment="Top" Width="630" Margin="5,5,0,0">
+                            <TabItem x:Name="tabScan" Header="Scan Options" Width="85">
+                                <Grid >
+                                    <StackPanel Orientation="Horizontal" Margin="0,0">
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <GroupBox x:Name="gBoxScanType" Header="Scan Type" HorizontalAlignment="Left" Height="71" Margin="2,1,0,0" VerticalAlignment="Top" Width="290" >
+                                                <StackPanel Orientation="Vertical" Margin="0,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="rdbDACL" Content="DACL (Access)" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="95" IsChecked="True"/>
+                                                        <RadioButton x:Name="rdbSACL" Content="SACL (Audit)" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="90"/>
 
-                            <StackPanel Orientation="Vertical" >
-                                <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner &#10;5.9.2" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
-                                <Label x:Name="lblStyleVersion2" Content="written by &#10;robin.g@home.se" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="159" Foreground="#FFF4F0F0" Background="{x:Null}" FontSize="12"/>
-                                <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="0,0,0,0" Foreground="#FFF6F6F6" HorizontalAlignment="Right">
-                                    <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="{x:Type Button}">
-                                            <ContentPresenter />
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
+                                                        <CheckBox x:Name="chkBoxRAWSDDL" Content="RAW SDDL" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </GroupBox>
+                                            <GroupBox x:Name="gBoxScanDepth" Header="Scan Depth" HorizontalAlignment="Left" Height="51" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
+                                                <StackPanel Orientation="Vertical" Margin="0,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="rdbBase" Content="Base" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True"/>
+                                                        <RadioButton x:Name="rdbOneLevel" Content="One Level" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
+                                                        <RadioButton x:Name="rdbSubtree" Content="Subtree" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </GroupBox>
+                                            <GroupBox x:Name="gBoxRdbFile" Header="Output Options" HorizontalAlignment="Left" Height="158" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
+                                                <StackPanel Orientation="Vertical" Margin="0,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="rdbOnlyHTA" Content="HTML" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput" IsChecked="True"/>
+                                                        <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
+                                                    </StackPanel>
+                                                    <CheckBox x:Name="chkBoxTranslateGUID" Content="Translate GUID's in CSV output" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="200"/>
+                                                    <Label x:Name="lblTempFolder" Content="CSV file destination" />
+                                                    <TextBox x:Name="txtTempFolder" Margin="0,0,02,0"/>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" >
+                                                        <Button x:Name="btnGetTemplateFolder" Content="Change Folder" Width="90" Margin="-100,00,0,0"  />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </GroupBox>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <GroupBox x:Name="gBoxRdbScan" Header="Objects to scan" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="310">
+                                                <StackPanel Orientation="Vertical" Margin="0,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="rdbScanOU" Content="OUs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True" GroupName="rdbGroupFilter"/>
+                                                        <RadioButton x:Name="rdbScanContainer" Content="Containers" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
+                                                        <RadioButton x:Name="rdbScanAll" Content="All Objects" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
+                                                        <RadioButton x:Name="rdbGPO" Content="GPOs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <RadioButton x:Name="rdbScanFilter" Content="" HorizontalAlignment="Left" Height="18" Margin="5,5,0,0" VerticalAlignment="Top" Width="15" GroupName="rdbGroupFilter"/>
+                                                        <TextBox x:Name="txtCustomFilter" Text="(objectClass=*)" HorizontalAlignment="Left" Height="18" Width="250" Margin="0,0,0.0,0" IsEnabled="False"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </GroupBox>
+                                            <GroupBox x:Name="gBoxReportOpt" Header="View in report" HorizontalAlignment="Left" Height="165" Margin="2,0,0,0" VerticalAlignment="Top" Width="310">
+                                                <StackPanel Orientation="Vertical" Margin="0,0">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox x:Name="chkBoxGetOwner" Content="View Owner" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                        <CheckBox x:Name="chkBoxACLSize" Content="DACL Size" HorizontalAlignment="Left" Height="18" Margin="30,05,0,0" VerticalAlignment="Top" Width="80"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0.2,0" Height="35">
+                                                        <CheckBox x:Name="chkInheritedPerm" Content="Inherited&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                        <CheckBox x:Name="chkBoxGetOUProtected" Content="Inheritance&#10;Disabled" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
+                                                        <CheckBox x:Name="chkBoxDefaultPerm" Content="Skip Default&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                        <CheckBox x:Name="chkBoxReplMeta" Content="SD Modified date" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
 
-                            </StackPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
+                                                        <CheckBox x:Name="chkBoxSkipProtectedPerm" Content="Skip Protected&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                        <CheckBox x:Name="chkBoxObjType" Content="ObjectClass" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="90"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Height="34" Margin="0,0,0,0">
+                                                        <CheckBox x:Name="chkBoxUseCanonicalName" Content="Canonical Name" HorizontalAlignment="Left" Height="30" Margin="155,00,0,0" VerticalAlignment="Top" Width="120"/>
+                                                    </StackPanel>
+
+                                                </StackPanel>
+                                            </GroupBox>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabOfflineScan" Header="Additional Options">
+                                <Grid>
+                                    <StackPanel>
+                                        <GroupBox x:Name="gBoxImportCSV" Header="CSV to HTML" HorizontalAlignment="Left" Height="136" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
+                                            <StackPanel Orientation="Vertical" Margin="0,0">
+                                                <Label x:Name="lblCSVImport" Content="This file will be converted HTML:" />
+                                                <TextBox x:Name="txtCSVImport"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <Button x:Name="btnGetCSVFile" Content="Select CSV" />
+                                                </StackPanel>
+                                                <CheckBox x:Name="chkBoxTranslateGUIDinCSV" Content="CSV file do not contain object GUIDs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="290"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <Button x:Name="btnCreateHTML" Content="Create HTML View" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </GroupBox>
+                                        <GroupBox x:Name="gBoxProgress" Header="Progress Bar" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
+                                            <StackPanel Orientation="Vertical" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxSkipProgressBar" Content="Use Progress Bar" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True" IsChecked="True"/>
+                                                <Label x:Name="lblSkipProgressBar" Content="For speed you could disable the progress bar." />
+                                            </StackPanel>
+                                        </GroupBox>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabOther" Header="Default SD">
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0,0,-40">
+                                            <GroupBox x:Name="gBoxdDefSecDesc" Header="Output Format" HorizontalAlignment="Left" Height="45" Margin="0,0,0,0" VerticalAlignment="Top" Width="290">
+                                                <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                    <RadioButton x:Name="rdbDefSD_Access" Content="DACL" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="50" IsChecked="True"/>
+                                                    <RadioButton x:Name="rdbDefSD_SDDL" Content="SDDL" HorizontalAlignment="Left" Height="18" Margin="10,05,0,0" VerticalAlignment="Top" Width="50"/>
+                                                </StackPanel>
+                                            </GroupBox>
+                                            <CheckBox x:Name="chkModifedDefSD" Content="Only modified defaultSecurityDescriptors" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top"/>
+                                            <Label x:Name="lblObjectDefSD" Content="Select objects to scan:" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <ComboBox x:Name="combObjectDefSD" HorizontalAlignment="Left" Margin="05,05,00,00" VerticalAlignment="Top" Width="120" IsEnabled="True" SelectedValue="*"/>
+                                                <Button x:Name="btnScanDefSD" Content="Run Scan" HorizontalAlignment="Right" Width="90" Height="19" Margin="37,05,00,00" IsEnabled="True"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <Button x:Name="btnGetSchemaClass" Content="Load all classSchema" HorizontalAlignment="Left" Width="120" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
+                                                <Button x:Name="btnExportDefSD" Content="Export to CSV" HorizontalAlignment="Right" Width="90" Height="19" Margin="37,05,00,00" IsEnabled="True"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <GroupBox x:Name="gBoxdDefSecDescCompare" Header="Compare" HorizontalAlignment="Left" Height="260" Margin="0,0,0,0" VerticalAlignment="Top" Width="290">
+                                            <StackPanel  Margin="0,0">
+                                                <Label x:Name="lblCompareDefSDText" Content="You can compare the current state with  &#10;a previously created CSV file." />
+                                                <Label x:Name="lblCompareDefSDTemplate" Content="CSV Template File" />
+                                                <TextBox x:Name="txtCompareDefSDTemplate" Margin="2,0,0,0" Width="275" IsEnabled="True"/>
+                                                <Button x:Name="btnGetCompareDefSDInput" Content="Select Template" HorizontalAlignment="Right" Width="90" Height="19" Margin="162,05,00,00" IsEnabled="True"/>
+                                                <Button x:Name="btnCompDefSD" Content="Run Compare" HorizontalAlignment="Right" Width="90" Height="19" Margin="162,05,00,00" IsEnabled="True"/>
+                                                <Label x:Name="lblDownloadCSVDefSD" Content="Download CSV templates for comparing with&#10;your defaultSecurityDescriptors:" Margin="05,20,00,00" />
+                                                <Button x:Name="btnDownloadCSVDefSD" Content="Download CSV Templates" HorizontalAlignment="Left" Width="140" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
+                                            </StackPanel>
+                                        </GroupBox>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+
+                            <TabItem x:Name="Exclude" Header="Exclude">
+                                <Grid>
+                                    <StackPanel Orientation="Vertical">
+                                        <Label x:Name="lblExcludeddNode" Content="Excluded Path (matching string in distinguishedName):" HorizontalAlignment="Left" Height="26" Margin="0,0,0,0" VerticalAlignment="Top" Width="300"/>
+                                        <StackPanel Orientation="Vertical">
+                                            <TextBox x:Name="txtBoxExcluded" HorizontalAlignment="Left" Height="20" Margin="5,0,0,0" TextWrapping="NoWrap" VerticalAlignment="Top" Width="600" />
+                                            <Button x:Name="btnClearExcludedBox" Content="Clear"  Height="21" Margin="10,0,0,0" IsEnabled="true" Width="100"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabCompare" Header="Compare">
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0" HorizontalAlignment="Left">
+                                            <CheckBox x:Name="chkBoxCompare" Content="Enable Compare" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
+                                            <Label x:Name="lblCompareDescText" Content="You can compare the current state with  &#10;a previously created CSV file." />
+                                            <Label x:Name="lblCompareTemplate" Content="CSV Template File" />
+                                            <TextBox x:Name="txtCompareTemplate" Margin="2,0,0,0" Width="275" IsEnabled="False"/>
+                                            <Button x:Name="btnGetCompareInput" Content="Select Template" HorizontalAlignment="Right" Height="19" Margin="65,00,00,00" IsEnabled="False"/>
+                                            <StackPanel Orientation="Horizontal" Margin="5,5,0,0">
+                                                <Label x:Name="lblReturn" Content="Return:" />
+                                                <ComboBox x:Name="combReturns" HorizontalAlignment="Left" Margin="05,02,00,00" VerticalAlignment="Top" Width="80" IsEnabled="False" SelectedValue="ALL"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Vertical">
+                                                <CheckBox x:Name="chkBoxTemplateNodes" Content="Use nodes from template." HorizontalAlignment="Left" Width="160" Margin="2,5,00,00" IsEnabled="False" />
+                                                <CheckBox x:Name="chkBoxScanUsingUSN" Content="Faster compare using USNs of the&#10;NTSecurityDescriptor. This requires that your &#10;template to contain USNs.Requires SD Modified&#10;date selected when creating the template." HorizontalAlignment="Left"  Width="280" Margin="2,5,00,00" IsEnabled="False" />
+                                            </StackPanel>
+
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Width="300">
+
+                                            <Label x:Name="lblReplaceDN" Content="Replace DN in file with current domain DN.&#10;E.g. DC=contoso,DC=com&#10;Type the old DN to be replaced:" />
+                                            <TextBox x:Name="txtReplaceDN" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
+                                            <Label x:Name="lblReplaceNetbios" Content="Replace principals prefixed domain name with&#10;current domain. E.g. CONTOSO&#10;Type the old NETBIOS name to be replaced:" />
+                                            <TextBox x:Name="txtReplaceNetbios" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
+                                            <Label x:Name="lblDownloadCSVDefACLs" Content="Download CSV templates for comparing with&#10;your environment:" Margin="05,20,00,00" />
+                                            <Button x:Name="btnDownloadCSVDefACLs" Content="Download CSV Templates" HorizontalAlignment="Left" Width="140" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabFilter" Header="Filter">
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <CheckBox x:Name="chkBoxFilter" Content="Enable Filter" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
+                                            <Label x:Name="lblAccessCtrl" Content="Filter by Access Type:(example: Allow)" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxType" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <ComboBox x:Name="combAccessCtrl" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
+                                            </StackPanel>
+                                            <Label x:Name="lblFilterExpl" Content="Filter by Object:(example: user)" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxObject" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <ComboBox x:Name="combObjectFilter" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
+                                            </StackPanel>
+                                            <Label x:Name="lblGetObj" Content="The list box contains a few  number of standard &#10;objects. To load all objects from schema &#10;press Load." />
+                                            <StackPanel  Orientation="Horizontal" Margin="0,0">
+
+                                                <Label x:Name="lblGetObjExtend" Content="This may take a while!" />
+                                                <Button x:Name="btnGetObjFullFilter" Content="Load" IsEnabled="False" Width="50" />
+                                            </StackPanel>
+
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Margin="5,5,0,0" Width="320">
+                                            <Label x:Name="lblFilterTrusteeExpl" Content="Filter by Trustee:&#10;Examples:&#10;CONTOSO\User&#10;CONTOSO\JohnDoe*&#10;*Smith&#10;*Doe*" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxTrustee" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <TextBox x:Name="txtFilterTrustee" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxFilterBuiltin" Content="" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <Label x:Name="lblFilterBuiltin" Content="Exclude all built-in security principals" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabEffectiveR" Header="Effective Rights">
+                                <Grid >
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <CheckBox x:Name="chkBoxEffectiveRights" Content="Enable Effective Rights" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
+                                            <Label x:Name="lblEffectiveDescText" Content="Effective Access allows you to view the effective &#10;permissions for a user, group, or device account." />
+                                            <Label x:Name="lblEffectiveText" Content="Type the account name (samAccountName) for a &#10;user, group or computer" />
+                                            <Label x:Name="lblSelectPrincipalDom" Content=":" />
+                                            <TextBox x:Name="txtBoxSelectPrincipal" IsEnabled="False"  />
+                                            <StackPanel  Orientation="Horizontal" Margin="0,0">
+                                                <Button x:Name="btnGetSPAccount" Content="Get Account" Margin="5,0,0,0" IsEnabled="False"/>
+                                                <Button x:Name="btnListLocations" Content="Locations..." Margin="50,0,0,0" IsEnabled="False"/>
+                                            </StackPanel>
+
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Margin="5,5,0,0" Width="320">
+                                            <StackPanel  Orientation="Vertical" Margin="0,0"   >
+                                                <GroupBox x:Name="gBoxEffectiveSelUser" Header="Selected Security Principal:" HorizontalAlignment="Left" Height="50" Margin="2,2,0,0" VerticalAlignment="Top" Width="290">
+                                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                                        <Label x:Name="lblEffectiveSelUser" Content="" />
+                                                    </StackPanel>
+                                                </GroupBox>
+                                                <Button x:Name="btnGETSPNReport" HorizontalAlignment="Left" Content="View Account" Margin="5,2,0,0" IsEnabled="False" Width="110"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabAssess" Header="Assessment">
+                                <Grid >
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <GroupBox x:Name="gBoxdCriticals" Header="Assessment Options" HorizontalAlignment="Left" Height="200" Margin="0,5,0,0" VerticalAlignment="Top" Width="290">
+                                                <StackPanel>
+                                                    <Label x:Name="lblFilterServerity" Content="Filter by Severity" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                        <CheckBox x:Name="chkBoxSeverity" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="True"/>
+                                                        <ComboBox x:Name="combServerity" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="false"/>
+                                                    </StackPanel>
+                                                  <Label x:Name="lblRecursiveFind" Content="Perform a recursive search and return these objects:" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                        <CheckBox x:Name="chkBoxRecursiveFind" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="True"/>
+                                                        <ComboBox x:Name="combRecursiveFind" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="false"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </GroupBox>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Margin="5,5">
+                                            <GroupBox x:Name="gBoxCriticality" Header="Access Rights Criticality" HorizontalAlignment="Left" Height="150" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
+                                                <StackPanel Orientation="Vertical" Margin="0,0">
+                                                    <CheckBox x:Name="chkBoxEffectiveRightsColor" Content="Show color coded criticality" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True"/>
+                                                    <Label x:Name="lblEffectiveRightsColor" Content="Use colors in report to identify criticality level of &#10;permissions.This might help you in implementing &#10;Least-Privilege Administrative Models" />
+                                                    <Button x:Name="btnViewLegend" Content="View Color Legend" HorizontalAlignment="Left" Margin="5,0,0,0" IsEnabled="True" Width="110"/>
+                                                </StackPanel>
+
+                                            </GroupBox>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                        </TabControl>
+                        <StackPanel Orientation="Horizontal" Margin="5,5">
+                            <Button x:Name="btnScan" Content="Run Scan" HorizontalAlignment="Left" Height="19" Margin="0,0,0,0" VerticalAlignment="Top" Width="66"/>
+                            <Button x:Name="btnExit" Content="Exit" HorizontalAlignment="Left" Margin="100,0,0,0" VerticalAlignment="Top" Width="75"/>
+                            <Button x:Name="btnSupport" Height="23" Tag="Support Statement"  Margin="270,0,0,0" Foreground="White" HorizontalAlignment="Right">
+                                <TextBlock TextDecorations="Underline" Text="{Binding Path=Tag, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type Button}}}" />
+                                <Button.Template>
+                                    <ControlTemplate TargetType="{x:Type Button}">
+                                        <ContentPresenter />
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
                         </StackPanel>
                     </StackPanel>
+                </StackPanel>
+                <StackPanel >
                 </StackPanel>
             </StackPanel>
 
         </Grid>
     </ScrollViewer>
 </Window>
+
+
 "@
 
 [XML] $XAML = $xamlBase
@@ -857,114 +985,6 @@ $xamlBase = $xamlBase.Replace("x:Name","Name")
 
 #Search the XML data for object and create variables
 $XAML.SelectNodes("//*[@Name]")| %{set-variable -Name ($_.Name) -Value $Window.FindName($_.Name)}
-
-
-$base64 = @"
-/9j/4AAQSkZJRgABAQEAYABgAAD/4QBmRXhpZgAATU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAAExAAIAAAAQAAAATgAAAAAAAABgAAAAAQAAAGAAAAABcGFpbnQubmV0IDQuMS41AP/bAEMADAkJCwkIDAsKCw4NDA8THxQTER
-ETJhsdFx8tKDAvLCgsKzI4SD0yNUQ2Kyw+VT9ESkxQUVAwPFheV05eSE9QTf/bAEMBDQ4OExATJRQUJU0zLDNNTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTU1NTf/AABEIAjkDAAMBIgACEQEDEQH/xAAfAAABBQEBAQEBAQAA
-AAAAAAAAAQIDBAUGBwgJCgv/xAC1EAACAQMDAgQDBQUEBAAAAX0BAgMABBEFEiExQQYTUWEHInEUMoGRoQgjQrHBFVLR8CQzYnKCCQoWFxgZGiUmJygpKjQ1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoOEhYaHiImKkpOUlZaXmJmaoqOkpa
-anqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4eLj5OXm5+jp6vHy8/T19vf4+fr/xAAfAQADAQEBAQEBAQEBAAAAAAAAAQIDBAUGBwgJCgv/xAC1EQACAQIEBAMEBwUEBAABAncAAQIDEQQFITEGEkFRB2FxEyIygQgUQpGhscEJIzNS8BVictEKFiQ04SXx
-FxgZGiYnKCkqNTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqCg4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2dri4+Tl5ufo6ery8/T19vf4+fr/2gAMAwEAAhEDEQA/AOuYZplPppGaAG0lBpDQAG
-ozxT6aeaAGUlB4pKAENMNPprDNADSaY3NKTTSaAGmkNK1MoAQ02nGmmgBKSikoAKQmgnFNJoAKSlwfQ0mD6GgBKSlwfQ0bT6GgBKSlwfQ0FW9KAG0lO2n0pNp9KAG0lLtPpSbTQAlJTth9qTYfagBtFO2H2pCh9qAG0lO2H1pNvvQA00lO2e9Jt96AG0U7b70baAG0
-lOwKQigBtFOxSYoAbRTsCjAoAbSU7AowKAG0UuBRQAyinUYoAbSU+koAbSE06igBlFPpKAGUHNPpCaAGUU6igBtFLSGgBKTBp1FADcUYpaKAExRRRQAUlLSUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAei7fek2j3p1JQ
-AwoD60zYPepKQ80AR7B70mwU48daSgBpRT2qMoB2qWmn3oAjKj0pNo9KU8UlADSo9BTcD0FPppoAaQPQVGygdhT6Q0AR4HoKaRjpTjxTTQA2kpTTTQAGkopKAAmkxS4pDQAUlFITigAJppopKACkopKACm0tHSgBKDQaSgAptKaaaAA0lFJQAUlHWigApDQaSgANJR
-SUAFFFFACUUUlABRRSUAFFFJQAUUUUAFJQaSgAooooAKSiigBDSUUUAFJRRQAGkoooAKSlpKACg0UmKACilxSYoAKSlxRQAlFLRQAlFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB6KRim1KeajIx9KAEpKKQmgAPNRnin0h5oAZTSa
-VuKbQAHmmHinGmnmgBtIaU02gBrcUw1IajYYNADTTDT6a3NADTzTKdSGgBvWl6UUhNACGkpaSgAJxTKUmm0AFJQaQ0ABpKWkoAOlJQaSgApDQaSgBDSUUUAJSdaWigBKSlptABSUUYPoaACkpcGjaaAEopcGkINADaKXbRigBtFOxSYFACUlOwKKAG0lOooAbSYNOo
-oAbg0Yp1IaAExSEe9LRQAm2jApaSgBMCkOKdTaACiikoAKQ0tJQAUUUlABRRQaAEooooAKSlpKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA9HpppabQA1h6U2n00j0oAbSGg0lAAeetRkYp9NNADKSlIx9KbQAHmmGnU080ANJp
-h5pTweaTB9DQAw00mpCpPGDTCjelADDTak2GmlCPSgBhNJT9nvSbPU0AMppNSFB70mxfSgCKkNTbV9KTA9BQBDRip8AdKSgCIg+hpMH0qYnFMoAjKn0pNpqSkoAj2H1FGz3p9NoAbs96Ng96dRQA3aKTaPSnU2gBCB6CkpaSgBKQ0ppKACkNLTaACkoooASiiigBKK
-WkoASiikoAKKKSgAooooAKSg0lABRRRQAlFFBoAQ0lLg0YNACUlO20ECgBlFLiloAbRS0GgBtGKWigBMUYoooASiiigAoopKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD0Xn0pMH0NTY44ptAEe0+lJtNPpKAIyhPpTCnvUxNNIzQBHs
-9TSbB7088U2gBu0elMZAOccVJSGgCMgegptOYelNoAQ0006kNADSaYwzTjTSaAI6Q040w0ANPFJSmmmgBKDRSYoATrS9KKSgApKKaTmgAJptKaaaACkNBpKAA0dKKQ0AFJRSGgANNNBpKACkNBooASig0hoADSGikoAKSiigAoowaMGgBDSUu2jbQAlJTsCjFADaKd
-0pKAG0Yp1JQA3FGKWigBMCjFLSGgBKKKKACiikoAKQ0GkoAKKKSgApKU0lABRRRigBKDS4pMUAJRS4ooASilNJQAUUUUAJRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAHpSnigjNIvSloAjPFNJqQ+9RkYoASkoooAQ0wjFOooAjpCaVhjpTKACmk
-elLSGgBtNpxFNoAQ81EeKkJprc0AMprClNITQAymmnGmmgBKKKaaACkopCcUABNNNFJQAGm0tJ1oAKKXB7A0m046UAIabT9hpNnvQAykNSbB70m0UARUVJgegpcUARYPoaNp9KkpDQAzYfak2e9PNNoAbsFGB6UtJQAlFLSGgApppTSUAFJRRQAUlLSGgBKKKSgAoo
-pKACiiigApKDSUAFFGDS4oAbRS4oxQAw0Yp9FADMGl20tBoAbgUUUUAFJRQaAEooooASiiigBDRRRigApKdikoASilooASiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooA9HQ9adTF4zmnE0AIaQ0UlACEelMNPzTSM0ANpCaDxTaACmsM9KU0hoAjNJTyM0
-w0AJTSKdSYPoaAIzTSakZCaZ5Z9RQAw80w1N5fvSGNaAIKaam2gdqMD0oAr/SjafSpSMUlAEe003Ye5qQ0lADPLHc0mwU80mKAECj0o4HSlNJQAU0nNKTTTQAlIaDSGgANIaKKAEoNBpKACmmlNNNAAaSikoADSdKWkoASkpTTTQAUlLSUAFFFGDQAlJTsUm2gBKSn
-YFFADaMU6koATFGKWkoAKSlpKACiikoADSUUUAFFFJQAUhpTTaACijBpdtADaSnECigBtGKdSUAJiig0UAFJS0lABSUppKACiijFACUUtFACUUtJQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB6QOTQwxSKfmp9AEVITUm0E0EAdqAIqMH0qSkoAjKk9qYUI9KmpDQ
-BDs96TYPepCPSm0AN2j0pCoPYU6mmgBhGKaTUhqMjFACUh5oooAYaaaeeajPFACNzTDTjTTQA00w040h5oAZSUpooATHrQaDSUAJQTiimk5oASkoNJQAU2looASg0UlACGkpaTrQAhptO2k9qNhoAbSU/YO5pdo9KAIjRg+lS8DpTTQBHtNGz1NPpKAG7RRgUtFACU
-lLTTQAUlLSUAFJS0lAAaSiigBKKKKAEooooAKQ0uKMUANop2KKAG4NGKdTaADFJS0UAFJRRQAhpKKKACkooNACUUYpcUANop2KSgBMUYpaSgAoNFBoASiiigApKWigBKKWigBKKKKACiiigAooooAKKKKACiiigD0ZfvCn1EPvCpCaADPIp55qOpKAI2GPpTalpjL6
-UAMNJQeKSgAppGaWkoAYeKaakPNRsMUAIaSikNADSPSmmnU0igBKa3NKaaTQBGeKSnnmozQAh5phpxpp5oAQ0lFNNABSUtG044FADSaaafsPc0eWO5oAjNNqbaPSlAA7UAQhT6Gl2E+1S00nFAEez1NGwU6koAbgelBopKAA0lLSGgANJRSGgBKSg0lABTTSmigBKQ
-0tNoADSUUUAJRRS4NACUhp2KTFADaKdiigBuKMUtBoATFFFJQAUUUlABRRRQAhpKU0lABRRRg0AJSGnYowKAGUuKdSUAJgUhp1NoAKSlpKACkpTSUAFJS0YoASkp1FACYooooADSUGigApKWigBKKWigBKKKKACiiigAooooAKKKKAPRSuDnqKdSGpCAaAI6eDwKYQ
-RSqflFADqbSk02gAPNRkYp9ITQBHSU4j0ppoAQ0lFJQA0j0php5NNIz9aAG0lKVPpRtNADCM1Gam2D1pCgPagCA0m0nsanwB0ApDQBXMbDrSbPepzUZGKAGGMUzaPSpDTTQAlNNKabQAUhoNGKACkoNJQAU0nNKTTTQAlJQaQ0AFJRRQAGmmlpKAEpDSmmmgBKQ0vX
-pShSaAG0hqTZ6mjaB2oAio2mpKSgBmz1NG0U6koATFBpabQAGkopKACiiigBKSlNJQAUlFFABSUuDRigBKKXFFADcUYp1JQAUlLSGgBKKKKACkpaSgBDSUp5oxQAlFOxRQAzFGKWigBKKKDQAlFFFACUUuKKAG0uKWkoAKQ0tJQAUUUUAJRS0UAJRS0lABRRRQAUUU
-UAei1IDkCojUgPyigBTSAcHFJSoetACHim1KcHrTNmTQAw0lSbR6UdOlAEeD6UhQmpKSgCExkd6TaKlppHpQAzaPSg0pptAAeajIxT6aTQAykpxHpTKAA0wjFOpKAIyaaacw9KYaAGmm0+mEUANIptONNoAKQ0GkoAKQ8UU0mgBKSg0hoAKTrS7Se1OEZ9cUAMpDUu
-wd6TAHQUARYJ6CjaakpKAGbB60bQO1LSdaACiikoAKbSmmmgApKKQ0AJRS9KSgBDSGikoAKSijBNABRS7aMCgBtGDTqSgBMUYpaSgANJRRQAlFFFACUUUUAFIaWkxQAlFLiloAbijFLSUAFFFFACUhpaQ0AJRRRigBKSn49aSgBMUYpaSgApKU0lABSUtJQAUlOooA
-TFFFFACUUUUAFJS0UAJS0UUAJRRRQB6HT1+6KQqD7UDIWgBTSqfmptCn5hQBJQD8wpDSZoAeRmmEEVJSGgCKkNOZfSmHigApKKQ0AIeaYRin0hoAjNNp7L6Uw0AJTTzSmkoAYaQ080wjFADTTGGelOJppoAYaQ04jNMwfSgBpptSbTSGP3oAjNJUm0UUAR7Se1J5fq
-akNJQAzYBS49BSmjpQAlJS0lACE000UlACGkNLTaAA0dKKQ0ABpKKQ0AIabSmkoADSUoBPSl2HvQAw0lSbQKOnSgCPaTRtp9IaAG4A6UtFFACGmmlpKACkoooAKQ0tIaAEooowaAEopcUvSgBuKMUtFACUUUlABRRRQAhpKU0lABSUuKXFADaTGadRQAmKKWkoAKbS
-mkoAKSloxmgBpop2KKAExRRQaAEooooASiiloAbS4paSgApKWkoAKKKMUAJS0UUAeimnJ901GTTo+9ACsoPTimfdIzUhNIaACkNPK5GRUZ460ASA8CimqflpSaAENIeaDSUANIx0plSE00jNADKQ0pyKbQAGmkZpaTBPagCMjFNqbYe9IYxQBDScmpcAdqQ0ARGMn2
-pvljuamppGaAGbVHakbmnGm0ARkYpDTzzUZoAaRTTTjTSM0ANpKWigBOlIaU0lACU0mnGmUABpppaSgBDRQKME9KAEpKfsPfijYKAI6TaTUv0pDQBHs9TS7R2FKaKACkoNIaAENJSmm0ABpppTRQAlIaWm0ABpKKMZoASil207AFADMGjbTjSUAJiiiigBKDRSUAFJ
-S0lABSUtFACUUuKKAG4pcUtJQAUlLSGgBKKKKACkooxQAhpMU/FFACYooooAbRRRQAlBooxQAlLilpKACkpaSgApKWkoAKTFOxRQAmKKKKAENFBooA9CpyHrTDSofmoAkptKaaaAJQflFB5601D8tKTQAKvXFIeKVT81OPPWgCKkNP2c0bQPrQBHRg1J0pKAGbPemm
-MdqkNNoAZjHakp55phFACUhopKAEIzUZGKeaSgCOilI9KaaAEPNMYYp9NNAERpKcw9KaaAGEelIacaaaAGmkNFIaAENJS/Sl2H6UARk001LsHfmlwB0FAEO0ntThHnqaf1ooAbtA7UtFITQA2kpTTTQAU2lNJQACkNKaaaACmmlNIaAENIaKOvSgBKQ0/YaXaB70AR
-delLtNSGm0AN2gUGlNJQAUhpabQAhoopKACiiigBDSUvWjHrQAlGKdikoAQCilNJQAUlFFACUUUUAFIaWjFADaXFLRQAmKSnU2gAooooASkPSloxmgBtLilApaAG4xQaWmmgApKWkoADSUuM0uKAExRS0lACUUUUAFJS4ooATFLRRQB6GcHrTVX5uKU0L94UAB4602
-pjz1qMp6UACHginGmLwSDTjQAA4Ip9RGpM8UALmnHBqOng/LQA0r6Uw1LTSAaAIzSUpUj3ptABSGg0lACEZqMjFSGmmgCOkNPK+lRmgBDSHmlpKAGHimmpDTCuelADCaYeak2Mfal8sdzQBXPFGCe1WNo9KYwxQBEY89TTdoHapaaeaAG000ppKAEpDS0lAB0pKDSU
-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
-"@
-# Create a streaming image by streaming the base64 string to a bitmap streamsource
-$bitmap = New-Object System.Windows.Media.Imaging.BitmapImage
-$bitmap.BeginInit()
-$bitmap.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($base64)
-$bitmap.EndInit()
- 
-# Freeze() prevents memory leaks.
-$bitmap.Freeze()
-$imagebrush = new-object System.Windows.Media.ImageBrush $bitmap
-$Window.background = $imagebrush
 
 $Icon = @"
 iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAABGdBTUEAALGPC/xhBQAAAwBQTFRFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
@@ -989,8 +1009,38 @@ $IconImage.EndInit()
 # Freeze() prevents memory leaks.
 $IconImage.Freeze()
 
-
 $Window.Icon = $IconImage
+
+
+$twittericon = @"
+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
+"@
+
+# Create a streaming image by streaming the base64 string to a bitmap streamsource
+$Twitterbitmap = New-Object System.Windows.Media.Imaging.BitmapImage
+$Twitterbitmap.BeginInit()
+$Twitterbitmap.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($twittericon)
+$Twitterbitmap.EndInit()
+ 
+# Freeze() prevents memory leaks.
+$Twitterbitmap.Freeze()
+
+$imgTwitter.Source = $Twitterbitmap
+
+$githubicon = @"
+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
+"@
+
+# Create a streaming image by streaming the base64 string to a bitmap streamsource
+$Githubbitmap = New-Object System.Windows.Media.Imaging.BitmapImage
+$Githubbitmap.BeginInit()
+$Githubbitmap.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($githubicon)
+$Githubbitmap.EndInit()
+ 
+# Freeze() prevents memory leaks.
+$Githubbitmap.Freeze()
+
+$imgGithub.Source = $Githubbitmap
 
 $txtTempFolder.Text = $CurrentFSPath
 $global:bolConnected = $false
@@ -1018,16 +1068,22 @@ $global:bolTempValue_InhertiedChkBox = $false
 [void]$combServerity.Items.Add("Low")
 [void]$combServerity.Items.Add("Info")
 
+[void]$combRecursiveFind.Items.Add("*")
+[void]$combRecursiveFind.Items.Add("User")
+[void]$combRecursiveFind.Items.Add("Group")
+[void]$combRecursiveFind.Items.Add("Computer")
+$combRecursiveFind.SelectedValue="*"
+
 [void]$combAccessCtrl.Items.Add("Allow")
 [void]$combAccessCtrl.Items.Add("Deny")
 [void]$combObjectDefSD.Items.Add("All Objects")
 $combObjectDefSD.SelectedValue="All Objects"
-$tabAdv.IsSelected= $true
+
 ###################
 #TODO: Place custom script here
 
 #### Check if UI should be loaded
-if(!($base))
+if((!($base) -and (!($GPO))))
 {
 
 $code = @"
@@ -1213,7 +1269,8 @@ $btnGetSchemaClass.add_Click(
     {
         $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
-        $request = New-Object System.directoryServices.Protocols.SearchRequest("$global:SchemaDN", "(objectClass=classSchema)", "Subtree")
+        $SearchFilter = "(objectClass=classSchema)"
+        $request = New-Object System.directoryServices.Protocols.SearchRequest("$global:SchemaDN", $SearchFilter, "Subtree")
         [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
         $request.Controls.Add($pagedRqc) | Out-Null
         [void]$request.Attributes.Add("name")
@@ -1355,6 +1412,28 @@ $btnScanDefSD.add_Click(
 {
     $global:bolProgressBar = $chkBoxSkipProgressBar.IsChecked
 
+    $bolReplMeta = $true
+    
+    $strFileDefSDHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
+    #Set the path for the HTM file name
+    if($OutputFolder -gt "")
+    {
+        #Check if foler exist if not use current folder
+        if(Test-Path $OutputFolder)
+        {
+            $strFileDefSDHTM = $OutputFolder + "\"+"$global:strDomainShortName-$strSelectedItem-$global:SessionID"+".htm" 
+        }
+        else
+        {
+            Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+            $strFileDefSDHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strSelectedItem-$global:SessionID"+".htm" 
+        }
+    }
+    else
+    {
+        $strFileDefSDHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strSelectedItem-$global:SessionID"+".htm"  
+    }
+
     if ($global:bolConnected -eq $true)
     {
         $global:observableCollection.Insert(0,(LogMessage -strMessage "Scanning..." -strType "Info" -DateStamp ))
@@ -1364,7 +1443,32 @@ $btnScanDefSD.add_Click(
         {
             $strSelectedItem = "*"
         }
-        Get-DefaultSD $strSelectedItem $chkModifedDefSD.IsChecked $rdbDefSD_SDDL.IsChecked "HTML" -Show $true
+        if($chkBoxSeverity.isChecked -or $chkBoxEffectiveRightsColor.isChecked)
+        {
+            $bolShowCriticalityColor = $true
+        }
+        else
+        {
+            $bolShowCriticalityColor = $false
+        }
+
+        if($bolSDDL -eq $true)
+        {
+                CreateDefaultSDReportHTA $global:strDomainLongName $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath
+                CreateDefSDHTM $global:strDomainLongName $strFileDefSDHTM
+                InitiateDefSDHTM $strFileDefSDHTM $strSelectedItem
+                InitiateDefSDHTM $strFileDefSDHTA $strSelectedItem
+        }
+        else
+        {
+            CreateHTM $strSelectedItem $strFileDefSDHTM					
+            CreateHTA $strSelectedItem $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+            InitiateDefSDAccessHTM $strFileDefSDHTA $strSelectedItem $bolReplMeta $false "" $bolShowCriticalityColor
+            InitiateDefSDAccessHTM $strFileDefSDHTM $strSelectedItem $bolReplMeta $false "" $bolShowCriticalityColor
+        }
+
+        Get-DefaultSD -strObjectClass $strSelectedItem -bolChangedDefSD $chkModifedDefSD.IsChecked -bolSDDL $rdbDefSD_SDDL.IsChecked -Show $true -File $strFileDefSDHTM -OutType "HTML" -bolShowCriticalityColor $bolShowCriticalityColor -Assess $chkBoxSeverity.IsChecked -Criticality $combServerity.SelectedItem -bolReplMeta $bolReplMeta
+        
         $global:observableCollection.Insert(0,(LogMessage -strMessage "Finished" -strType "Info" -DateStamp ))
 
     }
@@ -1400,12 +1504,10 @@ $btnGETSPNReport.add_Click(
 $btnViewLegend.add_Click(
 {
     
-        $strFileLegendHTA = $env:temp + "\"+$global:LegendHTMLFileName+".hta"
-
-        CreateColorLegenedReportHTA $strFileLegendHTA 
-        Invoke-Item $strFileLegendHTA 
+    DisplayLegend
 
 })
+
 
 $btnGetSPAccount.add_Click(
 {
@@ -1506,9 +1608,9 @@ $chkBoxCompare.add_Click(
         $chkBoxType.IsEnabled = $false
         $chkBoxObject.IsEnabled = $false
         $chkBoxTrustee.IsEnabled =  $false
+        $chkBoxFilterBuiltin.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
-        $chkBoxTrustee.IsChecked =  $false
         $combObjectFilter.IsEnabled = $false
         $txtFilterTrustee.IsEnabled = $false
         $combAccessCtrl.IsEnabled = $false
@@ -1561,7 +1663,7 @@ $chkBoxEffectiveRights.add_Click(
         $chkBoxTrustee.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
-        $chkBoxTrustee.IsChecked =  $false
+        $chkBoxFilterBuiltin.IsChecked =  $false
         $combObjectFilter.IsEnabled = $false
         $txtFilterTrustee.IsEnabled = $false
         $combAccessCtrl.IsEnabled = $false
@@ -1596,6 +1698,19 @@ $chkBoxSeverity.add_Click(
     }
 })
 
+
+$chkBoxRecursiveFind.add_Click(
+{
+    If($chkBoxRecursiveFind.IsChecked -eq $true)
+    {
+        $combRecursiveFind.IsEnabled = $true
+    }
+    else
+    {
+        $combRecursiveFind.IsEnabled = $false
+    }
+})
+
 $chkBoxFilter.add_Click(
 {
 
@@ -1616,6 +1731,7 @@ $chkBoxFilter.add_Click(
         $chkBoxType.IsEnabled = $true
         $chkBoxObject.IsEnabled = $true
         $chkBoxTrustee.IsEnabled =  $true
+        $chkBoxFilterBuiltin.IsEnabled =  $true
         $combObjectFilter.IsEnabled = $true
         $txtFilterTrustee.IsEnabled = $true
         $combAccessCtrl.IsEnabled = $true
@@ -1638,9 +1754,9 @@ $chkBoxFilter.add_Click(
         $chkBoxType.IsEnabled = $false
         $chkBoxObject.IsEnabled = $false
         $chkBoxTrustee.IsEnabled =  $false
+        $chkBoxFilterBuiltin.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
-        $chkBoxTrustee.IsChecked =  $false
         $combObjectFilter.IsEnabled = $false
         $txtFilterTrustee.IsEnabled = $false
         $combAccessCtrl.IsEnabled = $false
@@ -2770,6 +2886,14 @@ if ($this.SelectedItem.Tag -eq "NotEnumerated")
 #region 
 function RunCompare
 {
+if($chkBoxSeverity.isChecked -or $chkBoxEffectiveRightsColor.isChecked)
+{
+    $bolShowCriticalityColor = $true
+}
+else
+{
+    $bolShowCriticalityColor = $false
+}
 If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 {
     #If the DC string is changed during the compre ti will be restored to it's orgi value 
@@ -2855,8 +2979,14 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                     {
                         #Set the bolean to true so connection will be performed unless an error occur
                         $bolContinue = $true
-
-                        $strOUcol = $global:csvHistACLs[0].OU
+                        if($global:csvHistACLs[0].Object)
+                        {
+                            $strOUcol = $global:csvHistACLs[0].Object
+                        }
+                        else
+                        {
+                            $strOUcol = $global:csvHistACLs[0].OU
+                        }
 
                         if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
                         {
@@ -2872,7 +3002,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                             {
                                 if($global:IS_GC -eq "TRUE")
                                 {
-                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?","Information",3,"Warning")
+                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?",”Information”,3,"Warning")
                                     if($MsgBox -eq "Yes")
                                     {
                                         if($global:strDC.contains(":"))
@@ -2893,7 +3023,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                                 }
                                 else
                                 {
-                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.","Information",0,"Warning")
+                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.",”Information”,0,"Warning")
                                     $bolContinue = $false
                                 }
                             }
@@ -2959,10 +3089,10 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 		                            CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
                                 }
 
-	                            InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $chkBoxEffectiveRightsColor.IsChecked $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName
-	                            InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $chkBoxEffectiveRightsColor.IsChecked $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName
+	                            InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO
+	                            InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $true $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO
 
-                                $Format = "HTM"
+                                $Format = "HTML"
                                 $Show = $true
                             }
                             else
@@ -2998,7 +3128,10 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                             if($allSubOU.count -gt 0)
                             {			        
                                 $Returns = $combReturns.SelectedItem
-                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $Returns
+                                $bolToFile = $true
+                                #Used from comand line only
+                                $FilterBuiltin = $false
+                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $Returns $bolToFile $bolShowCriticalityColor $chkBoxSeverity.IsChecked $combServerity.SelectedItem $FilterBuiltin $chkBoxTranslateGUID.isChecked
                             }	
                             else
                             {
@@ -3044,10 +3177,23 @@ $date= ""
 function RunScan
 {
 
+if($rdbGPO.isChecked)
+{
+    $GPO = $true
+}
+
+if($chkBoxSeverity.isChecked -or $chkBoxEffectiveRightsColor.isChecked)
+{
+    $bolShowCriticalityColor = $true
+}
+else
+{
+    $bolShowCriticalityColor = $false
+}
 $bolPreChecks = $true
 If ($txtBoxSelected.Text)
 {
-    If(($chkBoxFilter.IsChecked -eq $true) -and  (($chkBoxType.IsChecked -eq $false) -and ($chkBoxObject.IsChecked -eq $false) -and ($chkBoxTrustee.IsChecked -eq  $false)))
+    If(($chkBoxFilter.IsChecked -eq $true) -and  (($chkBoxType.IsChecked -eq $false) -and ($chkBoxObject.IsChecked -eq $false) -and ($chkBoxTrustee.IsChecked -eq  $false) -and ($chkBoxFilterBuiltin.IsChecked -eq  $false)))
     {
                    
                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Filter Enabled , but no filter is specified!" -strType "Error" -DateStamp ))
@@ -3055,7 +3201,7 @@ If ($txtBoxSelected.Text)
     }
     else
     {
-        If(($chkBoxFilter.IsChecked -eq $true) -and  (($combAccessCtrl.SelectedIndex -eq -1) -and ($combObjectFilter.SelectedIndex -eq -1) -and ($txtFilterTrustee.Text -eq  "")))
+        If(($chkBoxFilter.IsChecked -eq $true) -and  (($combAccessCtrl.SelectedIndex -eq -1) -and ($combObjectFilter.SelectedIndex -eq -1) -and ($txtFilterTrustee.Text -eq  "") -and ($chkBoxFilterBuiltin.IsChecked -eq  $false)))
         {
                        
                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Filter Enabled , but no filter is specified!" -strType "Error" -DateStamp ))
@@ -3099,7 +3245,8 @@ If ($txtBoxSelected.Text)
         #Verify that attributes can be read
         if($null -ne $ADobject.distinguishedName)
         {
-	        if($null -ne $ADobject.Attributes.name)
+
+            if($null -ne $ADobject.Attributes.name)
             {
                 $strNode = $ADobject.Attributes.name[0]
             }
@@ -3107,6 +3254,13 @@ If ($txtBoxSelected.Text)
             {
                 $strNode = $ADobject.distinguishedName
             }
+
+	        if($GPO)
+            {
+                $strNode = $strNode + "_GPOs"
+            }
+
+            
             $bolTranslateGUIDStoObject = $false
             $date= get-date -uformat %Y%m%d_%H%M%S
             $strNode = fixfilename $strNode
@@ -3129,9 +3283,9 @@ If ($txtBoxSelected.Text)
 		                CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
                     }
 
-	                InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName
-	                InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $chkBoxEffectiveRightsColor.IsChecked $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName
-                    $Format = "HTM"
+	                InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO
+	                InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO
+                    $Format = "HTML"
                     $Show = $true
                 }
                 else
@@ -3148,25 +3302,29 @@ If ($txtBoxSelected.Text)
 	        If ($txtBoxSelected.Text.ToString().Length -gt 0)
             {
                 #Select type of scope
-		        If ($rdbBase.IsChecked -eq $False)
+		        If ($rdbBase.IsChecked -eq $true)
 		        {
-                    If ($rdbSubtree.IsChecked -eq $true)
-		            {
-			            $allSubOU = GetAllChildNodes $txtBoxSelected.Text "subtree"
-                    }
-                    else
-                    {
-                        $allSubOU = GetAllChildNodes $txtBoxSelected.Text "onelevel"
-                    }	    
+                    $Scope =  "base"
                 }
-		        else
+                If ($rdbOneLevel.IsChecked -eq $true)
 		        {
-			        $allSubOU = GetAllChildNodes $txtBoxSelected.Text "base"
-		        }
+			        $Scope =  "onelevel"
+                }
+                If ($rdbSubtree.IsChecked -eq $true)
+		        {
+			        $Scope =  "subtree"
+                }
+
+      
+			    $allSubOU = GetAllChildNodes $txtBoxSelected.Text $Scope
+
                 #if any objects found read ACLs
                 if($allSubOU.count -gt 0)
                 {			        
-                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $Protected $bolTranslateGUIDStoObject $Show $Format
+                    $bolToFile = $true
+                    #Used from comand line only
+                    $FilterBuiltin = $false
+                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $Protected $bolTranslateGUIDStoObject $Show $Format $bolToFile $chkBoxSeverity.IsChecked $combServerity.SelectedItem $bolShowCriticalityColor $GPO $FilterBuiltin $chkBoxTranslateGUID.isChecked $chkBoxRecursiveFind.isChecked $combRecursiveFind.SelectedValue
                 }
                 else
                 {
@@ -3772,6 +3930,179 @@ $global:dicWellKnownSids = @{"S-1-0"="Null Authority";`
 "S-1-16-28672"="Secure Process Mandatory Level";`
 "S-1-18-1"="Authentication Authority Asserted Identityl";`
 "S-1-18-2"="Service Asserted Identity"}
+#==========================================================================
+# Function		: Get-LargeNestedADGroup
+# Arguments     : DC name, DN of Group, Object type, Array of Members
+# Returns   	: Array of Members
+# Description   : This function will enumerate large groups and returns direct and recusive members 
+# 
+#==========================================================================
+Function Get-LargeNestedADGroup
+{
+Param (
+    # Domain Controller
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [string]$strDC,
+
+    # DistinguishedName of the group
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [string]$GroupDN,
+
+    # Returns members of type 
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("*", "User", "Group", "Computer")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Output = "*",
+    [System.Collections.ArrayList]
+    $MembersExpanded
+)
+
+begin
+{
+$null = Add-Type -AssemblyName System.DirectoryServices.Protocols
+if(-not($MembersExpanded))
+{
+    $MembersExpanded = New-Object System.Collections.ArrayList
+}
+
+}
+Process
+{
+# Use ADO to search entire domain.
+
+$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$strDC/$GroupDN")
+
+$adoConnection = New-Object -comObject "ADODB.Connection"
+$adoCommand = New-Object -comObject "ADODB.Command"
+$adoConnection.Open("Provider=ADsDSOObject;")
+$adoCommand.ActiveConnection = $adoConnection
+$adoCommand.Properties.Item("Page Size") = 200
+$adoCommand.Properties.Item("Timeout") = 30
+$adoCommand.Properties.Item("Cache Results") = $False
+
+$Base = $Root.distinguishedName
+$Scope = "base"
+$Filter = "(objectCategory=group)"
+
+# Setup range limits.
+$Last = $False
+$RangeStep = 1499
+$LowRange = 0
+$HighRange = $LowRange + $RangeStep
+$Total = 0
+$ExitFlag = $False
+
+Do
+{
+    If ($Last -eq $True)
+    {
+        # Retrieve remaining members (less than 1000).
+        $Attributes = "member;range=$LowRange-*"
+    }
+    Else
+    {
+        # Retrieve 1000 members.
+        $Attributes = "member;range=$LowRange-$HighRange"
+    }
+
+    $Query = "<LDAP://$strDC/$Base>;$Filter;$Attributes;$Scope"
+
+    $adoCommand.CommandText = $Query
+    $adoRecordset = $adoCommand.Execute()
+    $Count = 0
+
+    $Members = $adoRecordset.Fields.Item("$Attributes").Value
+    If ($Members -eq $Null)
+    {
+        $Last = $True
+    }
+    Else
+    {
+        # If $Members is not an array, no members were retrieved.
+        If ($Members.GetType().Name -eq "Object[]")
+        {
+            ForEach ($Member In $Members)
+            {
+
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDC, $CREDS)
+                $LDAPConnection.SessionOptions.ReferralChasing = "None"
+                $request = New-Object System.directoryServices.Protocols.SearchRequest
+                $request.DistinguishedName = $Member
+                $request.Filter = "(name=*)"
+                $request.Scope = "Base"
+                [void]$request.Attributes.Add("objectclass")
+                [void]$request.Attributes.Add("member")
+
+                $response = $LDAPConnection.SendRequest($request)
+                $ADObject = $response.Entries[0]
+
+                Try{
+                    $ObjectClass =$ADObject.attributes.objectclass[$ADObject.attributes.objectclass.count-1]
+                }
+                catch
+                {
+                    Write-Verbose "Error - Could not read objectClass $Member";
+                    continue;
+                }
+
+                if ($ObjectClass -eq "Group")
+                {
+                    if(($ADObject.Attributes.AttributeNames -contains "member;range=0-1499") -or ($ADObject.Attributes.AttributeNames -contains "member"))
+                    {
+                        if (($global:colOfGroupMembersExpanded -notcontains $Member) -and ($GroupDN -ne $Member))
+                        {
+                            $MembersExpanded = @(Get-LargeNestedADGroup $strDC $Member $Output $MembersExpanded)
+                            [void]$global:GroupMembersExpanded.insert(0, $Member)
+                        }
+                    }
+                }
+
+                # Output the distinguished name of each direct member of the group.
+                if (($Output -eq "*") -or ($ObjectClass -eq $Output))
+                {
+                    if ($MembersExpanded -notcontains $Member) 
+                    {
+                        [void]$MembersExpanded.add($Member)
+                    }
+                }
+            
+                $Count = $Count + 1
+            }
+        }
+    }
+    $adoRecordset.Close()
+    $Total = $Total + $Count
+
+    # If this is the last query, exit the Do loop.
+    If ($Last -eq $True) {$ExitFlag = $True}
+    Else
+    {
+        # If the previous query returned no members, the query failed.
+        # Perform one more query to retrieve remaining members (less than 1000).
+        If ($Count -eq 0) {$Last = $True}
+        Else
+        {
+            # Retrieve the next 1000 members.
+            $LowRange = $HighRange + 1
+            $HighRange = $LowRange + $RangeStep
+        }
+    }
+} Until ($ExitFlag -eq $True)
+}
+End
+{
+$adoConnection.Close()
+return $MembersExpanded
+}
+}
+
+
 
 #==========================================================================
 # Function		: Test-ResolveDNS 
@@ -3893,6 +4224,199 @@ function ConvertTo-ObjectArrayListFromPsCustomObject
      } 
  }
  #==========================================================================
+# Function		: DisplayLegend
+# Arguments     : -
+# Returns   	: -
+# Description   : Show color legend
+#==========================================================================
+Function DisplayLegend
+{
+$xamlLegend =@"
+<Window x:Class="WpfApplication1.Legend"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Name="Window" Title="Color Legend" WindowStartupLocation = "CenterScreen"
+        Width = "450" Height = "390" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" Background="#2A3238" >
+    <Window.Resources>
+
+        <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="Pink"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock TextDecorations="Underline" 
+                            Text="{TemplateBinding Content}"
+                            Background="{TemplateBinding Background}"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Foreground" Value="Red"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+        <Grid>
+            <StackPanel Orientation="Vertical">
+                <Label x:Name="lblText" Content="Use colors in report to identify criticality level of permissions.&#10;This might help you in implementing Least-Privilege Administrative Models." Margin="10,05,00,00" Foreground="White" />
+                    <StackPanel Orientation="Vertical" Margin="10,0">
+                    <DataGrid x:Name="dgLegend" HorizontalAlignment="Left" Margin="0,0,0,0" Height="235" Width="290" GridLinesVisibility="All"  IsReadOnly="True" FontSize="12" VerticalScrollBarVisibility="Disabled" >
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header='Permissions' Binding='{Binding Permissions}' Width='100'  />
+                            <DataGridTextColumn Header='Criticality' Width='182' SortMemberPath='Criticality' SortDirection='Ascending'>
+                                    <DataGridTextColumn.CellStyle>
+                                        <Style TargetType="DataGridCell">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Path=Criticality}" Value="Critical">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="DataGridCell">
+                                                                <TextBox Text="Critical" BorderBrush='{x:Null}' Background="Red"/>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Path=Criticality}" Value="Warning">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="DataGridCell">
+                                                                <TextBox Text="Warning" BorderBrush='{x:Null}' Background="#FFCC00"/>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Path=Criticality}" Value="Medium">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="DataGridCell">
+                                                                <TextBox Text="Medium" BorderBrush='{x:Null}' Background="Yellow"/>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Path=Criticality}" Value="Low">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="DataGridCell">
+                                                                <TextBox Text="Low" BorderBrush='{x:Null}' Background="#0099FF"/>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Path=Criticality}" Value="Info">
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="DataGridCell">
+                                                                <TextBox Text="Info" BorderBrush='{x:Null}' Background="Gray"/>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGridTextColumn.CellStyle>
+                                </DataGridTextColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="btnOK" Content="OK" Margin="00,05,00,00" Width="50" Height="20"/>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Window>
+
+
+"@
+
+
+[XML] $XAML = $xamlLegend
+$xaml.Window.RemoveAttribute("x:Class")  
+  
+$reader=(New-Object System.Xml.XmlNodeReader $XAML)
+
+$WindowLegend=[Windows.Markup.XamlReader]::Load( $reader )
+
+#Replace x:Name to XML variable Name
+$xamlLegend = $xamlLegend.Replace("x:Name","Name")
+[XML] $XAML = $xamlLegend
+
+#Search the XML data for object and create variables
+$XAML.SelectNodes("//*[@Name]")| %{set-variable -Name ($_.Name) -Value $WindowLegend.FindName($_.Name)}
+
+$Icon = @"
+iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAABGdBTUEAALGPC/xhBQAAAwBQTFRFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAszD0iAAAAQB0Uk5T////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////AFP3ByUAAAAJcEhZcwAADsIAAA7CARUoSoAAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjEuNWRHWFIAAAI3SURBVGhD7ZLRluQgCETn/3+6t4WrYoIKmfTM7p7c
+hwhFQb3k6/UDPCEpnpAUT0iKJyRFLuSrgRAj4eZ8AzlA1MrhAwx3xHzcdMCwJuLi3gRMKwIejilTacXWwqUCCiAWUKasDRwpoAwwKqD4LKasK2gHGCpoDqcRGyPMHDCMMGtEQphMwGRh0tiHoC/A2EFvbEIQt2AHxMYqBCUISwWUxiSEJo2/7YdQX8Bd/8WQyyn+9n
+8coj7qPO7yzSH+8r8YItuUnV8MobxANqQUgnRH7EBcfUkKi6NYvyCdBb1g+lrKO+BJdrMgbQdVMQqlPCOOtglBBCNRyjPiaKeQwYNUMZqW8j3giGaxPQ3pDUaU0sUZmcX2VKR9QwueZpmO2JOnm7Q9LrmiYTaqe/VVtDvt+GpnF6KFap8JaUV1aXNXSF/rVWs+G6L1
+x0LURn1TiN0617eGWAZdm46vdqIh6rO1wVc77kiXRoaBNB1XNORCTilajNqZcIg9Z/BU0SxeyME7tDQNTxTNkg1xD1JXRLPMQ2jeaO+nOFIo5GQ9CvTCSXgjmuVKSGEQZNxB7Tgh9/OEpPgLQiZ/y0DA8+0Le0cwZGHaGgqb8e7IZgy7+frMctjZGlaHFqOBvWN+aj
+o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4MQI+euMTRRsv4SQxEnv3GBJyTFE5LiCUnxhCR4vf4AzHXw0b9akGYAAAAASUVORK5CYII=
+"@
+
+$IconImage = New-Object System.Windows.Media.Imaging.BitmapImage
+$IconImage.BeginInit()
+$IconImage.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($Icon)
+$IconImage.EndInit()
+ 
+# Freeze() prevents memory leaks.
+$IconImage.Freeze()
+
+
+$WindowLegend.Icon = $IconImage
+
+$btnOK.add_Click( 
+{
+#TODO: Place custom script here
+
+
+$WindowLegend.close()
+
+})
+
+$Legend = @{
+"Deny Permissions"="Info";
+"List"="Info";
+"Read Properties"="Low";
+"Read Object"="Low";
+"Read Permissions"="Low";
+"Write Propeties"="Medium";
+"Create Object"="Warning";
+"Delete Object"="Warning";
+"ExtendedRight"="Warning";
+"Modify Permisions"="Critical";
+"Full Control"="Critical"
+}
+
+foreach ($LegendRow in $Legend.keys)
+{
+
+    ## Legend Object to put in DataGrid
+    $objCriticality = New-Object PSObject
+    Add-Member -inputObject $objCriticality -memberType NoteProperty -name "Permissions" -value $LegendRow
+    Add-Member -inputObject $objCriticality -memberType NoteProperty -name "Criticality" -value $Legend."$LegendRow"
+
+    $dgLegend.AddChild($objCriticality)
+
+}
+
+
+[void]$WindowLegend.ShowDialog()
+
+}
+#==========================================================================
 # Function		: GenerateTemplateDownloaderSchemaDefSD
 # Arguments     : -
 # Returns   	: -
@@ -3905,14 +4429,14 @@ Function GenerateTemplateDownloaderSchemaDefSD
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="CSV Templates" WindowStartupLocation = "CenterScreen"
-        Width = "380" Height = "250" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
+        Width = "380" Height = "250" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" Background="#2A3238">
     <Window.Resources>
     
         <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="Blue"/>
+            <Setter Property="Foreground" Value="Pink"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -3933,8 +4457,8 @@ Function GenerateTemplateDownloaderSchemaDefSD
 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
         <Grid>
         <StackPanel Orientation="Vertical">
-            <Label x:Name="lblDownloadLinks" Content="Download links for defaultSecuritydescriptor CSV templates:" Margin="10,05,00,00"/>
-                <GroupBox x:Name="gBoxTemplate" Header="Templates" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210">
+            <Label x:Name="lblDownloadLinks" Content="Download links for defaultSecuritydescriptor CSV templates:" Margin="10,05,00,00"  Foreground="White"/>
+                <GroupBox x:Name="gBoxTemplate" Header="Templates" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Foreground="White">
                     <StackPanel Orientation="Vertical" Margin="0,0">
                         <Button x:Name="btnDownloadCSVFileSchema2019_1809" Content="Windows Server 2019 1809" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>                    
                         <Button x:Name="btnDownloadCSVFileSchema2016" Content="Windows Server 2016" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -3960,6 +4484,33 @@ $xamlTemplateDownloaderSchemaDefSD.Window.RemoveAttribute("x:Class")
 
 $reader=(New-Object System.Xml.XmlNodeReader $xamlTemplateDownloaderSchemaDefSD)
 $TemplateDownloaderSchemaDefSDGui=[Windows.Markup.XamlReader]::Load( $reader )
+
+$Icon = @"
+iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAABGdBTUEAALGPC/xhBQAAAwBQTFRFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAszD0iAAAAQB0Uk5T////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////AFP3ByUAAAAJcEhZcwAADsIAAA7CARUoSoAAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjEuNWRHWFIAAAI3SURBVGhD7ZLRluQgCETn/3+6t4WrYoIKmfTM7p7c
+hwhFQb3k6/UDPCEpnpAUT0iKJyRFLuSrgRAj4eZ8AzlA1MrhAwx3xHzcdMCwJuLi3gRMKwIejilTacXWwqUCCiAWUKasDRwpoAwwKqD4LKasK2gHGCpoDqcRGyPMHDCMMGtEQphMwGRh0tiHoC/A2EFvbEIQt2AHxMYqBCUISwWUxiSEJo2/7YdQX8Bd/8WQyyn+9n
+8coj7qPO7yzSH+8r8YItuUnV8MobxANqQUgnRH7EBcfUkKi6NYvyCdBb1g+lrKO+BJdrMgbQdVMQqlPCOOtglBBCNRyjPiaKeQwYNUMZqW8j3giGaxPQ3pDUaU0sUZmcX2VKR9QwueZpmO2JOnm7Q9LrmiYTaqe/VVtDvt+GpnF6KFap8JaUV1aXNXSF/rVWs+G6L1
+x0LURn1TiN0617eGWAZdm46vdqIh6rO1wVc77kiXRoaBNB1XNORCTilajNqZcIg9Z/BU0SxeyME7tDQNTxTNkg1xD1JXRLPMQ2jeaO+nOFIo5GQ9CvTCSXgjmuVKSGEQZNxB7Tgh9/OEpPgLQiZ/y0DA8+0Le0cwZGHaGgqb8e7IZgy7+frMctjZGlaHFqOBvWN+aj
+o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4MQI+euMTRRsv4SQxEnv3GBJyTFE5LiCUnxhCR4vf4AzHXw0b9akGYAAAAASUVORK5CYII=
+"@
+
+$IconImage = New-Object System.Windows.Media.Imaging.BitmapImage
+$IconImage.BeginInit()
+$IconImage.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($Icon)
+$IconImage.EndInit()
+ 
+# Freeze() prevents memory leaks.
+$IconImage.Freeze()
+
+
+$TemplateDownloaderSchemaDefSDGui.Icon = $IconImage
+
 $btnOK = $TemplateDownloaderSchemaDefSDGui.FindName("btnOK")
 
 $btnDownloadCSVFileSchema2019_1809 = $TemplateDownloaderSchemaDefSDGui.FindName("btnDownloadCSVFileSchema2019_1809")
@@ -4018,14 +4569,14 @@ Function GenerateTemplateDownloader
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="CSV Templates" WindowStartupLocation = "CenterScreen"
-        Width = "390" Height = "290" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" >
+        Width = "390" Height = "290" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" Background="#2A3238" >
     <Window.Resources>
     
         <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Foreground" Value="Blue"/>
+            <Setter Property="Foreground" Value="Pink"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -4046,15 +4597,15 @@ Function GenerateTemplateDownloader
     <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
         <Grid>
             <StackPanel Orientation="Vertical" Margin="0,0,0,0">
-                <Label x:Name="lblDownloadLinks" Content="Download links for operating system default DACL templates:" Margin="5,05,00,00"/>
+                <Label x:Name="lblDownloadLinks" Content="Download links for operating system default DACL templates:" Margin="5,05,00,00" Foreground="White" />
                 <StackPanel Orientation="Horizontal">
-                <Label x:Name="lblDownloadSelect" Content="Select OS:" Margin="5,00,00,00"/>
+                <Label x:Name="lblDownloadSelect" Content="Select OS:" Margin="5,00,00,00" Foreground="White" />
                 <ComboBox x:Name="SelectOS"  Width="190" Margin="0,0,0,0" HorizontalAlignment="Left" />
                 </StackPanel>
                 <StackPanel Orientation="Vertical" Margin="0,10">
-                    <GroupBox x:Name="gBox2019_1809" Header="Windows Server 2019 1809" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Visible">
+                    <GroupBox x:Name="gBox2019_1809" Header="Windows Server 2019 1809" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Visible" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0">
-                            <Button x:Name="btnDownloadCSVFile2019_1809" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2019_1809" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}" />
                             <Button x:Name="btnDownloadCSVFile2019_1809Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2019_1809Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2019_1809Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4063,7 +4614,7 @@ Function GenerateTemplateDownloader
                             <Button x:Name="btnDownloadCSVFile2019_1809AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         </StackPanel>
                     </GroupBox>                    
-                    <GroupBox x:Name="gBox2016" Header="Windows Server 2016" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                    <GroupBox x:Name="gBox2016" Header="Windows Server 2016" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0">
                             <Button x:Name="btnDownloadCSVFile2016" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2016Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4074,7 +4625,7 @@ Function GenerateTemplateDownloader
                             <Button x:Name="btnDownloadCSVFile2016AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         </StackPanel>
                     </GroupBox>
-                    <GroupBox x:Name="gBox2012R2" Header="Windows Server 2012 R2" HorizontalAlignment="Left"  Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                    <GroupBox x:Name="gBox2012R2" Header="Windows Server 2012 R2" HorizontalAlignment="Left"  Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0" >
                             <Button x:Name="btnDownloadCSVFile2012R2" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2012R2Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4085,7 +4636,7 @@ Function GenerateTemplateDownloader
                             <Button x:Name="btnDownloadCSVFile2012R2AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         </StackPanel>
                     </GroupBox>
-                    <GroupBox x:Name="gBox2012" Header="Windows Server 2012" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                    <GroupBox x:Name="gBox2012" Header="Windows Server 2012" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0">
                             <Button x:Name="btnDownloadCSVFile2012" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2012Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4096,7 +4647,7 @@ Function GenerateTemplateDownloader
                             <Button x:Name="btnDownloadCSVFile2012AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         </StackPanel>
                     </GroupBox>
-                    <GroupBox x:Name="gBox2008R2" Header="Windows Server 2008 R2" HorizontalAlignment="Left"  Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                    <GroupBox x:Name="gBox2008R2" Header="Windows Server 2008 R2" HorizontalAlignment="Left"  Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0">
                             <Button x:Name="btnDownloadCSVFile2008R2" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2008R2Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4107,7 +4658,7 @@ Function GenerateTemplateDownloader
                             <Button x:Name="btnDownloadCSVFile2008R2AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         </StackPanel>
                     </GroupBox>
-                    <GroupBox x:Name="gBox2003" Header="Windows Server 2003" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                    <GroupBox x:Name="gBox2003" Header="Windows Server 2003" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0">
                             <Button x:Name="btnDownloadCSVFile2003" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2003Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4118,7 +4669,7 @@ Function GenerateTemplateDownloader
                             <Button x:Name="btnDownloadCSVFile2003AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         </StackPanel>
                     </GroupBox>
-                    <GroupBox x:Name="gBox2000SP4" Header="Windows 2000 Server SP4" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed">
+                    <GroupBox x:Name="gBox2000SP4" Header="Windows 2000 Server SP4" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0">
                             <Button x:Name="btnDownloadCSVFile2000SP4" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                             <Button x:Name="btnDownloadCSVFile2000SP4Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4142,6 +4693,33 @@ $xamlTemplateDownloader.Window.RemoveAttribute("x:Class")
 
 $reader=(New-Object System.Xml.XmlNodeReader $xamlTemplateDownloader)
 $TemplateDownloaderGui=[Windows.Markup.XamlReader]::Load( $reader )
+
+$Icon = @"
+iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAABGdBTUEAALGPC/xhBQAAAwBQTFRFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAszD0iAAAAQB0Uk5T////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////AFP3ByUAAAAJcEhZcwAADsIAAA7CARUoSoAAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjEuNWRHWFIAAAI3SURBVGhD7ZLRluQgCETn/3+6t4WrYoIKmfTM7p7c
+hwhFQb3k6/UDPCEpnpAUT0iKJyRFLuSrgRAj4eZ8AzlA1MrhAwx3xHzcdMCwJuLi3gRMKwIejilTacXWwqUCCiAWUKasDRwpoAwwKqD4LKasK2gHGCpoDqcRGyPMHDCMMGtEQphMwGRh0tiHoC/A2EFvbEIQt2AHxMYqBCUISwWUxiSEJo2/7YdQX8Bd/8WQyyn+9n
+8coj7qPO7yzSH+8r8YItuUnV8MobxANqQUgnRH7EBcfUkKi6NYvyCdBb1g+lrKO+BJdrMgbQdVMQqlPCOOtglBBCNRyjPiaKeQwYNUMZqW8j3giGaxPQ3pDUaU0sUZmcX2VKR9QwueZpmO2JOnm7Q9LrmiYTaqe/VVtDvt+GpnF6KFap8JaUV1aXNXSF/rVWs+G6L1
+x0LURn1TiN0617eGWAZdm46vdqIh6rO1wVc77kiXRoaBNB1XNORCTilajNqZcIg9Z/BU0SxeyME7tDQNTxTNkg1xD1JXRLPMQ2jeaO+nOFIo5GQ9CvTCSXgjmuVKSGEQZNxB7Tgh9/OEpPgLQiZ/y0DA8+0Le0cwZGHaGgqb8e7IZgy7+frMctjZGlaHFqOBvWN+aj
+o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4MQI+euMTRRsv4SQxEnv3GBJyTFE5LiCUnxhCR4vf4AzHXw0b9akGYAAAAASUVORK5CYII=
+"@
+
+$IconImage = New-Object System.Windows.Media.Imaging.BitmapImage
+$IconImage.BeginInit()
+$IconImage.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($Icon)
+$IconImage.EndInit()
+ 
+# Freeze() prevents memory leaks.
+$IconImage.Freeze()
+
+
+$TemplateDownloaderGui.Icon = $IconImage
+
 
 $btnOK = $TemplateDownloaderGui.FindName("btnOK")
 
@@ -4579,11 +5157,35 @@ Function GenerateSupportStatement
 <Window x:Class="WpfApplication1.StatusBar"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Name="Window" Title="Support Statement" WindowStartupLocation = "CenterScreen"
-        Width = "400" Height = "500" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow"  Background="#FFF0F0F0">
+        x:Name="Window" Title="CSV Templates" WindowStartupLocation = "CenterScreen"
+        Width = "400" Height = "500" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" Background="#2A3238">
+    <Window.Resources>
+    
+        <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="Pink"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock TextDecorations="Underline" 
+                            Text="{TemplateBinding Content}"
+                            Background="{TemplateBinding Background}"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Foreground" Value="Red"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+         </Style>
+    </Window.Resources>
     <Grid HorizontalAlignment="Center">
         <StackPanel Orientation="Vertical"  Margin="0,0,00,0" HorizontalAlignment="Center">
-            <Label x:Name="lblSupportHeader" Content="Carefully read and understand the support statement." Height="25" Width="350" FontSize="12" />
+            <Label x:Name="lblSupportHeader" Content="Carefully read and understand the support statement." Height="25" Width="350" FontSize="12" Foreground="White"/>
             <Label x:Name="lblSupportStatement" Content="" Height="380"  Width="370" FontSize="12" Background="White" BorderBrush="#FFC9C9CA" BorderThickness="1,1,1,1" FontWeight="Bold"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <Button x:Name="btnOK" Content="OK" Margin="00,10,00,00" Width="50" Height="20"/>
@@ -4598,6 +5200,32 @@ $SupportStatementXAML.Window.RemoveAttribute("x:Class")
 $reader=(New-Object System.Xml.XmlNodeReader $SupportStatementXAML)
 $SuportGui=[Windows.Markup.XamlReader]::Load( $reader )
 
+
+$Icon = @"
+iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAABGdBTUEAALGPC/xhBQAAAwBQTFRFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAszD0iAAAAQB0Uk5T////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////AFP3ByUAAAAJcEhZcwAADsIAAA7CARUoSoAAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjEuNWRHWFIAAAI3SURBVGhD7ZLRluQgCETn/3+6t4WrYoIKmfTM7p7c
+hwhFQb3k6/UDPCEpnpAUT0iKJyRFLuSrgRAj4eZ8AzlA1MrhAwx3xHzcdMCwJuLi3gRMKwIejilTacXWwqUCCiAWUKasDRwpoAwwKqD4LKasK2gHGCpoDqcRGyPMHDCMMGtEQphMwGRh0tiHoC/A2EFvbEIQt2AHxMYqBCUISwWUxiSEJo2/7YdQX8Bd/8WQyyn+9n
+8coj7qPO7yzSH+8r8YItuUnV8MobxANqQUgnRH7EBcfUkKi6NYvyCdBb1g+lrKO+BJdrMgbQdVMQqlPCOOtglBBCNRyjPiaKeQwYNUMZqW8j3giGaxPQ3pDUaU0sUZmcX2VKR9QwueZpmO2JOnm7Q9LrmiYTaqe/VVtDvt+GpnF6KFap8JaUV1aXNXSF/rVWs+G6L1
+x0LURn1TiN0617eGWAZdm46vdqIh6rO1wVc77kiXRoaBNB1XNORCTilajNqZcIg9Z/BU0SxeyME7tDQNTxTNkg1xD1JXRLPMQ2jeaO+nOFIo5GQ9CvTCSXgjmuVKSGEQZNxB7Tgh9/OEpPgLQiZ/y0DA8+0Le0cwZGHaGgqb8e7IZgy7+frMctjZGlaHFqOBvWN+aj
+o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4MQI+euMTRRsv4SQxEnv3GBJyTFE5LiCUnxhCR4vf4AzHXw0b9akGYAAAAASUVORK5CYII=
+"@
+
+$IconImage = New-Object System.Windows.Media.Imaging.BitmapImage
+$IconImage.BeginInit()
+$IconImage.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($Icon)
+$IconImage.EndInit()
+ 
+# Freeze() prevents memory leaks.
+$IconImage.Freeze()
+
+
+$SuportGui.Icon = $IconImage
 
 $btnOK = $SuportGui.FindName("btnOK")
 $lblSupportStatement = $SuportGui.FindName("lblSupportStatement")
@@ -4632,25 +5260,38 @@ $SuportGui.ShowDialog()
 Function GenerateDomainPicker
 {
 [xml]$DomainPickerXAML =@"
-<Window 
+<Window x:Class="WpfApplication1.StatusBar"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="Select a domain" WindowStartupLocation = "CenterScreen"
-        Width = "400" Height = "200" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9">
-    <Window.Background>
-        <LinearGradientBrush>
-            <LinearGradientBrush.Transform>
-                <ScaleTransform x:Name="Scaler" ScaleX="1" ScaleY="1"/>
-            </LinearGradientBrush.Transform>
-            <GradientStop Color="#CC064A82" Offset="1"/>
-            <GradientStop Color="#FF6797BF" Offset="0.7"/>
-            <GradientStop Color="#FF6797BF" Offset="0.3"/>
-            <GradientStop Color="#FFD4DBE1" Offset="0"/>
-        </LinearGradientBrush>
-    </Window.Background>
-    <Grid>
+        Width = "380" Height = "250" ShowInTaskbar = "True" ResizeMode="CanResizeWithGrip" WindowState="Normal" Background="#2A3238">
+    <Window.Resources>
+    
+        <Style TargetType="{x:Type Button}" x:Key="AButtonStyle">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="Pink"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <TextBlock TextDecorations="Underline" 
+                            Text="{TemplateBinding Content}"
+                            Background="{TemplateBinding Background}"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Foreground" Value="Red"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+         </Style>
+    </Window.Resources>
+        <Grid>
         <StackPanel Orientation="Vertical">
-        <Label x:Name="lblDomainPciker" Content="Please select a domain:" Margin="10,05,00,00"/>
+        <Label x:Name="lblDomainPciker" Content="Please select a domain:" Margin="10,05,00,00" Foreground="White"/>
         <ListBox x:Name="objListBoxDomainList" HorizontalAlignment="Left" Height="78" Margin="10,05,0,0" VerticalAlignment="Top" Width="320"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
             <Button x:Name="btnOK" Content="OK" Margin="00,05,00,00" Width="50" Height="20"/>
@@ -4665,6 +5306,34 @@ $DomainPickerXAML.Window.RemoveAttribute("x:Class")
 
 $reader=(New-Object System.Xml.XmlNodeReader $DomainPickerXAML)
 $DomainPickerGui=[Windows.Markup.XamlReader]::Load( $reader )
+
+
+$Icon = @"
+iVBORw0KGgoAAAANSUhEUgAAAGQAAABkCAMAAABHPGVmAAAABGdBTUEAALGPC/xhBQAAAwBQTFRFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAszD0iAAAAQB0Uk5T////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////AFP3ByUAAAAJcEhZcwAADsIAAA7CARUoSoAAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjEuNWRHWFIAAAI3SURBVGhD7ZLRluQgCETn/3+6t4WrYoIKmfTM7p7c
+hwhFQb3k6/UDPCEpnpAUT0iKJyRFLuSrgRAj4eZ8AzlA1MrhAwx3xHzcdMCwJuLi3gRMKwIejilTacXWwqUCCiAWUKasDRwpoAwwKqD4LKasK2gHGCpoDqcRGyPMHDCMMGtEQphMwGRh0tiHoC/A2EFvbEIQt2AHxMYqBCUISwWUxiSEJo2/7YdQX8Bd/8WQyyn+9n
+8coj7qPO7yzSH+8r8YItuUnV8MobxANqQUgnRH7EBcfUkKi6NYvyCdBb1g+lrKO+BJdrMgbQdVMQqlPCOOtglBBCNRyjPiaKeQwYNUMZqW8j3giGaxPQ3pDUaU0sUZmcX2VKR9QwueZpmO2JOnm7Q9LrmiYTaqe/VVtDvt+GpnF6KFap8JaUV1aXNXSF/rVWs+G6L1
+x0LURn1TiN0617eGWAZdm46vdqIh6rO1wVc77kiXRoaBNB1XNORCTilajNqZcIg9Z/BU0SxeyME7tDQNTxTNkg1xD1JXRLPMQ2jeaO+nOFIo5GQ9CvTCSXgjmuVKSGEQZNxB7Tgh9/OEpPgLQiZ/y0DA8+0Le0cwZGHaGgqb8e7IZgy7+frMctjZGlaHFqOBvWN+aj
+o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4MQI+euMTRRsv4SQxEnv3GBJyTFE5LiCUnxhCR4vf4AzHXw0b9akGYAAAAASUVORK5CYII=
+"@
+
+$IconImage = New-Object System.Windows.Media.Imaging.BitmapImage
+$IconImage.BeginInit()
+$IconImage.StreamSource = [System.IO.MemoryStream][System.Convert]::FromBase64String($Icon)
+$IconImage.EndInit()
+ 
+# Freeze() prevents memory leaks.
+$IconImage.Freeze()
+
+
+$DomainPickerGui.Icon = $IconImage
+
 $btnOK = $DomainPickerGui.FindName("btnOK")
 $btnCancel = $DomainPickerGui.FindName("btnCancel")
 $objListBoxDomainList = $DomainPickerGui.FindName("objListBoxDomainList")
@@ -5603,7 +6272,6 @@ $bolInheritanceType = $false
 $bolInheritedObjectType = $false
 $bolInvocationID = $false
 $bolIsInherited = $false
-$bolLegendText = $false
 $bolObjectFlags= $false
 $bolObjectType = $false
 $bolOrgUSN= $false
@@ -5645,10 +6313,6 @@ Foreach ($ColumnName in $colHeaders )
     {
         $bolIsInherited = $true
     }        
-    if($ColumnName.Trim() -eq "LegendText")
-    {
-        $bolLegendText = $true
-    }    
    
     if($ColumnName.Trim() -eq "ObjectFlags")
     {
@@ -5662,7 +6326,7 @@ Foreach ($ColumnName in $colHeaders )
     {
         $bolOrgUSN= $true
     }   
-    if($ColumnName.Trim() -eq "OU")
+    if(($ColumnName.Trim() -eq "Object") -or ($ColumnName.Trim() -eq "OU"))
     {
         $bolOU = $true
     }   
@@ -5678,7 +6342,7 @@ Foreach ($ColumnName in $colHeaders )
 }
 #if test column names exist
 if($bolAccessControlType -and $bolActiveDirectoryRights -and $bolIdentityReference -and $bolInheritanceFlags -and $bolInheritanceType -and $bolInheritedObjectType `
-    -and $bolInvocationID -and $bolIsInherited -and $bolLegendText -and $bolObjectFlags -and $bolObjectType -and $bolOrgUSN -and $bolOU -and $bolPropagationFlags`
+    -and $bolInvocationID -and $bolIsInherited -and $bolObjectFlags -and $bolObjectType -and $bolOrgUSN -and $bolOU -and $bolPropagationFlags`
     -and $bolSDDate)
 {
     $bolColumExist = $true
@@ -5758,8 +6422,10 @@ $Scope,
 [string]
 $CustomFilter=""
 )
+
 $nodelist = New-Object System.Collections.ArrayList
 $nodelist.Clear()
+
 [boolean]$global:SearchFailed = $false
 
 # Add all Children found as Sub Nodes to the selected TreeNode 
@@ -5767,6 +6433,7 @@ $nodelist.Clear()
 $strFilterAll = "(objectClass=*)"
 $strFilterContainer = "(&(|(objectClass=organizationalUnit)(objectClass=container)(objectClass=DomainDNS)(objectClass=dMD)))"
 $strFilterOU = "(|(objectClass=organizationalUnit)(objectClass=domainDNS))"
+$strFilterGPO="(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))"
 $ReqFilter = ""
 
 $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
@@ -5808,9 +6475,38 @@ if($CustomFilter -ne"")
     $ReqFilter = $CustomFilter
 }
 
+if($Scope -eq "base")
+{
+    If ($rdbScanFilter.IsChecked -eq $true)
+    {        
+        if($txtCustomFilter.text.Length -gt 0)
+        {
+            $ReqFilter = $txtCustomFilter.Text
+        }
+        else 
+        {
+            $ReqFilter = $strFilterAll
+        }
+    }
+    else {
+        if($CustomFilter -ne "")
+        {
+            $ReqFilter = $CustomFilter
+        }
+        else
+        {
+            $ReqFilter = $strFilterAll
+        }
+    }
+}
+
+if($rdbGPO.IsChecked -eq $true)
+{
+    $ReqFilter = $strFilterGPO
+}
+
 # Set search scope
 $request.Scope = $Scope
-
 
 
 #if the seaching using a scope of onelevel we add the base node to the results
@@ -5820,7 +6516,15 @@ if ($Scope -eq "onelevel")
     $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request2 = New-Object System.directoryServices.Protocols.Searchrequest($firstnode, $ReqFilter, "base")
-    [void]$request2.Attributes.Add("name")               
+    if($GPO)
+    {
+        [void]$request2.Attributes.Add("gplink")              
+    }
+    else
+    {
+        [void]$request2.Attributes.Add("name")              
+    }
+
     try
     {
         $response2 = $LDAPConnection.Sendrequest($request2)
@@ -6015,7 +6719,29 @@ else
             }
         }
         #now process the returned list of distinguishedNames and fetch required properties using ranged retrieval
-        $colResults += $response.Entries
+        if($GPO)
+        {
+            $colResults = $response.Entries
+	        foreach ($objResult in $colResults)
+	        {             
+                $gplink = $objResult.attributes.gplink[0]
+                $arrLinks = @($gplink.split("["))
+                          
+
+                foreach ($link in $arrLinks)
+                {
+                    $nodelist +=$link.split(";")[0].replace("LDAP://","")+";"+$objResult.DistinguishedName
+                }
+
+            }
+
+
+        }
+        else
+        {
+            $colResults += $response.Entries
+        }
+
 
         if($global:PageSize -gt 0) {
             if ($prrc.Cookie.Length -eq 0) {
@@ -6029,18 +6755,23 @@ else
             break;
         }
     }
-    if($colResults.count -gt 0)
+    if(-not($GPO))
     {
-        $nodelist += $colResults.DistinguishedName
+        if($colResults.count -gt 0)
+        {
+            $nodelist += $colResults.DistinguishedName
+        }
     }
 
 }
-
-if($nodelist.count -gt 0)
+if(-not($GPO))
 {
-    $nodelist = ReverseDNList $nodelist
-    $nodelist = $nodelist | sort
-    $nodelist = ReverseDNList $nodelist
+    if($nodelist.count -gt 0)
+    {
+        $nodelist = ReverseDNList $nodelist
+        $nodelist = $nodelist | sort
+        $nodelist = ReverseDNList $nodelist
+    }
 }
 return $nodelist
 
@@ -6112,12 +6843,12 @@ return $sdProtectedDeletion
 
 }
 #==========================================================================
-# Function		: Get-PermDef
+# Function		: Get-DefaultPermissions
 # Arguments     : Object Class, Trustee Name
 # Returns   	: ArrayList
 # Description   : Fetch the Default Security Descriptor with the Default
 #==========================================================================
-Function Get-PermDef
+Function Get-DefaultPermissions
 {
 Param($strObjectClass,
 [string]$strTrustee)
@@ -6384,7 +7115,9 @@ function fixfilename
 #==========================================================================
 function WritePermCSV
 {
-    Param($sd,[string]$ou,[string]$canonical,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string]  $strACLDate,[string] $strInvocationID,[string] $strOrgUSN,[bool] $GetOUProtected,[bool] $OUProtected,[bool] $compare)
+    Param($sd,[string]$object,[string]$canonical,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string]  $strACLDate,[string] $strInvocationID,[string] $strOrgUSN,[bool] $GetOUProtected,[bool] $OUProtected,[bool] $compare,[bool]$Outfile,[bool]$GPO,[string]$GPOdisplayname,[bool]$TranslateGUID)
+
+
 $sd  | foreach {
         #Convert SID to Names for lookups
         $strPrincipalName = $_.IdentityReference.toString()
@@ -6394,7 +7127,7 @@ $sd  | foreach {
 
 	    }
         # Add Translated object GUID information to output
-        if($chkBoxTranslateGUID.isChecked -eq $true)
+        if($TranslateGUID -eq $True)
         {
 	        if($($_.InheritedObjectType.toString()) -ne "00000000-0000-0000-0000-000000000000" )
             {
@@ -6420,75 +7153,214 @@ $sd  | foreach {
             $strTranslatedInheritObjType = $($_.InheritedObjectType.toString())
             $strTranslatedObjType = $($_.ObjectType.toString())
         }
-        # Add Meta data info to output
-        If ($ACLMeta -eq $true)
-        {
-            $strMetaData = $strACLDate.toString()+[char]34+","+[char]34+$strInvocationID.toString()+[char]34+","+[char]34+ $strOrgUSN.toString()+[char]34+","
-	        
-        }
-        else
-        {
-            $strMetaData = [char]34+","+[char]34+[char]34+","+[char]34+[char]34+","
 
-        }
-        if($chkBoxEffectiveRightsColor.IsChecked -eq $true)
+        
+        if($bolShowCriticalityColor -eq $true)
         {
             $intCriticalityValue = Get-Criticality -Returns "Color" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() 0
             Switch ($intCriticalityValue)
             {
-                0 {$strLegendText = "Info"+[char]34 +","}
-                1 {$strLegendText = "Low"+[char]34 +","}
-                2 {$strLegendText = "Medium"+[char]34 +","}
-                3 {$strLegendText = "Warning"+[char]34 +","}
-                4 {$strLegendText = "Critical"+[char]34 +","}
+                0 {$strLegendText = "Info"}
+                1 {$strLegendText = "Low"}
+                2 {$strLegendText = "Medium"}
+                3 {$strLegendText = "Warning"}
+                4 {$strLegendText = "Critical"}
             }
         }
         else
         {
-            $strLegendText = [char]34 +","
+            $strLegendText = ""
         }
 
-
-        [char]34+$ou+[char]34+","+[char]34+`
-        $objType+[char]34+","+[char]34+`
-        $_.IdentityReference.toString()+[char]34+","+[char]34+`
-	    $strPrincipalName+[char]34+","+[char]34+`
-	    $_.ActiveDirectoryRights.toString()+[char]34+","+[char]34+`
-	    $_.InheritanceType.toString()+[char]34+","+[char]34+`
-	    $strTranslatedObjType+[char]34+","+[char]34+`
-	    $strTranslatedInheritObjType+[char]34+","+[char]34+`
-	    $_.ObjectFlags.toString()+[char]34+","+[char]34+`
-        $(if($null -ne $_.AccessControlType)
+        $objCSVLine = new-object PSObject
+        if($GPO)
         {
-        $_.AccessControlType.toString()+[char]34+","+[char]34
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "GPO"  -value $GPOdisplayname 
+        }
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Object" -value $object
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ObjectClass"  -value $objType    
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "IdentityReference"  -value $_.IdentityReference.toString()   
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "PrincipalName"  -value $strPrincipalName    
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ActiveDirectoryRights"  -value $_.ActiveDirectoryRights.toString() 
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InheritanceType"  -value $_.InheritanceType.toString()      
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ObjectType"  -value $strTranslatedObjType
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InheritedObjectType"  -value $strTranslatedInheritObjType
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ObjectFlags"  -value $_.ObjectFlags.toString()
+        if($null -ne $_.AccessControlType)
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "AccessControlType"  -value $_.AccessControlType.toString()
         }
         else
         {
-        $_.AuditFlags.toString()+[char]34+","+[char]34
-        })+`
-	    $_.IsInherited.toString()+[char]34+","+[char]34+`
-	    $_.InheritanceFlags.toString()+[char]34+","+[char]34+`
-        $_.PropagationFlags.toString()+[char]34+","+[char]34+`
-        $strMetaData+[char]34+`
-        $strLegendText+[char]34+`
-        $canonical+[char]34+","+[char]34+`
-        $(        
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "AccessControlType"  -value $_.AuditFlags.toString()
+        }
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "IsInherited"  -value $_.IsInherited.toString()
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InheritanceFlags"  -value $_.InheritanceFlags.toString()
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "PropagationFlags"  -value $_.PropagationFlags.toString()
+
+        # Add Meta data info to output
+        If ($ACLMeta -eq $true)
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "SDDate"  -value $strACLDate.toString()
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InvocationID"  -value $strInvocationID.toString()
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "OrgUSN"  -value $strOrgUSN.toString()
+	        
+        }
+        else
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "SDDate"  -value ""
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InvocationID"  -value ""
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "OrgUSN"  -value ""
+        }
+
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Criticality"  -value $strLegendText
+        
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "CanonicalName"  -value $canonical
+
         if($GetOUProtected)
         {
-            $OUProtected.toString()+[char]34+","
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Inheritance Disabled"  -value $OUProtected.toString()
         }
         else
         {
-            ""+[char]34+","
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Inheritance Disabled"  -value ""
         }
-        )+`
-        $(if($compare)
+
+        if($compare)
         {
-        [char]34+$_.State.toString()+[char]34
-        }) | Out-File -Append -FilePath $fileout -Encoding UTF8
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "State"  -value $_.State.toString()
+        }
 
+        if($Outfile)
+        {
+            export-csv -InputObject $objCSVLine -Path $fileout -Encoding UTF8 -NoClobber -NoTypeInformation -Append
+        }
+        else
+        {
+            return $objCSVLine
+        }
+    } 
+}
+#==========================================================================
+# Function		: WritePermCSV
+# Arguments     : Security Descriptor, OU distinguishedName, Ou put text file
+# Returns   	: n/a
+# Description   : Writes the SD to a text file.
+#==========================================================================
+function WriteDefSDPermCSV
+{
+    Param($sd,[string]$object,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string] $strVersion,[string]  $strACLDate,[bool]$Outfile,[bool]$bolShowCriticalityColor,[bool]$TranslateGUID)
 
+$sd  | foreach {
+        #Convert SID to Names for lookups
+        $strPrincipalName = $_.IdentityReference.toString()
+	    If ($strPrincipalName -match "S-1-")
+	    {
+	        $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName
 
+	    }
+        # Add Translated object GUID information to output
+        if($TranslateGUID -eq $True)
+        {
+	        if($($_.InheritedObjectType.toString()) -ne "00000000-0000-0000-0000-000000000000" )
+            {
+            
+                $strTranslatedInheritObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.InheritedObjectType.toString() -Domain $global:strDomainDNName) 
+            }
+            else
+            {
+                $strTranslatedInheritObjType = "None" #$($_.InheritedObjectType.toString())
+            }
+	        if($($_.ObjectType.toString()) -ne "00000000-0000-0000-0000-000000000000" )
+            {
+            
+                $strTranslatedObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.ObjectType.toString() -Domain $global:strDomainDNName) 
+            }
+            else
+            {
+                $strTranslatedObjType = "None" #$($_.ObjectType.toString())
+            }
+        }
+        else
+        {
+            $strTranslatedInheritObjType = $($_.InheritedObjectType.toString())
+            $strTranslatedObjType = $($_.ObjectType.toString())
+        }
+
+        
+        if($bolShowCriticalityColor -eq $true)
+        {
+            $intCriticalityValue = Get-Criticality -Returns "Color" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() 0
+            Switch ($intCriticalityValue)
+            {
+                0 {$strLegendText = "Info"}
+                1 {$strLegendText = "Low"}
+                2 {$strLegendText = "Medium"}
+                3 {$strLegendText = "Warning"}
+                4 {$strLegendText = "Critical"}
+            }
+        }
+        else
+        {
+            $strLegendText = ""
+        }
+
+        $objCSVLine = new-object PSObject
+        if($GPO)
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "GPO"  -value $GPOdisplayname 
+        }
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Object" -value $object
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ObjectClass"  -value $objType    
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "IdentityReference"  -value $_.IdentityReference.toString()   
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "PrincipalName"  -value $strPrincipalName    
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ActiveDirectoryRights"  -value $_.ActiveDirectoryRights.toString() 
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InheritanceType"  -value $_.InheritanceType.toString()      
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ObjectType"  -value $strTranslatedObjType
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InheritedObjectType"  -value $strTranslatedInheritObjType
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "ObjectFlags"  -value $_.ObjectFlags.toString()
+        if($null -ne $_.AccessControlType)
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "AccessControlType"  -value $_.AccessControlType.toString()
+        }
+        else
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "AccessControlType"  -value $_.AuditFlags.toString()
+        }
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "IsInherited"  -value $_.IsInherited.toString()
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "InheritanceFlags"  -value $_.InheritanceFlags.toString()
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "PropagationFlags"  -value $_.PropagationFlags.toString()
+
+        # Add Meta data info to output
+        If ($ACLMeta -eq $true)
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "SDDate"  -value $strACLDate.toString()
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Version"  -value $strVersion.toString()
+            #Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "OrgUSN"  -value $strOrgUSN.toString()
+	        
+        }
+        else
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "SDDate"  -value ""
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Version"  -value ""
+            #Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "OrgUSN"  -value ""
+        }
+
+        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Criticality"  -value $strLegendText
+        
+        if($compare)
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "State"  -value $_.State.toString()
+        }
+
+        if($Outfile)
+        {
+            export-csv -InputObject $objCSVLine -Path $fileout -Encoding UTF8 -NoClobber -NoTypeInformation -Append
+        }
+        else
+        {
+            return $objCSVLine
+        }
     } 
 }
 #==========================================================================
@@ -6588,6 +7460,10 @@ Switch ($objRights)
         {
             $intCriticalityLevel = 0
         }
+    }
+    "Read permissions, Modify permissions"
+    {
+        $intCriticalityLevel = 4
     }
     "Modify permissions"
     {
@@ -7414,8 +8290,9 @@ else
 #==========================================================================
 function WriteOUT
 {
-    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$xlsxout,[string]$Type)
-if($Type -eq "HTM")
+    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$xlsxout,[string]$Type,[bool]$GPO,[string]$GPODisplayname)
+
+if($Type -eq "HTML")
 {
 $htm = $true
 $fileout = $htmfileout
@@ -7468,9 +8345,25 @@ $strFontTH =@"
 "@
 If ($OUHeader -eq $true)
 {
+
+if ($GPO)
+{
 $strHTMLText =@"
 $strHTMLText
-<TR bgcolor="$strTHOUColor"><TD><b>$strFontOU $DSObject</b>
+<TR bgcolor="$strTHOUColor"><TD><b>$strFontOU $GPOdisplayname</b>
+"@
+}
+else
+{
+$strHTMLText =@"
+$strHTMLText
+<TR bgcolor="$strTHOUColor">
+"@
+}
+
+$strHTMLText =@"
+$strHTMLText
+<TD><b>$strFontOU $DSObject</b>
 "@
 
 if ($Canonical)
@@ -7573,346 +8466,170 @@ if ($bolACLExist)
 	$objInheritedType = $($_.InheritedObjectType.toString())
 	$objRights = $($_.ActiveDirectoryRights.toString())
     $objInheritanceType = $($_.InheritanceType.toString())
-    
 
 
-    if($chkBoxEffectiveRightsColor.IsChecked -eq $false)
+    Switch ($objRights)
     {
-    	Switch ($objRights)
-    	{
-   		    "Self"
-    		{
-                #Self right are never express in gui it's a validated write ( 0x00000008 ACTRL_DS_SELF)
+        "Self"
+        {
+            #Self right are never express in gui it's a validated write ( 0x00000008 ACTRL_DS_SELF)
 
-                 $objRights = ""
-            }
-    		"DeleteChild, DeleteTree, Delete"
-    		{
-    			$objRights = "DeleteChild, DeleteTree, Delete"
-
-    		}
-    		"GenericRead"
-    		{
-    			$objRights = "Read Permissions,List Contents,Read All Properties,List"
-            }
-    		"CreateChild"
-    		{
-    			$objRights = "Create"	
-    		}
-    		"DeleteChild"
-    		{
-    			$objRights = "Delete"		
-    		}
-    		"GenericAll"
-    		{
-    			$objRights = "Full Control"		
-    		}
-    		"CreateChild, DeleteChild"
-    		{
-    			$objRights = "Create/Delete"		
-    		}
-    		"ReadProperty"
-    		{
-    	        Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
+                $objRights = ""
+        }
+        "GenericRead"
+        {
+                $objRights = "Read Permissions,List Contents,Read All Properties,List"
+        }
+        "CreateChild"
+        {
+                $objRights = "Create"	
+        }
+        "DeleteChild"
+        {
+            $objRights = "Delete"		
+        }
+        "GenericAll"
+        {
+            $objRights = "Full Control"		
+        }
+        "CreateChild, DeleteChild"
+        {
+            $objRights = "Create/Delete"		
+        }
+        "ReadProperty"
+        {
+            Switch ($objInheritanceType) 
+    	    {
+    	 	    "None"
+    	 	    {
                      
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                      default
-    	 	                        {$objRights = "Read All Properties"	}
-                                }#End switch
-
-
-
-                        }
-                                  	 	        "Children"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                      default
-    	 	                        {$objRights = "Read All Properties"	}
-                                }#End switch
-                                }
-                        	 	        "Descendents"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                      default
-    	 	                        {$objRights = "Read All Properties"	}
-                                }#End switch
-                                }
-    	 	        default
-    	 	        {$objRights = "Read All Properties"	}
-                }#End switch
-
-    			           	
-    		}
-    		"ReadProperty, WriteProperty" 
-    		{
-    			$objRights = "Read All Properties;Write All Properties"			
-    		}
-    		"WriteProperty" 
-    		{
-    	        Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                      default
-    	 	                        {$objRights = "Write All Properties"	}
-                                }#End switch
-
-
-
-                        }
-                                  	 	        "Children"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                      default
-    	 	                        {$objRights = "Write All Properties"	}
-                                }#End switch
-                                }
-                        	 	        "Descendents"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                      default
-    	 	                        {$objRights = "Write All Properties"	}
-                                }#End switch
-                                }
-    	 	        default
-    	 	        {$objRights = "Write All Properties"	}
-                }#End switch		
-    		}
-    	}# End Switch
-    }
-    else
-    {
- 
-    	Switch ($objRights)
-    	{
-    		"Self"
-    		{
-                #Self right are never express in gui it's a validated write ( 0x00000008 ACTRL_DS_SELF)
-
-                 $objRights = ""
-            }
-    		"GenericRead"
-    		{
-                 $objRights = "Read Permissions,List Contents,Read All Properties,List"
-            }
-    		"CreateChild"
-    		{
-                 $objRights = "Create"	
-    		}
-    		"DeleteChild"
-    		{
-                $objRights = "Delete"		
-    		}
-    		"GenericAll"
-    		{
-                $objRights = "Full Control"		
-    		}
-    		"CreateChild, DeleteChild"
-    		{
-                $objRights = "Create/Delete"		
-    		}
-    		"ReadProperty"
-    		{
-                Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
-                     
-                        Switch ($objFlags)
-    	    	        { 
-    		      	        "ObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-    		      	        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-                            default
-    	 	                {$objRights = "Read All Properties"	}
-                        }#End switch
-                    }
-                     "Children"
-    	 	        {
-                     
-                        Switch ($objFlags)
-    	    	        { 
-    		      	        "ObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-    		      	        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-                            default
-    	 	                {$objRights = "Read All Properties"	}
-                        }#End switch
-                    }
-                    "Descendents"
-                    {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
+                    Switch ($objFlags)
+    	    	    { 
+    		      	    "ObjectAceTypePresent"
+                        {
                             $objRights = "Read"	
-                            }
-                       	                
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
+                        }
+    		      	    "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
                             $objRights = "Read"	
-                            }
-                            default
-                            {$objRights = "Read All Properties"	}
-                        }#End switch
-                    }
-                    default
-                    {$objRights = "Read All Properties"	}
-                }#End switch
-    		}
-    		"ReadProperty, WriteProperty" 
-    		{
-                $objRights = "Read All Properties;Write All Properties"			
-    		}
-    		"WriteProperty" 
-    		{
-                Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
-                               $objRights = "Write"	
-                            }
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                               $objRights = "Write"	
-                            }
-                            default
-                            {
-                                $objRights = "Write All Properties"	
-                            }
-                        }#End switch
-                    }
+                        }
+                        default
+    	 	            {$objRights = "Read All Properties"	}
+                    }#End switch
+                }
                     "Children"
-                    {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            default
-                            {
-                                $objRights = "Write All Properties"	
-                            }
-                        }#End switch
-                    }
-                    "Descendents"
-                    {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            default
-                            {
-                                $objRights = "Write All Properties"	
-                            }
-                        }#End switch
-                    }
-                    default
-                    {
-                        $objRights = "Write All Properties"
-                    }
-                }#End switch		
-    		}
-            default
-            {
+    	 	    {
+                     
+                    Switch ($objFlags)
+    	    	    { 
+    		      	    "ObjectAceTypePresent"
+                        {
+                            $objRights = "Read"	
+                        }
+    		      	    "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Read"	
+                        }
+                        default
+    	 	            {$objRights = "Read All Properties"	}
+                    }#End switch
+                }
+                "Descendents"
+                {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                        $objRights = "Read"	
+                        }
+                       	                
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                        $objRights = "Read"	
+                        }
+                        default
+                        {$objRights = "Read All Properties"	}
+                    }#End switch
+                }
+                default
+                {$objRights = "Read All Properties"	}
+            }#End switch
+        }
+        "ReadProperty, WriteProperty" 
+        {
+            $objRights = "Read All Properties;Write All Properties"			
+        }
+        "WriteProperty" 
+        {
+            Switch ($objInheritanceType) 
+    	    {
+    	 	    "None"
+    	 	    {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        default
+                        {
+                            $objRights = "Write All Properties"	
+                        }
+                    }#End switch
+                }
+                "Children"
+                {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        default
+                        {
+                            $objRights = "Write All Properties"	
+                        }
+                    }#End switch
+                }
+                "Descendents"
+                {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        default
+                        {
+                            $objRights = "Write All Properties"	
+                        }
+                    }#End switch
+                }
+                default
+                {
+                    $objRights = "Write All Properties"
+                }
+            }#End switch		
+        }
+        default
+        {
   
-            }
-    	}# End Switch  
-
+        }
+    }# End Switch  
+    if($bolShowCriticalityColor)
+    {
         $intCriticalityValue = Get-Criticality -Returns "Color" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() 0
          
         Switch ($intCriticalityValue)
@@ -7928,8 +8645,9 @@ if ($bolACLExist)
         {
             $global:intShowCriticalityLevel = $intCriticalityValue
         }
+    }
         
-    }#End IF else
+   
 
 	$IdentityReference = $($_.IdentityReference.toString())
     
@@ -8139,28 +8857,62 @@ If($Excel)
 
     if($Canonical)
     {
-        $objhashtableACE = [pscustomobject][ordered]@{
-        Object = $DSObject ;`
-        CanonicalName = $Canonical ;`
-        ObjectClass = $strObjClass ;`
-        IdentityReference = $IdentityReference ;`
-        Trustee = $strNTAccount ;`
-        Access = $objAccess ;`
-        Inhereted = $objIsInheried ;`
-        'Apply To' = $strApplyTo ;`
-        Permission = $strPerm}
+        if($GPO)
+        {
+            $objhashtableACE = [pscustomobject][ordered]@{
+            GPO = $GPOdisplayname ;`
+            Object = $DSObject ;`
+            CanonicalName = $Canonical ;`
+            ObjectClass = $strObjClass ;`
+            IdentityReference = $IdentityReference ;`
+            Trustee = $strNTAccount ;`
+            Access = $objAccess ;`
+            Inhereted = $objIsInheried ;`
+            'Apply To' = $strApplyTo ;`
+            Permission = $strPerm}
+        }
+        else
+        {
+            $objhashtableACE = [pscustomobject][ordered]@{
+            Object = $DSObject ;`
+            CanonicalName = $Canonical ;`
+            ObjectClass = $strObjClass ;`
+            IdentityReference = $IdentityReference ;`
+            Trustee = $strNTAccount ;`
+            Access = $objAccess ;`
+            Inhereted = $objIsInheried ;`
+            'Apply To' = $strApplyTo ;`
+            Permission = $strPerm}
+        }
     }
     else
     {
-        $objhashtableACE = [pscustomobject][ordered]@{
-        Object = $DSObject ;`
-        ObjectClass = $strObjClass ;`
-        IdentityReference = $IdentityReference ;`
-        Trustee = $strNTAccount ;`
-        Access = $objAccess ;`
-        Inhereted = $objIsInheried ;`
-        'Apply To' = $strApplyTo ;`
-        Permission = $strPerm}
+
+       if($GPO)
+        {
+            $objhashtableACE = [pscustomobject][ordered]@{
+            GPO = $GPOdisplayname ;`
+            Object = $DSObject ;`
+            ObjectClass = $strObjClass ;`
+            IdentityReference = $IdentityReference ;`
+            Trustee = $strNTAccount ;`
+            Access = $objAccess ;`
+            Inhereted = $objIsInheried ;`
+            'Apply To' = $strApplyTo ;`
+            Permission = $strPerm}
+        }
+        else
+        {
+            $objhashtableACE = [pscustomobject][ordered]@{
+            Object = $DSObject ;`
+            ObjectClass = $strObjClass ;`
+            IdentityReference = $IdentityReference ;`
+            Trustee = $strNTAccount ;`
+            Access = $objAccess ;`
+            Inhereted = $objIsInheried ;`
+            'Apply To' = $strApplyTo ;`
+            Permission = $strPerm}
+        }
     }
 
     if($boolOUProtected)
@@ -8182,9 +8934,23 @@ If($Excel)
 
 If($HTM)
 {
+if ($GPO)
+{         
 $strACLHTMLText =@"
 $strACLHTMLText
-<TR bgcolor="$strColor"><TD>$strFont $DSObject</TD>
+<TR bgcolor="$strColor"><TD>$strFont $GPOdisplayname</TD>
+"@
+}
+else
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TR bgcolor="$strColor">
+"@
+}
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $DSObject</TD>
 "@
 
 if ($Canonical)
@@ -8388,8 +9154,9 @@ $strACLHTMLText
 #==========================================================================
 function WriteDefSDAccessHTM
 {
-    Param($sd, $strObjectClass, $strColorTemp,$htmfileout, $strFileHTM, $OUHeader, $boolReplMetaDate, $strReplMetaVer, $strReplMetaDate, $bolCriticalityLevel,[boolean]$CompareMode,[string]$xlsxout,[string]$Type)
-if($Type -eq "HTM")
+    Param([bool]$bolACLExist, $sd, [bool]$bolObjClass,[string]$strObjectClass, [string]$strColorTemp,[string]$htmfileout, [string]$strFileHTM, [bool]$OUHeader, [bool]$boolReplMetaDate, [string]$strReplMetaVer, [string]$strReplMetaDate, [bool]$bolCriticalityLevel,[boolean]$CompareMode,[string]$xlsxout,[string]$Type)
+
+if($Type -eq "HTML")
 {
 $htm = $true
 $fileout = $htmfileout
@@ -8442,10 +9209,18 @@ $strFontTH =@"
 "@
 If ($OUHeader -eq $true)
 {
+
+
 $strHTMLText =@"
 $strHTMLText
-<TR bgcolor="$strTHOUColor"><TD><b>$strFontOU $strObjectClass</b>
+<TR bgcolor="$strTHOUColor">
 "@
+
+$strHTMLText =@"
+$strHTMLText
+<TD><b>$strFontOU $strObjectClass</b>
+"@
+
 if ($boolReplMetaDate -eq $true)
 {
 $strHTMLText =@"
@@ -8454,6 +9229,7 @@ $strHTMLText
 <TD><b>$strFontOU $strReplMetaVer</b>
 "@
 }
+
 
 
 
@@ -8472,7 +9248,7 @@ Switch ($strColorTemp)
 	$strColor = "DDDDDD"
 	$strColorTemp = "2"
 	}
-	"2"
+"2"
 	{
 	$strColor = "AAAAAA"
 	$strColorTemp = "1"
@@ -8491,8 +9267,11 @@ Switch ($strColorTemp)
 }          
 	}# End Switch
 }#End if HTM
-
+if ($bolACLExist) 
+{
 	$sd  | foreach{
+
+
     if($null  -ne  $_.AccessControlType)
     {
         $objAccess = $($_.AccessControlType.toString())
@@ -8507,348 +9286,172 @@ Switch ($strColorTemp)
 	$objInheritedType = $($_.InheritedObjectType.toString())
 	$objRights = $($_.ActiveDirectoryRights.toString())
     $objInheritanceType = $($_.InheritanceType.toString())
-    
 
 
-    if($chkBoxEffectiveRightsColor.IsChecked -eq $false)
+    Switch ($objRights)
     {
-    	Switch ($objRights)
-    	{
-   		    "Self"
-    		{
-                #Self right are never express in gui it's a validated write ( 0x00000008 ACTRL_DS_SELF)
+        "Self"
+        {
+            #Self right are never express in gui it's a validated write ( 0x00000008 ACTRL_DS_SELF)
 
-                 $objRights = ""
-            }
-    		"DeleteChild, DeleteTree, Delete"
-    		{
-    			$objRights = "DeleteChild, DeleteTree, Delete"
-
-    		}
-    		"GenericRead"
-    		{
-    			$objRights = "Read Permissions,List Contents,Read All Properties,List"
-            }
-    		"CreateChild"
-    		{
-    			$objRights = "Create"	
-    		}
-    		"DeleteChild"
-    		{
-    			$objRights = "Delete"		
-    		}
-    		"GenericAll"
-    		{
-    			$objRights = "Full Control"		
-    		}
-    		"CreateChild, DeleteChild"
-    		{
-    			$objRights = "Create/Delete"		
-    		}
-    		"ReadProperty"
-    		{
-    	        Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
+                $objRights = ""
+        }
+        "GenericRead"
+        {
+                $objRights = "Read Permissions,List Contents,Read All Properties,List"
+        }
+        "CreateChild"
+        {
+                $objRights = "Create"	
+        }
+        "DeleteChild"
+        {
+            $objRights = "Delete"		
+        }
+        "GenericAll"
+        {
+            $objRights = "Full Control"		
+        }
+        "CreateChild, DeleteChild"
+        {
+            $objRights = "Create/Delete"		
+        }
+        "ReadProperty"
+        {
+            Switch ($objInheritanceType) 
+    	    {
+    	 	    "None"
+    	 	    {
                      
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                      default
-    	 	                        {$objRights = "Read All Properties"	}
-                                }#End switch
-
-
-
-                        }
-                                  	 	        "Children"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                      default
-    	 	                        {$objRights = "Read All Properties"	}
-                                }#End switch
-                                }
-                        	 	        "Descendents"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Read"	
-                    }
-                      default
-    	 	                        {$objRights = "Read All Properties"	}
-                                }#End switch
-                                }
-    	 	        default
-    	 	        {$objRights = "Read All Properties"	}
-                }#End switch
-
-    			           	
-    		}
-    		"ReadProperty, WriteProperty" 
-    		{
-    			$objRights = "Read All Properties;Write All Properties"			
-    		}
-    		"WriteProperty" 
-    		{
-    	        Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                      default
-    	 	                        {$objRights = "Write All Properties"	}
-                                }#End switch
-
-
-
-                        }
-                                  	 	        "Children"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                      default
-    	 	                        {$objRights = "Write All Properties"	}
-                                }#End switch
-                                }
-                        	 	        "Descendents"
-    	 	        {
-                     
-                        	 		Switch ($objFlags)
-    	    	                { 
-    		      	                "ObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                       	                
-    		      	                "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                    {
-                       $objRights = "Write"	
-                    }
-                      default
-    	 	                        {$objRights = "Write All Properties"	}
-                                }#End switch
-                                }
-    	 	        default
-    	 	        {$objRights = "Write All Properties"	}
-                }#End switch		
-    		}
-    	}# End Switch
-    }
-    else
-    {
- 
-    	Switch ($objRights)
-    	{
-   		    "Self"
-    		{
-                #Self right are never express in gui it's a validated write ( 0x00000008 ACTRL_DS_SELF)
-
-                 $objRights = ""
-            }
-    		"GenericRead"
-    		{
-                 $objRights = "Read Permissions,List Contents,Read All Properties,List"
-            }
-    		"CreateChild"
-    		{
-                 $objRights = "Create"	
-    		}
-    		"DeleteChild"
-    		{
-                $objRights = "Delete"		
-    		}
-    		"GenericAll"
-    		{
-                $objRights = "Full Control"		
-    		}
-    		"CreateChild, DeleteChild"
-    		{
-                $objRights = "Create/Delete"		
-    		}
-    		"ReadProperty"
-    		{
-                Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
-                     
-                        Switch ($objFlags)
-    	    	        { 
-    		      	        "ObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-    		      	        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-                            default
-    	 	                {$objRights = "Read All Properties"	}
-                        }#End switch
-                    }
-                     "Children"
-    	 	        {
-                     
-                        Switch ($objFlags)
-    	    	        { 
-    		      	        "ObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-    		      	        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Read"	
-                            }
-                            default
-    	 	                {$objRights = "Read All Properties"	}
-                        }#End switch
-                    }
-                    "Descendents"
-                    {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
+                    Switch ($objFlags)
+    	    	    { 
+    		      	    "ObjectAceTypePresent"
+                        {
                             $objRights = "Read"	
-                            }
-                       	                
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
+                        }
+    		      	    "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
                             $objRights = "Read"	
-                            }
-                            default
-                            {$objRights = "Read All Properties"	}
-                        }#End switch
-                    }
-                    default
-                    {$objRights = "Read All Properties"	}
-                }#End switch
-    		}
-    		"ReadProperty, WriteProperty" 
-    		{
-                $objRights = "Read All Properties;Write All Properties"			
-    		}
-    		"WriteProperty" 
-    		{
-                Switch ($objInheritanceType) 
-    	        {
-    	 	        "None"
-    	 	        {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
-                               $objRights = "Write"	
-                            }
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                               $objRights = "Write"	
-                            }
-                            default
-                            {
-                                $objRights = "Write All Properties"	
-                            }
-                        }#End switch
-                    }
+                        }
+                        default
+    	 	            {$objRights = "Read All Properties"	}
+                    }#End switch
+                }
                     "Children"
-                    {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            default
-                            {
-                                $objRights = "Write All Properties"	
-                            }
-                        }#End switch
-                    }
-                    "Descendents"
-                    {
-                        Switch ($objFlags)
-                        { 
-                            "ObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            "ObjectAceTypePresent, InheritedObjectAceTypePresent"
-                            {
-                                $objRights = "Write"	
-                            }
-                            default
-                            {
-                                $objRights = "Write All Properties"	
-                            }
-                        }#End switch
-                    }
-                    default
-                    {
-                        $objRights = "Write All Properties"
-                    }
-                }#End switch		
-    		}
-            default
-            {
+    	 	    {
+                     
+                    Switch ($objFlags)
+    	    	    { 
+    		      	    "ObjectAceTypePresent"
+                        {
+                            $objRights = "Read"	
+                        }
+    		      	    "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Read"	
+                        }
+                        default
+    	 	            {$objRights = "Read All Properties"	}
+                    }#End switch
+                }
+                "Descendents"
+                {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                        $objRights = "Read"	
+                        }
+                       	                
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                        $objRights = "Read"	
+                        }
+                        default
+                        {$objRights = "Read All Properties"	}
+                    }#End switch
+                }
+                default
+                {$objRights = "Read All Properties"	}
+            }#End switch
+        }
+        "ReadProperty, WriteProperty" 
+        {
+            $objRights = "Read All Properties;Write All Properties"			
+        }
+        "WriteProperty" 
+        {
+            Switch ($objInheritanceType) 
+    	    {
+    	 	    "None"
+    	 	    {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        default
+                        {
+                            $objRights = "Write All Properties"	
+                        }
+                    }#End switch
+                }
+                "Children"
+                {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        default
+                        {
+                            $objRights = "Write All Properties"	
+                        }
+                    }#End switch
+                }
+                "Descendents"
+                {
+                    Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            $objRights = "Write"	
+                        }
+                        default
+                        {
+                            $objRights = "Write All Properties"	
+                        }
+                    }#End switch
+                }
+                default
+                {
+                    $objRights = "Write All Properties"
+                }
+            }#End switch		
+        }
+        default
+        {
   
-            }
-    	}# End Switch  
-
-        $intCriticalityValue = GetCriticality $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString()
-        
+        }
+    }# End Switch  
+    if($bolShowCriticalityColor)
+    {
+        $intCriticalityValue = Get-Criticality -Returns "Color" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() 0
+         
         Switch ($intCriticalityValue)
         {
             0 {$strLegendText = "Info";$strLegendColor = $strLegendColorInfo}
@@ -8862,23 +9465,20 @@ Switch ($strColorTemp)
         {
             $global:intShowCriticalityLevel = $intCriticalityValue
         }
+    }
         
-    }#End IF else
+   
 
-	$strNTAccount = $($_.IdentityReference.toString())
+	$IdentityReference = $($_.IdentityReference.toString())
     
-	If ($strNTAccount.contains("S-1-"))
+    If ($IdentityReference.contains("S-1-"))
 	{
-	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference
 
 	}
     else
     {
-        $strCurrentDom = $env:USERDOMAIN
-	    If ($strNTAccount.contains($strCurrentDom+"\"))
-	    {
-            $strNTAccount =  $strNTAccount.Replace($strCurrentDom+"\",$global:strDomainShortName+"\")
-	    }
+        $strNTAccount = $IdentityReference 
     }
    
     Switch ($strColorTemp) 
@@ -9069,37 +9669,59 @@ Switch ($strColorTemp)
             $strPerm = "Error: Failed to display permissions 7K"
 		} 	 
 	}# End Switch
+
 ##
 
 If($Excel)
 {
+
+
     $objhashtableACE = [pscustomobject][ordered]@{
-    Object = $strObjectClass ;`
-    Trustee = $strNTAccount ;`
-    Access = $objAccess ;`
-    Inhereted = $objIsInheried ;`
-    'Apply To' = $strApplyTo ;`
-    Permission = $strPerm}
+    ObjectClass = $strObjectClass}
 
     if($boolReplMetaDate)
     {
-        $objhashtableACE | Add-Member NoteProperty "Security Descriptor Modified" $strReplMetaDate -PassThru 
-        $objhashtableACE | Add-Member NoteProperty "Version" $strReplMetaVer -PassThru 
-        
+        $objhashtableACE | Add-Member NoteProperty "Security Descriptor Modified" $strReplMetaDate 
+        $objhashtableACE | Add-Member NoteProperty "Version" $strReplMetaVer 
+    }
+    $objhashtableACE | Add-Member NoteProperty "IdentityReference" $IdentityReference.toString() 
+    $objhashtableACE | Add-Member NoteProperty "Trustee" $strNTAccount.toString() 
+    $objhashtableACE | Add-Member NoteProperty "Access" $objAccess.toString() 
+    $objhashtableACE | Add-Member NoteProperty "Inhereted" $objIsInheried.toString() 
+    $objhashtableACE | Add-Member NoteProperty "Apply To" $strApplyTo.toString() 
+    $objhashtableACE | Add-Member NoteProperty "Permission" $strPerm.toString() 
+
+    
+
+    if($boolOUProtected)
+    {
+        $objhashtableACE | Add-Member NoteProperty "Inheritance Disabled" $bolOUProtected.toString() 
+    }
+
+    if ($bolCriticalityLevel -eq $true)
+    {
+        $objhashtableACE | Add-Member NoteProperty "Criticality Level" $strLegendTextVal.toString() 
     }
 
     if($CompareMode)
     {
-        $objhashtableACE | Add-Member NoteProperty State $($_.State.toString()) -PassThru 
+        $objhashtableACE | Add-Member NoteProperty State $($_.State.toString()) 
     }
+
     [VOID]$global:ArrayAllACE.Add($objhashtableACE)
 }
 
 If($HTM)
 {
+
 $strACLHTMLText =@"
 $strACLHTMLText
-<TR bgcolor="$strColor"><TD>$strFont $strObjectClass</TD>
+<TR bgcolor="$strColor">
+"@
+
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $strObjectClass</TD>
 "@
 
 if ($boolReplMetaDate -eq $true)
@@ -9110,6 +9732,7 @@ $strACLHTMLText
 <TD>$strFont $strReplMetaVer</TD>
 "@
 }
+
 $strACLHTMLText =@"
 $strACLHTMLText
 <TD>$strFont <a href="#web" onclick="GetGroupDN('$strNTAccount')">$strNTAccount</a></TD>
@@ -9119,6 +9742,7 @@ $strACLHTMLText
 <TD $strLegendColor>$strFontRights $strPerm</TD>
 "@
 
+
 if($CompareMode)
 {
 
@@ -9127,12 +9751,122 @@ $strACLHTMLText
 <TD>$strFont $($_.State.toString())</TD>
 "@
 }
+if ($bolCriticalityLevel -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD $strLegendColor>$strFont $strLegendTextVal</TD>
+"@
 
+}
 }#End If HTM
-
 }# End Foreach
 
 	
+}
+else
+{
+if($HTM)
+{
+if ($OUHeader -eq $false)
+{
+if ($FilterMode)
+{
+
+
+
+if ($boolReplMetaDate -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $strReplMetaDate</TD>
+"@
+}
+
+if ($boolACLSize -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $strACLSize bytes</TD>
+"@
+}
+
+if ($boolOUProtected -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $bolOUPRotected </TD>
+"@
+}
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont N/A</TD>
+<TD>$strFont N/A</TD>
+<TD>$strFont N/A</TD>
+<TD>$strFont N/A</TD>
+<TD>$strFont No Matching Permissions Set</TD>
+"@
+
+
+
+if ($bolCriticalityLevel -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD $strLegendColor>$strFont $strLegendTextVal</TD>
+"@
+}
+}
+else
+{
+
+
+if ($boolReplMetaDate -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $strReplMetaDate</TD>
+"@
+}
+
+if ($boolACLSize -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $strACLSize bytes</TD>
+"@
+}
+
+if ($boolOUProtected -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $bolOUPRotected </TD>
+"@
+}
+
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont N/A</TD>
+<TD>$strFont N/A</TD>
+<TD>$strFont N/A</TD>
+<TD>$strFont N/A</TD>
+<TD>$strFont No Permissions Set</TD>
+"@
+
+
+if ($bolCriticalityLevel -eq $true)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD $strLegendColor>$strFont $strLegendTextVal</TD>
+"@
+}
+
+}# End If
+}#end If OUHeader false
+}#End if HTM
+} #End if bolACLExist
 if($HTM)
 {
 $strACLHTMLText =@"
@@ -9143,7 +9877,7 @@ $strACLHTMLText
     #end ifelse OUHEader
     $strHTMLText = $strHTMLText + $strACLHTMLText
 
-    Out-File -InputObject $strHTMLText -Append -FilePath $htmfileout 
+    Out-File -InputObject $strHTMLText -Append -FilePath $fileout 
     Out-File -InputObject $strHTMLText -Append -FilePath $strFileHTM
 
     $strHTMLText = $null
@@ -9151,7 +9885,9 @@ $strACLHTMLText
     Remove-Variable -Name "strHTMLText"
     Remove-Variable -Name "strACLHTMLText"
 }#End if HTM
+
 }
+
 #==========================================================================
 # Function		: InitiateDefSDAccessHTM
 # Arguments     : Output htm file
@@ -9164,7 +9900,8 @@ Function InitiateDefSDAccessHTM
     [string]$strStartingPoint,
     $RepMetaDate,
     [bool]$bolCompare,
-    [string] $strComparefile)
+    [string] $strComparefile,
+    [bool]$bolCriticaltiy)
 
 $strACLTypeHeader = "Access"
 If($bolCompare)
@@ -9214,6 +9951,7 @@ $strHTMLText
 <th bgcolor="$strTHColor">$strFontTH Trustee</font></th><th bgcolor="$strTHColor">$strFontTH $strACLTypeHeader</font></th><th bgcolor="$strTHColor">$strFontTH Inherited</font></th><th bgcolor="$strTHColor">$strFontTH Apply To</font></th><th bgcolor="$strTHColor">$strFontTH Permission</font></th>
 "@
 
+
 if ($bolCompare -eq $true)
 {
 $strHTMLText =@"
@@ -9222,8 +9960,13 @@ $strHTMLText
 "@
 }
 
-
-
+if ($bolCriticaltiy -eq $true)
+{
+$strHTMLText =@"
+$strHTMLText
+<th bgcolor="$strTHColor">$strFontTH Criticality Level</font></th>
+"@
+}
 
 Out-File -InputObject $strHTMLText -Append -FilePath $htmfileout 
 $strHTMLText = $null
@@ -9244,7 +9987,7 @@ Remove-Variable -Name "strTHColor"
 #==========================================================================
 Function InitiateHTM
 {
-    Param([string] $htmfileout,[string]$strStartingPoint,[string]$strDN,[bool]$RepMetaDate ,[bool]$ACLSize,[bool]$bolACEOUProtected,[bool]$bolCirticaltiy,[bool]$bolCompare,[bool]$SkipDefACE,[bool]$SkipProtectDelACE,[string]$strComparefile,[bool]$bolFilter,[bool]$bolEffectiveRights,[bool]$bolObjType,[bool]$bolCanonical)
+    Param([string] $htmfileout,[string]$strStartingPoint,[string]$strDN,[bool]$RepMetaDate ,[bool]$ACLSize,[bool]$bolACEOUProtected,[bool]$bolCriticaltiy,[bool]$bolCompare,[bool]$SkipDefACE,[bool]$SkipProtectDelACE,[string]$strComparefile,[bool]$bolFilter,[bool]$bolEffectiveRights,[bool]$bolObjType,[bool]$bolCanonical,[bool]$GPO)
 If($rdbSACL.IsChecked)
 {
 $strACLTypeHeader = "Audit"
@@ -9288,7 +10031,7 @@ $strHTMLText =@"
 }
 }
 }
-If($bolCirticaltiy)
+If($bolCriticaltiy)
 {
 $strHTMLText =@"
 $strHTMLText
@@ -9331,6 +10074,15 @@ $strFontOU =@"
 $strFontTH =@"
 <FONT size="2" face="verdana, hevetica, arial">
 "@
+
+if ($GPO)
+{
+$strHTMLText =@"
+$strHTMLText
+<th bgcolor="$strTHColor">$strFontTH GPO</font>
+"@
+}
+
 $strHTMLText =@"
 $strHTMLText
 <th bgcolor="$strTHColor">$strFontTH Object</font></th>
@@ -9386,7 +10138,7 @@ $strHTMLText
 }
 
 
-if ($bolCirticaltiy -eq $true)
+if ($bolCriticaltiy -eq $true)
 {
 $strHTMLText =@"
 $strHTMLText
@@ -9664,83 +10416,7 @@ Out-File -InputObject $strHTMLText -Append -FilePath $htmfileout
 $strHTMLText = ""
 
 }
-#==========================================================================
-# Function		: CreateColorLegenedReportHTA
-# Arguments     : OU Name, Ou put HTA file
-# Returns   	: n/a
-# Description   : Initiates a base HTA file with Export(Save As),Print and Exit buttons.
-#==========================================================================
-function CreateColorLegenedReportHTA
-{
-    Param([string]$htafileout)
-$strHTAText =@"
-<html>
-<head>
-<hta:Application ID="hta"
-ApplicationName="Legend">
-<title>Color Code</title>
-<script type="text/vbscript">
-Sub Window_Onload
 
- 	self.ResizeTo 500,500
-End sub
-</script>
-</head>
-<body>
-
-<input type="button" value="Exit" onclick=self.close name="B3" tabindex="1" class="btn">
-"@
-
-$strTHOUColor = "E5CF00"
-$strTHColor = "EFAC00"
-$strFont =@"
-<FONT size="1" face="verdana, hevetica, arial">
-"@
-$strFontOU =@"
-<FONT size="1" face="verdana, hevetica, arial">
-"@
-$strFontTH =@"
-<FONT size="2" face="verdana, hevetica, arial">
-"@
-$strLegendColorInfo=@"
-bgcolor="#A4A4A4"
-"@
-$strLegendColorLow =@"
-bgcolor="#0099FF"
-"@
-$strLegendColorMedium=@"
-bgcolor="#FFFF00"
-"@
-$strLegendColorWarning=@"
-bgcolor="#FFCC00"
-"@
-$strLegendColorCritical=@"
-bgcolor="#DF0101"
-"@
-
-$strHTAText =@"
-$strHTAText
-<h4>Use colors in report to identify criticality level of permissions.<br>This might help you in implementing <B>Least-Privilege</B> Administrative Models.</h4>
-<TABLE BORDER=1>
-<th bgcolor="$strTHColor">$strFontTH Permissions</font></th><th bgcolor="$strTHColor">$strFontTH Criticality</font></th>
-<TR><TD> $strFontTH <B>Deny Permissions<TD $strLegendColorInfo> Info</TR>
-<TR><TD> $strFontTH <B>List<TD $strLegendColorInfo>Info</TR>
-<TR><TD> $strFontTH <B>Read Properties<TD $strLegendColorLow>Low</TR>
-<TR><TD> $strFontTH <B>Read Object<TD $strLegendColorLow>Low</TR>
-<TR><TD> $strFontTH <B>Read Permissions<TD $strLegendColorLow>Low</TR>
-<TR><TD> $strFontTH <B>Write Propeties<TD $strLegendColorMedium>Medium</TR>
-<TR><TD> $strFontTH <B>Create Object<TD $strLegendColorWarning>Warning</TR>
-<TR><TD> $strFontTH <B>Delete Object<TD $strLegendColorWarning>Warning</TR>
-<TR><TD> $strFontTH <B>ExtendedRight<TD $strLegendColorWarning>Warning</TR>
-<TR><TD> $strFontTH <B>Modify Permisions<TD $strLegendColorCritical>Critical</TR>
-<TR><TD> $strFontTH <B>Full Control<TD $strLegendColorCritical>Critical</TR>
-
-"@
-
-
-##
-Out-File -InputObject $strHTAText -Force -FilePath $htafileout 
-}
 #==========================================================================
 # Function		: WriteDefSDSDDLHTM
 # Arguments     : Security Principal Name,  Output htm file
@@ -10076,10 +10752,11 @@ function Select-Folder
 # Returns   	: All Permissions on a speficied object
 # Description   : Enumerates all access control entries on a speficied object
 #==========================================================================
-Function Get-Perm
+Function Get-Perm 
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType)
-$SDResult = $false
+    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType)
+
+
 $bolCompare = $false
 $bolACLExist = $true
 $global:strOwner = ""
@@ -10129,7 +10806,34 @@ else
 
 while($count -le $ALOUdn.count -1)
 {
-$ADObjDN = $($ALOUdn[$count])
+if($GPO)
+{
+    $ADObjDN = $ALOUdn[$count].Split(";")[0]
+    $GPOTarget = $ALOUdn[$count].Split(";")[1]
+    if($GPO)
+    {
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
+        $LDAPConnection.SessionOptions.ReferralChasing = "None"
+        $request = New-Object System.directoryServices.Protocols.SearchRequest
+        $request.DistinguishedName = $ADObjDN
+        $request.Filter = "(objectClass=*)"
+        $request.Scope = "Base"
+        [void]$request.Attributes.Add("displayname")
+        $response = $LDAPConnection.SendRequest($request)
+        $result = $response.Entries[0]
+        try
+        {
+            $GPOdisplayname = $result.attributes.displayname[0]
+        }
+        catch
+        {
+        }            
+    }
+}
+else
+{
+    $ADObjDN = $($ALOUdn[$count])
+}
 $global:secd = ""
 $bolACLExist = $true
 $global:GetSecErr = $false
@@ -10411,16 +11115,114 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                 $sd = @($sd | Where-Object{if($_.IdentityReference -like "S-1-*"){`
                 $(ConvertSidToName -server $global:strDomainLongName -Sid $_.IdentityReference) -like $txtFilterTrustee.Text}`
                 else{$_.IdentityReference -like $txtFilterTrustee.Text}})
-
+            
             }
+
+        }
+        If ($chkBoxFilterBuiltin.IsChecked)
+        {
+            # Filter out default and built-in security principals
+            $sd = @($sd | Where-Object{`
+                ($_.IdentityReference -match "S-1-5-21-") -and `
+                ($_.IdentityReference -notmatch $("^"+$domainsid+"-5\d{2}$")) -and 
+                ($_.IdentityReference -notmatch $("^"+$domainsid+"-4\d{2}$"))
+                }) 
         }
 
+
+    }
+    if($FilterBuiltin)
+    {
+        # Filter out default and built-in security principals
+        $sd = @($sd | Where-Object{`
+            ($_.IdentityReference -match "S-1-5-21-") -and `
+            ($_.IdentityReference -notmatch $("^"+$domainsid+"-5\d{2}$")) -and 
+            ($_.IdentityReference -notmatch $("^"+$domainsid+"-4\d{2}$"))
+            }) 
     }
 
-    If ($chkBoxSeverity.IsChecked)
+    if($RecursiveFind)
     {
-  
-        Switch ($combServerity.SelectedItem)
+        $RecursiveData = new-object System.Collections.ArrayList
+        foreach($ace in $sd)
+        {
+            [Void]$RecursiveData.add($ace)
+            $SID_DN = ""
+
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
+            $LDAPConnection.SessionOptions.ReferralChasing = "None"
+            $request = New-Object System.directoryServices.Protocols.SearchRequest
+            $request.DistinguishedName = "<SID=$($ace.IdentityReference)>"
+            $request.Filter = "(name=*)"
+            $request.Scope = "Base"
+            [void]$request.Attributes.Add("objectClass")
+            [void]$request.Attributes.Add("member")
+
+            try
+            {
+                $response = $LDAPConnection.SendRequest($request)
+                $result = $response.Entries[0]
+	            $SID_DN = $result.distinguishedName
+                $ObjectClass =$result.attributes.objectclass[$result.attributes.objectclass.count-1]
+            }
+            catch
+            {
+                Write-Verbose "Could not resolve $sid"
+            }
+
+            if($SID_DN)
+            {
+                if($ObjectClass -eq "Group")
+                {
+                    if(($result.Attributes.AttributeNames -contains "member;range=0-1499") -or ($result.Attributes.AttributeNames -contains "member"))
+                    {
+                        $global:GroupMembersExpanded =  New-Object System.Collections.ArrayList
+                        $NetstedResult = Get-LargeNestedADGroup $global:strDC $SID_DN $RecursiveObjectType
+                        if($NetstedResult)
+                        {
+                            foreach($NestedObject in $NetstedResult)
+                            {
+                                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDC, $CREDS)
+                                $LDAPConnection.SessionOptions.ReferralChasing = "None"
+                                $request = New-Object System.directoryServices.Protocols.SearchRequest
+                                $request.DistinguishedName = $NestedObject
+                                $request.Filter = "(name=*)"
+                                $request.Scope = "Base"
+                                [void]$request.Attributes.Add("objectsid")
+                                [void]$request.Attributes.Add("msds-principalname")
+
+                                $response = $LDAPConnection.SendRequest($request)
+                                $ADObject = $response.Entries[0]
+
+                                $recursiveobject = new-object psobject
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "IdentityReference"     -Value $(try{GetSidStringFromSidByte $ADObject.attributes.objectsid[0]}catch{})
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "ActiveDirectoryRights" -Value $ace.ActiveDirectoryRights
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "InheritanceType"       -Value $ace.InheritanceType     
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "ObjectType"            -Value $ace.ObjectType          
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "InheritedObjectType"   -Value $ace.InheritedObjectType 
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "ObjectFlags"           -Value $ace.ObjectFlags         
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "AccessControlType"     -Value $ace.AccessControlType   
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "IsInherited"           -Value $ace.IsInherited         
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "InheritanceFlags"      -Value $ace.InheritanceFlags    
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "PropagationFlags"      -Value $ace.PropagationFlags    
+                                [Void]$RecursiveData.add($recursiveobject)
+                                $recursiveobject = $null
+                            }
+                        }
+                    }
+
+                }
+ 
+            }       
+            
+        }
+        $SD = $RecursiveData | Sort-Object -Property InheritedObjectType,ObjectType,IdentityReference,ObjectFlags,ActiveDirectoryRights -Unique
+        $RecursiveData = $null
+    }    
+
+    If ($bolAssess)
+    {
+        Switch ($AssessLevel)
         {
             "Info" {$CriticalityFilter = 0}
             "Low" {$CriticalityFilter = 1}
@@ -10445,7 +11247,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                         $sdtemp = $sd | Where-Object{$_.IdentityReference -eq "S-1-5-10"}
                         if($sdtemp)
                         {
-                            $sdtemp2.Add( $sdtemp)
+                            [void]$sdtemp2.Add( $sdtemp)
                         }
                 }
                 foreach ($tok in $global:tokens) 
@@ -10455,7 +11257,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                         $sdtemp = $sd | Where-Object{$_.IdentityReference -eq $tok}
                         if($sdtemp)
                         {
-                            $sdtemp2.Add( $sdtemp)
+                             [void]$sdtemp2.Add( $sdtemp)
                         }
                   
              
@@ -10476,6 +11278,14 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
     
 		    while($index -le $sd.count -1) 
 		    {
+                    if($GPO)
+                    {
+                        $strDistinguishedName = $GPOTarget
+                    }
+                    else
+                    {
+                        $strDistinguishedName = $DSobject.distinguishedname.toString()
+                    }
                     $bolMatchDef = $false
                     $bolMatchprotected = $false
                     if($UseCanonicalName)
@@ -10492,7 +11302,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                     {
                         if($strObjectClass  -ne $strTemoObjectClass)
                         {
-                            $sdOUDef = Get-PermDef $strObjectClass $strNTAccount
+                            $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
                         }
                         $strTemoObjectClass = $strObjectClass
                         $indexDef=0
@@ -10536,12 +11346,11 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                         {
 					    If ($bolCSV)
 					    {
-                            if($intCSV -eq 0)
-                            {
-                                $strCSVHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-                            }
+
                             $intCSV++
-				 		    WritePermCSV $sd[$index] $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $false
+
+				 		    WritePermCSV $sd[$index] $strDistinguishedName $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $false $bolToFile $GPO $GPOdisplayname $TranslateGUID
+
 
 				 	    }# End If
                         Else
@@ -10557,13 +11366,13 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				 	        if ($permcount -eq 0)
 				 	        {
                                 $bolOUHeader = $true    
-				 		        WriteOUT $bolACLExist $sd[$index] $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
 
 				 	        }
 				 	        else
 				 	        {
                                     $bolOUHeader = $false 
-				 		        WriteOUT $bolACLExist $sd[$index] $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
 
 				 	        }# End If
                         }
@@ -10590,7 +11399,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    if ($permcount -eq 0)
 		 	    {
                     $bolOUHeader = $true 
-		 		    WriteOUT $bolACLExist $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+		 		    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
 
                    
 		 	    }
@@ -10598,7 +11407,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    {
                     $bolOUHeader = $false 
                     $GetOwnerEna = $false
-                    WriteOUT $bolACLExist $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
                     #$aclcount++
 		 	    }
             }
@@ -10612,7 +11421,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             if (($permcount -eq 0) -and ($index -gt 0))
             {
                 $bolOUHeader = $true 
-	            WriteOUT $bolACLExist $sd $DSobject.distinguishedname.toString() $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
                 $aclcount++
             }# End If
         }# End if bolCSVOnly
@@ -10643,37 +11452,7 @@ if ($aclcount -eq 0)
 }  
 else
 {
-    if($chkBoxEffectiveRightsColor.IsChecked)
-    {
-        Switch ($global:intShowCriticalityLevel)
-        {
-            0
-            {
-            (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTA
-            (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTM
-            }
-            1
-            {
-            (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTA
-            (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTM
-            }
-            2
-            {
-            (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTA
-            (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTM
-            }
-            3
-            {
-            (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTA
-            (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTM
-            }
-            4
-            {
-            (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTA
-            (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTM
-            }
-        }
-    }
+
     if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
     {
         
@@ -10685,7 +11464,11 @@ else
     {
         if($bolCMD)
         {
-            Write-host "Report saved in $strFileCSV" -ForegroundColor Yellow
+            if($bolToFile)
+            {
+                Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                Write-output $strFileCSV
+            }
         }
         else
         {
@@ -10707,7 +11490,8 @@ else
             
             if($bolCMD)
             {
-                Write-host "Report saved in $strFileEXCEL" -ForegroundColor Yellow
+                Write-host "Report saved in: $strFileEXCEL" -ForegroundColor Yellow
+                Write-output $strFileEXCEL
             }
             else
             {
@@ -10723,6 +11507,37 @@ else
         }#End if EXCEL
         else
         {
+            if($bolShowCriticalityColor)
+            {
+                Switch ($global:intShowCriticalityLevel)
+                {
+                    0
+                    {
+                    (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTA
+                    (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTM
+                    }
+                    1
+                    {
+                    (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTA
+                    (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTM
+                    }
+                    2
+                    {
+                    (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTA
+                    (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTM
+                    }
+                    3
+                    {
+                    (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTA
+                    (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTM
+                    }
+                    4
+                    {
+                    (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTA
+                    (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTM
+                    }
+                }
+            }
             #If Get-Perm was called with Show then open the HTA file.
             if($Show)
             {
@@ -10759,7 +11574,7 @@ Remove-Variable -Name "i"
 $secd = $null
 
 
-return $SDResult
+
 
 }
 
@@ -10771,7 +11586,7 @@ return $SDResult
 #==========================================================================
 Function Get-PermCompare
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $Returns)
+    Param([System.Collections.ArrayList]$ALOUdn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $Returns,[bool]$bolToFile,[bool]$bolShowCriticalityColor,[bool]$bolAssess,[string] $AssessLevel,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID)
 
 &{#Try
 $arrOUList = New-Object System.Collections.ArrayList
@@ -10789,18 +11604,43 @@ $ExitCompare = $false
 $sdOUProtect = ""
 $global:ArrayAllACE = New-Object System.Collections.ArrayList
 
+If ($bolAssess)
+{
+    Switch ($AssessLevel)
+    {
+        "Info" {$CriticalityFilter = 0}
+        "Low" {$CriticalityFilter = 1}
+        "Medium" {$CriticalityFilter = 2}
+        "Warning" {$CriticalityFilter = 3}
+        "Critical" {$CriticalityFilter = 4}
+    }
+    $global:csvHistACLs = @($global:csvHistACLs | Where-Object{Get-Criticality -Returns "Filter" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() $CriticalityFilter })
+}
+
 if ($chkBoxTemplateNodes.IsChecked -eq $true)
 {
 
     $index = 0
     #Enumerate all Nodes in CSV
-    while($index -le $global:csvHistACLs.count -1) 
+    if($global:csvHistACLs[0].Object)
     {
-        $arrOUList.Add($global:csvHistACLs[$index].OU)
-        $index++
+        while($index -le $global:csvHistACLs.count -1) 
+        {
+            $arrOUList.Add($global:csvHistACLs[$index].Object)
+            $index++
+        }
     }
-    $arrOUListUnique = $arrOUList | Select-Object -Unique
+    else
+    {
+        while($index -le $global:csvHistACLs.count -1) 
+        {
+            $arrOUList.Add($global:csvHistACLs[$index].OU)
+            $index++
+        }
+    }
 
+
+    $arrOUListUnique = $arrOUList | Select-Object -Unique
 
     #Replace any existing strings matching <DOMAIN-DN>
     $arrOUListUnique = $arrOUListUnique -replace "<DOMAIN-DN>",$global:strDomainDNName
@@ -10837,7 +11677,8 @@ if($chkBoxScanUsingUSN.IsChecked -eq $true)
     {
         If ($bolReplMeta -eq $true)
         {
-            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nDid not find USNs in template.`nDo you want to continue?","Information",3,"Warning")            Switch ($MsgBOx)
+            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nDid not find USNs in template.`nDo you want to continue?",”Information”,3,"Warning")
+            Switch ($MsgBOx)
             {
                 "YES"
                 {$ExitCompare = $false}
@@ -10849,7 +11690,7 @@ if($chkBoxScanUsingUSN.IsChecked -eq $true)
         }
         else
         {
-            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nMake sure scan option SD Modified is selected.`nDo you want to continue?","Information",3,"Warning")
+            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nMake sure scan option SD Modified is selected.`nDo you want to continue?",”Information”,3,"Warning")
             Switch ($MsgBOx)
             {
                 "YES"
@@ -10868,7 +11709,7 @@ If ($bolCSV)
 {
 	If ((Test-Path $strFileCSV) -eq $true)
 	{
-	Remove-Item $strFileCSV
+	    Remove-Item $strFileCSV
 	}
 }
 
@@ -10923,7 +11764,34 @@ while($count -le $ALOUdn.count -1)
 
     $sd =  New-Object System.Collections.ArrayList
     $GetOwnerEna = $bolGetOwnerEna
-    $ADObjDN = $($ALOUdn[$count])
+    if($GPO)
+    {
+        $ADObjDN = $ALOUdn[$count].Split(";")[0]
+        $GPOTarget = $ALOUdn[$count].Split(";")[1]
+        if($GPO)
+        {
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
+            $LDAPConnection.SessionOptions.ReferralChasing = "None"
+            $request = New-Object System.directoryServices.Protocols.SearchRequest
+            $request.DistinguishedName = $ADObjDN
+            $request.Filter = "(objectClass=*)"
+            $request.Scope = "Base"
+            [void]$request.Attributes.Add("displayname")
+            $response = $LDAPConnection.SendRequest($request)
+            $result = $response.Entries[0]
+            try
+            {
+                $GPOdisplayname = $result.attributes.displayname[0]
+            }
+            catch
+            {
+            }            
+        }
+    }
+    else
+    {
+        $ADObjDN = $($ALOUdn[$count])
+    }
     $OUdnorgDN = $ADObjDN 
 
     #Counter used for fitlerout Nodes with only defaultpermissions configured
@@ -10972,6 +11840,14 @@ while($count -le $ALOUdn.count -1)
         if($SendRequest)
         {
         $DSobject = $response.Entries[0]
+        if($GPO)
+        {
+            $strDistinguishedName = $GPOTarget
+        }
+        else
+        {
+            $strDistinguishedName = $DSobject.distinguishedname.toString()
+        }
         #Check if any NTsecuritydescr
         if($null -ne $DSobject.Attributes.ntsecuritydescriptor)
         {
@@ -11038,7 +11914,7 @@ while($count -le $ALOUdn.count -1)
                 $sec.SetSecurityDescriptorBinaryForm($DSobject.Attributes.ntsecuritydescriptor[0])
             }
             &{#Try
-                $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.NTAccount])
+                $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
 
             }
             Trap [SystemException]
@@ -11082,7 +11958,7 @@ while($count -le $ALOUdn.count -1)
         $sec.SetSecurityDescriptorBinaryForm($DSobject.Attributes.ntsecuritydescriptor[0])
         &{#Try
             #$DSobject.psbase.Options.SecurityMasks = [System.DirectoryServices.SecurityMasks]'Owner' -bor [System.DirectoryServices.SecurityMasks]'Group'-bor [System.DirectoryServices.SecurityMasks]'Dacl' -bor [System.DirectoryServices.SecurityMasks]'Sacl'
-            $global:secd = $sec.GetAuditRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.NTAccount])
+            $global:secd = $sec.GetAuditRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
         }
         Trap [SystemException]
         { 
@@ -11110,7 +11986,7 @@ while($count -le $ALOUdn.count -1)
         {
     
             &{#Try
-                $global:strOwner = $sec.GetOwner([System.Security.Principal.NTAccount]).value
+                $global:strOwner = $sec.GetOwner([System.Security.Principal.SecurityIdentifier]).value
             }
    
             Trap [SystemException]
@@ -11137,7 +12013,7 @@ while($count -le $ALOUdn.count -1)
                 {
     
                 &{#Try
-                    $global:strOwner = $sec.GetOwner([System.Security.Principal.NTAccount]).value
+                    $global:strOwner = $sec.GetOwner([System.Security.Principal.SecurityIdentifier]).value
                 }
    
                 Trap [SystemException]
@@ -11147,6 +12023,19 @@ while($count -le $ALOUdn.count -1)
                     Continue
                 }
             } 
+        }
+
+        If ($bolAssess)
+        {
+            Switch ($AssessLevel)
+            {
+                "Info" {$CriticalityFilter = 0}
+                "Low" {$CriticalityFilter = 1}
+                "Medium" {$CriticalityFilter = 2}
+                "Warning" {$CriticalityFilter = 3}
+                "Critical" {$CriticalityFilter = 4}
+            }
+            $sd = @($sd | Where-Object{Get-Criticality -Returns "Filter" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() $CriticalityFilter })
         }
 
         if ($bolACLsize -eq $true) 
@@ -11188,7 +12077,15 @@ while($count -le $ALOUdn.count -1)
                     {
                         $SDHistResult = $false
 
-                        $strOUcol = $arrUSNCheckList[$index].OU
+                        
+                        if($arrUSNCheckList[$index].Object)
+                        {
+                            $strOUcol = $arrUSNCheckList[$index].Object
+                        }
+                        else
+                        {
+                            $strOUcol = $arrUSNCheckList[$index].OU
+                        }
                         if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
                         {
 		                    $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
@@ -11231,7 +12128,7 @@ while($count -le $ALOUdn.count -1)
 
 	                                }
                                     $newSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
-                                    InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
+                                    InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$sdObject.IdentityReference;PrincipalName=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                                     InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State="Match"}
                                     
                                     if(($Returns -eq "MATCH") -or ($Returns -eq "ALL"))
@@ -11240,14 +12137,8 @@ while($count -le $ALOUdn.count -1)
                                         $intReturned++
                                         If ($bolCSV)
                                         {
-                                            if($intCSV -eq 0)
-                                            {
-                                                       
-                                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-                                                
-                                            }
                                             $intCSV++
-                                            WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true
+                                            WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
 
                                         }# End If
                                         Else
@@ -11256,11 +12147,11 @@ while($count -le $ALOUdn.count -1)
                                             {
                                                 $intAclOccurence++
                                                 $bolOUHeader = $true 
-                                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                             
                                             }
                                             $bolOUHeader = $false 
-                                            WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                                         }#End !$bolCSVOnly
                                     }#End Returns
                                 }
@@ -11288,10 +12179,10 @@ while($count -le $ALOUdn.count -1)
 	        {
                 $bolMatchDef = $false
                 $bolMatchprotected = $false
-                $strNTAccount = $sdObject.IdentityReference.toString()
-	            If ($strNTAccount.contains("S-1-"))
+                $strIdentityReference= $sdObject.IdentityReference.toString()
+	            If ($strIdentityReference.contains("S-1-"))
 	            {
-	                $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	                $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
 
 	            }
                 #Remove Default Permissions if SkipDefaultPerm selected
@@ -11299,12 +12190,13 @@ while($count -le $ALOUdn.count -1)
                 {
                     if($strObjectClass  -ne $strTemoObjectClass)
                     {
-                        $sdOUDef = Get-PermDef $strObjectClass $strNTAccount
+                        $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
                     }
                     $strTemoObjectClass = $strObjectClass
                     $indexDef=0
                     while($indexDef -le $sdOUDef.count -1) {
-			                    if (($sdOUDef[$indexDef].IdentityReference -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
+                                #if (($sdOUDef[$indexDef].IdentityReference -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
+			                    if (($sdOUDef[$indexDef].PrincipalName -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                    {
 			                        $bolMatchDef = $true
 			                    }#} #End If
@@ -11327,7 +12219,7 @@ while($count -le $ALOUdn.count -1)
                         $indexProtected=0
                         while($indexProtected -le $sdOUProtect.count -1)
                         {
-			                if (($sdOUProtect[$indexProtected].IdentityReference -eq $strNTAccount) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sdObject.ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sdObject.InheritedObjectType))
+			                if (($sdOUProtect[$indexProtected].PrincipalName -eq $strNTAccount) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sdObject.ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                {
 			                    $bolMatchprotected = $true
 			                }#End If
@@ -11355,13 +12247,19 @@ while($count -le $ALOUdn.count -1)
                         }
 
                         $newSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
-                        InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
+                        InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$strIdentityReference;PrincipalName=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                         InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State="Match"}
 
 		                while($index -le $global:csvHistACLs.count -1) 
 		                {
-                            $strOUcol = $global:csvHistACLs[$index].OU
-
+                            if($global:csvHistACLs[$index].Object)
+                            {
+                                $strOUcol = $global:csvHistACLs[$index].Object
+                            }
+                            else
+                            {
+                                $strOUcol = $global:csvHistACLs[$index].OU
+                            }
                             if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
                             {
 		                        $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
@@ -11381,35 +12279,35 @@ while($count -le $ALOUdn.count -1)
 			                {
                                 $OUMatchResult = $true
                                 $OUMatchResultOverall = $true
-				                $strIdentityReference = $global:csvHistACLs[$index].IdentityReference
-                                if($strIdentityReference.Contains("<DOMAIN-NETBIOS>"))
+				                $strPrincipalName = $global:csvHistACLs[$index].PrincipalName
+                                if($strPrincipalName.Contains("<DOMAIN-NETBIOS>"))
                                 {
-		                            $strIdentityReference = ($strIdentityReference -Replace "<DOMAIN-NETBIOS>",$global:strDomainShortName)
+		                            $strPrincipalName = ($strPrincipalName -Replace "<DOMAIN-NETBIOS>",$global:strDomainShortName)
 
                                 }
-                                if($strIdentityReference.Contains("<ROOT-NETBIOS>"))
+                                if($strPrincipalName.Contains("<ROOT-NETBIOS>"))
                                 {
-		                            $strIdentityReference = ($strIdentityReference -Replace "<ROOT-NETBIOS>",$global:strRootDomainShortName)
+		                            $strPrincipalName = ($strPrincipalName -Replace "<ROOT-NETBIOS>",$global:strRootDomainShortName)
 
                                 }
-                                if($strIdentityReference.Contains("<DOMAINSID>"))
+                                if($strPrincipalName.Contains("<DOMAINSID>"))
                                 {
-		                            $strIdentityReference = ($strIdentityReference -Replace "<DOMAINSID>",$global:DomainSID)
+		                            $strPrincipalName = ($strPrincipalName -Replace "<DOMAINSID>",$global:DomainSID)
 
                                 }
-                                if($strIdentityReference.Contains("<ROOTDOMAINSID>"))
+                                if($strPrincipalName.Contains("<ROOTDOMAINSID>"))
                                 {
-		                            $strIdentityReference = ($strIdentityReference -Replace "<ROOTDOMAINSID>",$global:ForestRootDomainSID)
+		                            $strPrincipalName = ($strPrincipalName -Replace "<ROOTDOMAINSID>",$global:ForestRootDomainSID)
 
                                 }
-	                            If ($strIdentityReference.contains("S-1-"))
+	                            If ($strPrincipalName.contains("S-1-"))
 	                            {
-	                                $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
+	                                $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName
 
 	                            }
                                 if($txtReplaceNetbios.text.Length -gt 0)
                                 {
-		                            $strIdentityReference = ($strIdentityReference -Replace $txtReplaceNetbios.text,$global:strDomainShortName)
+		                            $strPrincipalName = ($strPrincipalName -Replace $txtReplaceNetbios.text,$global:strDomainShortName)
 
                                 }
 				                $strTmpActiveDirectoryRights = $global:csvHistACLs[$index].ActiveDirectoryRights				
@@ -11419,10 +12317,10 @@ while($count -le $ALOUdn.count -1)
 				                $strTmpAccessControlType = $global:csvHistACLs[$index].AccessControlType
                                 if ($strTmpAccessControlType -eq "Owner" )
                                 {
-                                    $global:strOwnerTemplate = $strIdentityReference
+                                    $global:strOwnerTemplate = $strPrincipalName
                                 }
 
-                                If (($newSdObject.IdentityReference -eq $strIdentityReference) -and ($newSdObject.ActiveDirectoryRights -eq $strTmpActiveDirectoryRights) -and ($newSdObject.AccessControlType -eq $strTmpAccessControlType) -and ($newSdObject.ObjectType -eq $strTmpObjectTypeGUID) -and ($newSdObject.InheritanceType -eq $strTmpInheritanceType) -and ($newSdObject.InheritedObjectType -eq $strTmpInheritedObjectTypeGUID))
+                                If (($newSdObject.PrincipalName -eq $strPrincipalName) -and ($newSdObject.ActiveDirectoryRights -eq $strTmpActiveDirectoryRights) -and ($newSdObject.AccessControlType -eq $strTmpAccessControlType) -and ($newSdObject.ObjectType -eq $strTmpObjectTypeGUID) -and ($newSdObject.InheritanceType -eq $strTmpInheritanceType) -and ($newSdObject.InheritedObjectType -eq $strTmpInheritedObjectTypeGUID))
 		 		                {
 					                $SDResult = $true
 		 		                }
@@ -11436,15 +12334,8 @@ while($count -le $ALOUdn.count -1)
                                 $intReturned++
 					    If ($bolCSV)
 					    {
-                            if($intCSV -eq 0)
-                            {
-                                       
-                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-                                
-
-                            }
                             $intCSV++
-				 		    WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true
+				 		    WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
 
 				 	    }# End If
                         Else
@@ -11453,11 +12344,11 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                         
                             }
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                         }#End !$bolCSVOnly
                         
                     }
@@ -11470,14 +12361,8 @@ while($count -le $ALOUdn.count -1)
                             $intReturned++
                         If ($bolCSV)
 					    {
-                            if($intCSV -eq 0)
-                            {
-                   
-                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-                               
-                            }
                             $intCSV++
-				 		    WritePermCSV $newSdObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true
+				 		    WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
 
 				 	    }# End If
                         Else
@@ -11486,10 +12371,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                             }   
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                         }#End !$bolCSVO
                         }#End Returns
 
@@ -11507,7 +12392,15 @@ while($count -le $ALOUdn.count -1)
             {
                 $SDHistResult = $false
 
-                $strOUcol = $global:csvHistACLs[$index].OU
+                if($global:csvHistACLs[$index].Object)
+                {
+                    $strOUcol = $global:csvHistACLs[$index].Object
+                }
+                else
+                {
+                    $strOUcol = $global:csvHistACLs[$index].OU
+                }
+
                 if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
                 {
 		            $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
@@ -11531,7 +12424,6 @@ while($count -le $ALOUdn.count -1)
                     if($strIdentityReference.Contains("<DOMAIN-NETBIOS>"))
                     {
 		                $strIdentityReference = ($strIdentityReference -Replace "<DOMAIN-NETBIOS>",$global:strDomainShortName)
-
                     }
                     if($strIdentityReference.Contains("<ROOT-NETBIOS>"))
                     {
@@ -11574,18 +12466,17 @@ while($count -le $ALOUdn.count -1)
 	                foreach($sdObject in $rarHistCheck)
 	                {
                         $bolMatchDef = $false
-                        $strNTAccount = $sdObject.IdentityReference.toString()
-	                    If ($strNTAccount.contains("S-1-"))
+                        $strIdentityReference = $sdObject.IdentityReference.toString()
+	                    If ($strIdentityReference.contains("S-1-"))
 	                    {
-	                     $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
-
+	                        $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
 	                    }
                         #Remove Default Permissions if SkipDefaultPerm selected
                         if($SkipDefaultPerm)
                         {
                             if($strObjectClass  -ne $strTemoObjectClass)
                             {
-                                $sdOUDef = Get-PermDef $strObjectClass $strNTAccount
+                                $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
                             }
                             $strTemoObjectClass = $strObjectClass
                             $indexDef=0
@@ -11636,7 +12527,7 @@ while($count -le $ALOUdn.count -1)
                                 }                                          
            
                                 $newSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
-                                InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
+                                InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$sdObject.IdentityReference;PrincipalName=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                                 InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags}
 
                                 If (($newSdObject.IdentityReference -eq $strIdentityReference) -and ($newSdObject.ActiveDirectoryRights -eq $strTmpActiveDirectoryRights) -and ($newSdObject.AccessControlType -eq $strTmpAccessControlType) -and ($newSdObject.ObjectType -eq $strTmpObjectTypeGUID) -and ($newSdObject.InheritanceType -eq $strTmpInheritanceType) -and ($newSdObject.InheritedObjectType -eq $strTmpInheritedObjectTypeGUID))
@@ -11683,20 +12574,15 @@ while($count -le $ALOUdn.count -1)
 
 	                    }
                         $histSDObject = New-Object PSObject -Property @{ActiveDirectoryRights=$global:csvHistACLs[$index].ActiveDirectoryRights;InheritanceType=$global:csvHistACLs[$index].InheritanceType;ObjectType=$global:csvHistACLs[$index].ObjectType;`
-                        InheritedObjectType=$global:csvHistACLs[$index].InheritedObjectType;ObjectFlags=$global:csvHistACLs[$index].ObjectFlags;AccessControlType=$global:csvHistACLs[$index].AccessControlType;IdentityReference=$strIdentityReference;IsInherited=$global:csvHistACLs[$index].IsInherited;`
+                        InheritedObjectType=$global:csvHistACLs[$index].InheritedObjectType;ObjectFlags=$global:csvHistACLs[$index].ObjectFlags;AccessControlType=$global:csvHistACLs[$index].AccessControlType;IdentityReference=$strIdentityReference;PrincipalName=$strNTAccount;IsInherited=$global:csvHistACLs[$index].IsInherited;`
                         InheritanceFlags=$global:csvHistACLs[$index].InheritanceFlags;PropagationFlags=$global:csvHistACLs[$index].PropagationFlags;State="Missing"}
                         if(($Returns -eq "MISSING") -or ($Returns -eq "ALL"))
                         {
 					        $intReturned++
 					    If ($bolCSV)
 					    {
-                            if($intCSV -eq 0)
-                            {
-                                $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-                                
-                            }
                             $intCSV++
-				 		    WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true
+				 		    WritePermCSV $histSDObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
 
 				 	    }# End If
                         Else
@@ -11705,10 +12591,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                             }
                             $bolOUHeader = $false               
-                            WriteOUT $true $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                            WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                         }#End !$bolCSVOnly
                         }#End Returns
                         $histSDObject = ""
@@ -11745,7 +12631,7 @@ while($count -le $ALOUdn.count -1)
                 {
                     if($strObjectClass  -ne $strTemoObjectClass)
                     {
-                        $sdOUDef = Get-PermDef $strObjectClass $strNTAccount
+                        $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
                     }
                     $strTemoObjectClass = $strObjectClass
                     $indexDef=0
@@ -11776,19 +12662,13 @@ while($count -le $ALOUdn.count -1)
                         {
 
                             $MissingOUSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
-                            InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$sdObject.AccessControlType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
+                            InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$sdObject.AccessControlType;IdentityReference=$sdObject.IdentityReference;PrincipalName=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                             InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State=$strDelegationNotation}
                             $intReturned++
 				            If ($bolCSV)
 					        {
-                                if($intCSV -eq 0)
-                                {
-                                   
-                                    $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-
-                                }
                                 $intCSV++
-				 		        WritePermCSV $MissingOUSdObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true
+				 		        WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
 
 				 	        }# End If
                             Else
@@ -11797,10 +12677,10 @@ while($count -le $ALOUdn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                                 }
                                 $bolOUHeader = $false 
-                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                             }#End !$bolCSVOnly
                         }
                     }
@@ -11812,21 +12692,15 @@ while($count -le $ALOUdn.count -1)
             
 
                             $MissingOUSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
-                            InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$sdObject.AccessControlType;IdentityReference=$strNTAccount;IsInherited=$sdObject.IsInherited;`
+                            InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$sdObject.AccessControlType;IdentityReference=$sdObject.IdentityReference;PrincipalName=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                             InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State=$strDelegationNotation}
                             if(($Returns -eq "MISSING") -or ($Returns -eq "ALL"))
                             {
  				                $intReturned++
  				            If ($bolCSV)
 					        {
-                                if($intCSV -eq 0)
-                                {
-
-                                    $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-                                    
-                                }
                                 $intCSV++
-				 		        WritePermCSV $MissingOUSdObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true
+				 		        WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
 
 				 	        }# End If
                             Else
@@ -11835,10 +12709,10 @@ while($count -le $ALOUdn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                                 }
                                 $bolOUHeader = $false                  
-                                WriteOUT $true $MissingOUSdObject $DSobject.distinguishedname.toString() $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                                WriteOUT $true $MissingOUSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                             }#End !$bolCSVOnly
                         }#End Returns
                         }
@@ -11851,12 +12725,19 @@ while($count -le $ALOUdn.count -1)
   else
   {
   $index = 0
+
      while($index -le $global:csvHistACLs.count -1) 
      {
         $SDHistResult = $false
 
-        $strOUcol = $global:csvHistACLs[$index].OU
-
+        if($global:csvHistACLs[$index].Object)
+        {
+            $strOUcol = $global:csvHistACLs[$index].Object
+        }
+        else
+        {
+            $strOUcol = $global:csvHistACLs[$index].OU
+        }
         if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
         {
 		    $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
@@ -11907,20 +12788,13 @@ while($count -le $ALOUdn.count -1)
 
 	        }
             $histSDObject = New-Object PSObject -Property @{ActiveDirectoryRights=$global:csvHistACLs[$index].ActiveDirectoryRights;InheritanceType=$global:csvHistACLs[$index].InheritanceType;ObjectType=$global:csvHistACLs[$index].ObjectType;`
-            InheritedObjectType=$global:csvHistACLs[$index].InheritedObjectType;ObjectFlags=$global:csvHistACLs[$index].ObjectFlags;AccessControlType=$global:csvHistACLs[$index].AccessControlType;IdentityReference=$strIdentityReference;IsInherited=$global:csvHistACLs[$index].IsInherited;`
+            InheritedObjectType=$global:csvHistACLs[$index].InheritedObjectType;ObjectFlags=$global:csvHistACLs[$index].ObjectFlags;AccessControlType=$global:csvHistACLs[$index].AccessControlType;IdentityReference=$global:csvHistACLs[$index].IdentityReference;PrincipalName=$strNTAccount;IsInherited=$global:csvHistACLs[$index].IsInherited;`
             InheritanceFlags=$global:csvHistACLs[$index].InheritanceFlags;PropagationFlags=$global:csvHistACLs[$index].PropagationFlags;State="Node does not exist in AD"}
             $intReturned++
             If ($bolCSV)
 			{
-                if($intCSV -eq 0)
-                {
-
-                   
-                    $strCSVCompareHeader | Out-File -FilePath $strFileCSV -Encoding UTF8
-                    
-                }
                 $intCSV++
-				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true
+				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
 
 			}# End If
             Else
@@ -11929,10 +12803,10 @@ while($count -le $ALOUdn.count -1)
                 {
                     $intAclOccurence++
                     $bolOUHeader = $true 
-                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
                 }
                 $bolOUHeader = $false               
-                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType
+                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
             }#End !$bolCSVOnly
             $histSDObject = ""
         }
@@ -11956,45 +12830,18 @@ if (($count -gt 0))
     }  
     else
     {
-        if($chkBoxEffectiveRightsColor.IsChecked)
-        {
-            Switch ($global:intShowCriticalityLevel)
-            {
-                0
-                {
-                (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTA
-                (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTM
-                }
-                1
-                {
-                (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTA
-                (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTM
-                }
-                2
-                {
-                (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTA
-                (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTM
-                }
-                3
-                {
-                (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTA
-                (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTM
-                }
-                4
-                {
-                (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTA
-                (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTM
-                }
-            }
-        }
+    
         if($intReturned -gt 0)
         {
         if($bolCSV)
         {
             if($bolCMD)
             {
-                Write-host "Report saved in $strFileCSV" -ForegroundColor Yellow
-                Write-Output $strFileCSV
+                if($bolToFile)
+                {
+                    Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                    Write-output $strFileCSV
+                }
             }
             else
             {
@@ -12018,7 +12865,8 @@ if (($count -gt 0))
             
                 if($bolCMD)
                 {
-                    Write-host "Report saved in $strFileEXCEL" -ForegroundColor Yellow
+                    Write-host "Report saved in: $strFileEXCEL" -ForegroundColor Yellow
+                    Write-output $strFileEXCEL
                 }
                 else
                 {
@@ -12027,6 +12875,37 @@ if (($count -gt 0))
             }#End if EXCEL
             else
             {
+                if($bolShowCriticalityColor)
+                {
+                    Switch ($global:intShowCriticalityLevel)
+                    {
+                        0
+                        {
+                        (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTA
+                        (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileHTM
+                        }
+                        1
+                        {
+                        (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTA
+                        (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileHTM
+                        }
+                        2
+                        {
+                        (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTA
+                        (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileHTM
+                        }
+                        3
+                        {
+                        (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTA
+                        (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileHTM
+                        }
+                        4
+                        {
+                        (Get-Content $strFileHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTA
+                        (Get-Content $strFileHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileHTM
+                        }
+                    }
+                }
                 #If Get-Perm was called with Show then open the HTA file.
                 if($Show)
                 {
@@ -12097,8 +12976,16 @@ Remove-Variable -Name "secd" -Scope Global
 Function ConvertCSVtoHTM
 {
     Param($CSVInput,[boolean] $bolGUIDtoText)
-$OutType = "HTM"
+$OutType = "HTML"
 $bolReplMeta = $false
+if($chkBoxSeverity.isChecked -or $chkBoxEffectiveRightsColor.isChecked)
+{
+    $bolShowCriticalityColor = $true
+}
+else
+{
+    $bolShowCriticalityColor = $false
+}
 If(Test-Path $CSVInput)
 {
 
@@ -12132,8 +13019,8 @@ If(Test-Path $CSVInput)
         CreateHTM $fileName $strFileHTM
         CreateHTA $fileName $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
 	    $UseCanonicalName = $chkBoxUseCanonicalName.IsChecked
-        InitiateHTM $strFileHTM $fileName $fileName $bolReplMeta $false $Protected $chkBoxEffectiveRightsColor.IsChecked $false $false $false $strCompareFile $false $false $bolObjType -bolCanonical:$UseCanonicalName
-	    InitiateHTM $strFileHTA $fileName $fileName $bolReplMeta $false $Protected $chkBoxEffectiveRightsColor.IsChecked $false $false $false $strCompareFile $false $false $bolObjType -bolCanonical:$UseCanonicalName
+        InitiateHTM $strFileHTM $fileName $fileName $bolReplMeta $false $Protected $bolShowCriticalityColor $false $false $false $strCompareFile $false $false $bolObjType -bolCanonical:$UseCanonicalName $GPO
+	    InitiateHTM $strFileHTA $fileName $fileName $bolReplMeta $false $Protected $bolShowCriticalityColor $false $false $false $strCompareFile $false $false $bolObjType -bolCanonical:$UseCanonicalName $GPO
     
    
 
@@ -12142,8 +13029,15 @@ If(Test-Path $CSVInput)
         while($index -le $global:csvHistACLs.count -1)
         {
 	    
-            $strOUcol = $global:csvHistACLs[$index].OU
-        
+            if($global:csvHistACLs[$index].Object)
+            {
+                $strOUcol = $global:csvHistACLs[$index].Object
+            }
+            else
+            {
+                $strOUcol = $global:csvHistACLs[$index].OU
+            }
+
             if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
             {
 		        $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
@@ -12222,7 +13116,7 @@ If(Test-Path $CSVInput)
             {
   
                 $bolOUHeader = $true   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO
    
     
                 $tmpOU = $strOU
@@ -12230,7 +13124,7 @@ If(Test-Path $CSVInput)
             else
             {
                 $bolOUHeader = $false   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $chkBoxEffectiveRightsColor.IsChecked $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO
 
 
             }
@@ -12240,7 +13134,7 @@ If(Test-Path $CSVInput)
         }#End While
 
 
-        if($chkBoxEffectiveRightsColor.IsChecked)
+        if($bolShowCriticalityColor)
         {
             Switch ($global:intShowCriticalityLevel)
             {
@@ -12348,35 +13242,31 @@ $ACLdate = $(get-date $strLastChangeDate -UFormat "%Y-%m-%d %H:%M:%S")
 #==========================================================================
 Function Get-DefaultSD
 {
-    Param( [String[]] $strObjectClass,[bool] $bolChangedDefSD,[bool]$bolSDDL,
-$strFileDefSDHTA = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".hta",
-$strFileDefSDHTM = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".htm",
-[boolean]$Show,[string] $OutType)
+    Param( [String[]] $strObjectClass,[bool] $bolChangedDefSD,[bool]$bolSDDL,[string]$File,
+[boolean]$Show,[string] $OutType,[bool]$bolShowCriticalityColor,[bool]$Assess,[string]$Criticality,[bool]$FilterBuiltin,[bool]$bolReplMeta)
 
-$bolOUHeader = $true 
-$bolReplMeta = $true    
-$bolCompare = $false 
-$intNumberofDefSDFound = 0
-$global:ArrayAllACE = New-Object System.Collections.ArrayList
-if($bolSDDL -eq $true)
+if($OutType -eq "CSV")
 {
-        CreateDefaultSDReportHTA $global:strDomainLongName $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath
-        CreateDefSDHTM $global:strDomainLongName $strFileDefSDHTM
-        InitiateDefSDHTM $strFileDefSDHTM $strObjectClass
-        InitiateDefSDHTM $strFileDefSDHTA $strObjectClass
+    $ToFile = $true
+	If ((Test-Path $File) -eq $true)
+	{
+	    Remove-Item $File
+	}
 }
 else
 {
-    CreateHTM "strObjectClass" $strFileDefSDHTM					
-    CreateHTA "$strObjectClass" $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath $global:strDomainDNName $global:strDC
-    InitiateDefSDAccessHTM $strFileDefSDHTA $strObjectClass $bolReplMeta $false ""
-    InitiateDefSDAccessHTM $strFileDefSDHTM $strObjectClass $bolReplMeta $false ""
+    $ToFile = $false
 }
 
+
+$bolOUHeader = $true 
+
+$bolCompare = $false 
+$intNumberofDefSDFound = 0
+$global:ArrayAllACE = New-Object System.Collections.ArrayList
+
+
 $strColorTemp = 1 
-
-
-
 
 $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
@@ -12562,10 +13452,43 @@ while ($true)
                 {
                     $sec.SetSecurityDescriptorSddlForm($entry.Attributes.defaultsecuritydescriptor[0])
                 }
-                $sd = $sec.GetAccessRules($true, $false, [System.Security.Principal.NTAccount])   
+                $sd = $sec.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])   
+
+                if($FilterBuiltin)
+                {
+                    # Filter out default and built-in security principals
+                    $sd = @($sd | Where-Object{`
+                        ($_.IdentityReference -match "S-1-5-21-") -and `
+                        ($_.IdentityReference -notmatch $("^"+$domainsid+"-5\d{2}$")) -and 
+                        ($_.IdentityReference -notmatch $("^"+$domainsid+"-4\d{2}$"))
+                        }) 
+                }
+
+                If ($Assess)
+                {
+                    Switch ($Criticality)
+                    {
+                        "Info" {$CriticalityFilter = 0}
+                        "Low" {$CriticalityFilter = 1}
+                        "Medium" {$CriticalityFilter = 2}
+                        "Warning" {$CriticalityFilter = 3}
+                        "Critical" {$CriticalityFilter = 4}
+                    }
+                    $sd = @($sd | Where-Object{Get-Criticality -Returns "Filter" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() $CriticalityFilter })
+                }
+
                 #Indicate that a defaultsecuritydescriptor was found
                 $intNumberofDefSDFound++  
-                WriteDefSDAccessHTM $sd $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare $strFileEXCEL $OutType
+
+                if (($OutType -eq "CSV") -or ($OutType -eq ""))
+                {
+
+                    WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor 
+                }
+                else
+                {
+                    WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
+                }
                } 
             
             }
@@ -12604,10 +13527,43 @@ while ($true)
                 {
                     $sec.SetSecurityDescriptorSddlForm($entry.Attributes.defaultsecuritydescriptor[0])
                 }
-                $sd = $sec.GetAccessRules($true, $false, [System.Security.Principal.NTAccount])   
+                $sd = $sec.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])   
+
+                if($FilterBuiltin)
+                {
+                    # Filter out default and built-in security principals
+                    $sd = @($sd | Where-Object{`
+                        ($_.IdentityReference -match "S-1-5-21-") -and `
+                        ($_.IdentityReference -notmatch $("^"+$domainsid+"-5\d{2}$")) -and 
+                        ($_.IdentityReference -notmatch $("^"+$domainsid+"-4\d{2}$"))
+                        }) 
+                }
+
+                If ($Assess)
+                {
+                    Switch ($Criticality)
+                    {
+                        "Info" {$CriticalityFilter = 0}
+                        "Low" {$CriticalityFilter = 1}
+                        "Medium" {$CriticalityFilter = 2}
+                        "Warning" {$CriticalityFilter = 3}
+                        "Critical" {$CriticalityFilter = 4}
+                    }
+                    $sd = @($sd | Where-Object{Get-Criticality -Returns "Filter" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() $CriticalityFilter })
+                }
+
                 #Indicate that a defaultsecuritydescriptor was found
                 $intNumberofDefSDFound++
-                WriteDefSDAccessHTM $sd $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare $strFileEXCEL $OutType
+
+                if (($OutType -eq "CSV") -or ($OutType -eq ""))
+                {
+
+                    WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor 
+                }
+                else
+                {
+                    WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
+                }
 
             }
         }
@@ -12639,11 +13595,12 @@ if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
 if($intNumberofDefSDFound  -gt 0)
 {
 
-    if($bolCSV)
+    if($ToFile )
     {
         if($bolCMD)
         {
-            Write-host "Report saved in $strFileCSV" -ForegroundColor Yellow
+            Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+            Write-output $strFileCSV
         }
         else
         {
@@ -12652,7 +13609,7 @@ if($intNumberofDefSDFound  -gt 0)
             #If Get-Perm was called with Show then open the CSV file.
             if($Show)
             {
-	            Invoke-Item $strFileCSV
+	            #Invoke-Item $strFileCSV
             }
     }
     else
@@ -12664,7 +13621,8 @@ if($intNumberofDefSDFound  -gt 0)
             
             if($bolCMD)
             {
-                Write-host "Report saved in $strFileEXCEL" -ForegroundColor Yellow
+                Write-host "Report saved in: $strFileEXCEL" -ForegroundColor Yellow
+                Write-output $strFileEXCEL
             }
             else
             {
@@ -12680,6 +13638,15 @@ if($intNumberofDefSDFound  -gt 0)
         }#End if EXCEL
         else
         {
+            if($bolCMD)
+            {
+                Write-host "Report saved in: $strFileDefSDHTM" -ForegroundColor Yellow
+                Write-output $strFileDefSDHTM
+            }
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileDefSDHTM" -strType "Warning" -DateStamp ))
+            }            
             #If Get-Perm was called with Show then open the HTA file.
             if($Show)
             {
@@ -12707,7 +13674,14 @@ if($intNumberofDefSDFound  -gt 0)
 }
 else
 {
-    $global:observableCollection.Insert(0,(LogMessage -strMessage "No defaultsecuritydescriptor found!" -strType "Error" -DateStamp ))
+    if($bolCMD)
+    {
+        Write-host "No defaultsecuritydescriptor found!"  -ForegroundColor Yellow
+    }
+    else
+    {
+        $global:observableCollection.Insert(0,(LogMessage -strMessage "No defaultsecuritydescriptor found!" -strType "Error" -DateStamp ))
+    }
 }
 }
 
@@ -12951,12 +13925,12 @@ while ($true)
                             #Indicate that a defaultsecuritydescriptor was found
                             $intNumberofDefSDFound++
                             $bolOUHeader = $true
-                            WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                            WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                         }
                         else
                         {
                             $bolOUHeader = $false
-                            WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                            WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                         }
                         #Count ACE to not ad a header
                         $intACEcount++
@@ -13021,12 +13995,12 @@ while ($true)
                                 #Indicate that a defaultsecuritydescriptor was found
                                 $intNumberofDefSDFound++
                                 $bolOUHeader = $true
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                             }
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                             }
                             #Count ACE to not ad a header
                             $intACEcount++
@@ -13041,12 +14015,12 @@ while ($true)
                                 #Indicate that a defaultsecuritydescriptor was found
                                 $intNumberofDefSDFound++
                                 $bolOUHeader = $true
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                             }
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                             }
                             #Count ACE to not ad a header
                             $intACEcount++        
@@ -13087,12 +14061,12 @@ while ($true)
                                 #Indicate that a defaultsecuritydescriptor was found
                                 $intNumberofDefSDFound++
                                 $bolOUHeader = $true
-                                WriteDefSDAccessHTM $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                                WriteDefSDAccessHTM $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                             }
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteDefSDAccessHTM $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                                WriteDefSDAccessHTM $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                             }
                             #Count ACE to not ad a header
                             $intACEcount++
@@ -13137,12 +14111,12 @@ while ($true)
                     $bolOUHeader = $true
                     #Indicate that a defaultsecuritydescriptor was found
                     $intNumberofDefSDFound++
-                    WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                    WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                 }
                 else
                 {
                     $bolOUHeader = $false
-                    WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $chkBoxEffectiveRightsColor.IsChecked $bolCompare
+                    WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
                 }
                 #Count ACE to not ad a header
                 $intACEcount++
@@ -13373,7 +14347,7 @@ if ($global:strPrincipalDN -eq "")
 {
     if($global:bolCMD)
     {
-        Write-host  "Could not find $strPrincipal!"
+        Write-host  "Could not find $strPrincipal!" -ForegroundColor Red
     }
     else
     {
@@ -13387,7 +14361,7 @@ else
     $global:strEffectiveRightAccount = $strPrincipal
     if($global:bolCMD)
     {
-        Write-host "Found security principal"
+        #Write-host "Found security principal"
     }
     else
     {
@@ -13450,7 +14424,7 @@ $psCmd = [PowerShell]::Create().AddScript({
          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="Window" Title="Scanning..." WindowStartupLocation = "CenterScreen"
-        Width = "350" Height = "150" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9" Background="#FF165081" >
+        Width = "350" Height = "150" ShowInTaskbar = "True" ResizeMode="NoResize" WindowStyle="ToolWindow" Opacity="0.9" Background="#2A3238">
     <Grid>
         <StackPanel >
             <Label x:Name="lblProgressBarInfo" Foreground="white" Content="Currently scanning 0 of 0 objects" HorizontalAlignment="Center" Margin="10,20,0,0"  FontWeight="Bold" FontSize="14"/>
@@ -13477,7 +14451,12 @@ $xamlProgressBar.Window.RemoveAttribute("x:Class")
     $global:ProgressBarWindow.ProgressBar.Value = 0
     $global:ProgressBarWindow.Window.ShowDialog() | Out-Null
     $global:ProgressBarWindow.Error = $Error
+
+
 })
+
+
+
 $psCmd.Runspace = $newRunspace
 
 [void]$psCmd.BeginInvoke()
@@ -13491,7 +14470,6 @@ Param ($txtlabel,$valProgress)
 
         &{#Try
            $global:ProgressBarWindow.ProgressBar.Dispatcher.invoke([action]{ $global:ProgressBarWindow.lblProgressBarInfo.Content = $txtlabel;$global:ProgressBarWindow.ProgressBar.Value = $valProgress},"Normal")
-           
         }
         Trap [SystemException]
         {
@@ -13506,12 +14484,12 @@ Param ($txtlabel,$valProgress)
 
 #Number of columns in CSV import
 $strCSVHeader = @"
-"OU","ObjectClass","IdentityReference","PrincipalName","ActiveDirectoryRights","InheritanceType","ObjectType","InheritedObjectType","ObjectFlags","AccessControlType","IsInherited","InheritanceFlags","PropagationFlags","SDDate","InvocationID","OrgUSN","LegendText","CanonicalName","Inheritance Disabled"
+"Object","ObjectClass","IdentityReference","PrincipalName","ActiveDirectoryRights","InheritanceType","ObjectType","InheritedObjectType","ObjectFlags","AccessControlType","IsInherited","InheritanceFlags","PropagationFlags","SDDate","InvocationID","OrgUSN","Criticality","CanonicalName","Inheritance Disabled"
 "@
 
 
 $strCSVCompareHeader = @"
-"OU","ObjectClass","IdentityReference","PrincipalName","ActiveDirectoryRights","InheritanceType","ObjectType","InheritedObjectType","ObjectFlags","AccessControlType","IsInherited","InheritanceFlags","PropagationFlags","SDDate","InvocationID","OrgUSN","LegendText","CanonicalName","Inheritance Disabled","State"
+"Object","ObjectClass","IdentityReference","PrincipalName","ActiveDirectoryRights","InheritanceType","ObjectType","InheritedObjectType","ObjectFlags","AccessControlType","IsInherited","InheritanceFlags","PropagationFlags","SDDate","InvocationID","OrgUSN","Criticality","CanonicalName","Inheritance Disabled","State"
 "@
 
 
@@ -13523,13 +14501,25 @@ $sd = ""
 $global:intObjeComputer = 0
 
 $null = Add-Type -AssemblyName System.DirectoryServices.Protocols
-if($base) 
+if($base -or $GPO) 
 {
+    if($Criticality)
+    {
+        $bolShowCriticalityColor = $true
+    }
+    else
+    {
+        $bolShowCriticalityColor = $false
+    }
+    if($Output -eq "")
+    {
+        $Show = $false
+    }
     $global:bolProgressBar = $false
     #Connect to Custom Naming Context
     $global:bolCMD = $true
  
-    if ($base.Length -gt 0)
+    if (($base.Length -gt 0) -or ($GPO))
     {
         $strNamingContextDN = $base
         if($Server -eq "")
@@ -13679,6 +14669,7 @@ if($base)
     {
         $global:bolConnected = $false  
     }
+
     $bolEffective = $false
     if($EffectiveRightsPrincipal.Length -gt 0)
     {
@@ -13770,6 +14761,14 @@ if($base)
     
         }
 
+        if($GPO)
+        {
+            if($base -eq "")
+            {
+                $base = $global:strDomainDNName
+            }
+        }
+
 
         $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
@@ -13779,7 +14778,11 @@ if($base)
 
         #Set search base as the name of the output file
         $strNode = fixfilename $response.Entries[0].Attributes.name[0]
-
+        
+	    if($GPO)
+        {
+            $strNode = $strNode + "_GPOs"
+        }
         ############### COMPARE THINGS ##########
         if($Template)
         {
@@ -13807,8 +14810,14 @@ if($base)
             
                         $bolContinue = $true
 
-                        $strOUcol = $global:csvHistACLs[0].OU
-
+                        if($global:csvHistACLs[0].Object)
+                        {
+                            $strOUcol = $global:csvHistACLs[0].Object
+                        }
+                        else
+                        {
+                            $strOUcol = $global:csvHistACLs[0].OU
+                        }
                         if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
                         {
                             $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
@@ -13823,7 +14832,6 @@ if($base)
                             {
                                 if($global:IS_GC -eq "TRUE")
                                 {
-                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?","Information",3,"Warning")
                                     Write-Host "You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?"
                                     $a = Read-Host "Do you want to continue? Press Y[Yes] or N[NO]:"
                                     if($a -eq "Y")
@@ -13846,7 +14854,7 @@ if($base)
                                 }
                                 else
                                 {
-                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.","Information",0,"Warning")
+                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.",”Information”,0,"Warning")
                                     Write-host "You are not connected to the forest root domain: $global:ForestRootDomainDN." -ForegroundColor Yellow
                                     $bolContinue = $false
                                 }
@@ -13908,9 +14916,16 @@ if($base)
         #Get current date
         $date= get-date -uformat %Y%m%d_%H%M%S
 
-        
-        #Get all LDAP objects to read ACL's on
-        $allSubOU = GetAllChildNodes $base $Scope $Filter
+        if(-not($GPO))
+        {
+            #Get all LDAP objects to read ACL's on
+            $allSubOU = GetAllChildNodes $base $Scope $Filter
+        }
+        else
+        {
+            #Get all LDAP objects to read ACL's on
+            $allSubOU = GetAllChildNodes $base $Scope "(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))"
+        }
 
         if($CanonicalNames)
         {
@@ -13943,128 +14958,148 @@ if($base)
             {
                 $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
             }
-            # Check if HTML switch is selected , creates a HTML file
-            Switch ($Output)
+            $bolAssess = if($Criticality){$true}else{$false} 
+            if(($Output -eq "CSV")  -or ($Output -eq "HTML") -or ($Output -eq "EXCEL"))
             {
-            "HTML"
-                {			
-                    $bolCSV = $false
-                    $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
-                    #Set the path for the HTM file name
-                    if($OutputFolder -gt "")
-                    {
-                        #Check if foler exist if not use current folder
-                        if(Test-Path $OutputFolder)
+                $file = $true
+                # Check if HTML switch is selected , creates a HTML file
+                Switch ($Output)
+                {
+                "HTML"
+                    {			
+                        $bolCSV = $false
+                        $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
+                        #Set the path for the HTM file name
+                        if($OutputFolder -gt "")
                         {
-                            $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                            #Check if foler exist if not use current folder
+                            if(Test-Path $OutputFolder)
+                            {
+                                $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                            }
+                            else
+                            {
+                                Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                                $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                            }
                         }
                         else
                         {
-                            Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                            $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                            $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm"  
                         }
-                    }
-                    else
-                    {
-                        $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm"  
-                    }
-                    CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
-                    CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
+                        CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+                        CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
+                        if($Template)
+                        {
+                            InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                            InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                        }
+                        else
+                        {
+
+                        InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                        InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                        }
+
                     if($Template)
                     {
-                        InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $false $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName
-                        InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $false $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName
+                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "HTML" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO 
                     }
                     else
                     {
-
-                    InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $false $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName
-                    InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $false $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName
+                        Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "HTML" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
                     }
 
-                if($Template)
-                {
-                    $rsl = Get-PermCompare $allSubOU $false $false $false $Owner $bolCSV $Protected $false $false $Show "HTM" $Returns
+                    Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
+                    Write-output $strFileHTM
                 }
-                else
-                {
-                    $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "HTM"
-                }
-
-                Write-host "Report saved in $strFileHTM" -ForegroundColor Yellow
-            }
-            "EXCEL"
-                {	
-                    $bolCSV = $false
-                    $ExcelModuleExist = $true
-                    if(!$(get-module ImportExcel))
-                    { 
-                        Write-Host "Checking for ImportExcel PowerShell Module..." 
-                        if(!$(get-module -ListAvailable | Where-Object name -eq "ImportExcel"))
-                        {
-                            write-host "You need to install the PowerShell module ImportExcel found in the PSGallery" -ForegroundColor red    
-                            $ExcelModuleExist = $false 
-                        }
-                        else
-                        {
-                            Import-Module ImportExcel
-                            $ExcelModuleExist = $true
-                        }
-
-                    }
-                    if($ExcelModuleExist)
-                    {                
-                        if($ExcelFile -eq "")
-                        {
-                            #Set the path for the Excel file name		
-                            if($OutputFolder -gt "")
+                "EXCEL"
+                    {	
+                        $bolCSV = $false
+                        $ExcelModuleExist = $true
+                        if(!$(get-module ImportExcel))
+                        { 
+                            Write-Host "Checking for ImportExcel PowerShell Module..." 
+                            if(!$(get-module -ListAvailable | Where-Object name -eq "ImportExcel"))
                             {
-                                #Check if foler exist if not use current folder
-                                if(Test-Path $OutputFolder)
+                                write-host "You need to install the PowerShell module ImportExcel found in the PSGallery" -ForegroundColor red    
+                                $ExcelModuleExist = $false 
+                            }
+                            else
+                            {
+                                Import-Module ImportExcel
+                                $ExcelModuleExist = $true
+                            }
+
+                        }
+                        if($ExcelModuleExist)
+                        {                
+                            if($ExcelFile -eq "")
+                            {
+                                #Set the path for the Excel file name		
+                                if($OutputFolder -gt "")
                                 {
-                                    $strFileEXCEL = $OutputFolder + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                    #Check if foler exist if not use current folder
+                                    if(Test-Path $OutputFolder)
+                                    {
+                                        $strFileEXCEL = $OutputFolder + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                    }
+                                    else
+                                    {
+                                        Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                                        $strFileEXCEL = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                    }
                                 }
                                 else
                                 {
-                                    Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
                                     $strFileEXCEL = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
                                 }
                             }
                             else
                             {
-                                $strFileEXCEL = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                $strFileEXCEL = $ExcelFile
+                            }
+
+                            if($Template)
+                            {
+                                Get-PermCompare $allSubOU $SkipDefaults $false $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO
+                            }
+                            else
+                            {
+                                Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $SDDate $false $Owner $SDDate $false $bolEffective $Protected $false $Show "EXCEL" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
                             }
                         }
-                        else
-                        {
-                            $strFileEXCEL = $ExcelFile
-                        }
-
+                    }
+                default
+                    {
+                        $bolCSV = $true
                         if($Template)
                         {
-                            $rsl = Get-PermCompare $allSubOU $false $false $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $Returns
+                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO
                         }
                         else
                         {
-                            $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $SDDate $false $Owner $SDDate $false $bolEffective $Protected $false $Show "EXCEL"
+                            Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                            
                         }
+                        
+
                     }
+
                 }
-            default
+            }
+            else
+            {
+                $bolCSV = $true
+                $file = $false
+                if($Template)
                 {
-                    $bolCSV = $true
-                    if($Template)
-                    {
-                        $rsl = Get-PermCompare $allSubOU $false $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns
-                    }
-                    else
-                    {
-                        $rsl = Get-Perm $allSubOU $global:strDomainShortName $false $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" 
-                    }
-                    
-
+                    Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO
                 }
-
+                else
+                {
+                    Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate $RecursiveFind $RecursiveObjectType
+                }
             }
         }
         else
@@ -14081,8 +15116,26 @@ else
         $global:bolProgressBar = $false
         #Connect to Custom Naming Context
         $global:bolCMD = $true
+        $bolReplMeta = $true
  
+         if($Criticality)
+        {
+            $bolShowCriticalityColor = $true
+        }
+        else
+        {
+            $bolShowCriticalityColor = $false
+        }
  
+        if($Criticality)
+        {
+            $CriticalitySelected = $true
+        }
+        else
+        {
+            $CriticalitySelected = $false
+        }
+
         $global:bolLDAPConnection = $false
         $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
@@ -14294,7 +15347,10 @@ else
 
             #Set search base as the name of the output file
             $strNode = fixfilename $response.Entries[0].Attributes.name[0]
-      
+            if($ObjectName -ne "*")                
+            {
+                $strNode = $ObjectName
+            }
             #Get current date
             $date= get-date -uformat %Y%m%d_%H%M%S
 
@@ -14302,6 +15358,43 @@ else
             {
                 "HTML"
                 {
+                    #Set the path for the HTM file name
+                    if($OutputFolder -gt "")
+                    {
+                        #Check if foler exist if not use current folder
+                        if(Test-Path $OutputFolder)
+                        {
+                            $strFileDefSDHTM = $OutputFolder + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                        }
+                        else
+                        {
+                            Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                            $strFileDefSDHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                        }
+                    }
+                    else
+                    {
+                        $strFileDefSDHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm"  
+                    }
+                    $strFileDefSDHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
+
+                    if($bolSDDL -eq $true)
+                    {
+                            CreateDefaultSDReportHTA $global:strDomainLongName $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath
+                            CreateDefSDHTM $global:strDomainLongName $strFileDefSDHTM
+                            InitiateDefSDHTM $strFileDefSDHTM $strObjectClass
+                            InitiateDefSDHTM $strFileDefSDHTA $strObjectClass
+                    }
+                    else
+                    {
+                        CreateHTM $strNode $strFileDefSDHTM					
+                        CreateHTA $strNode $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+                        InitiateDefSDAccessHTM $strFileDefSDHTA $strObjectClass $bolReplMeta $false "" $bolShowCriticalityColor
+                        InitiateDefSDAccessHTM $strFileDefSDHTM $strObjectClass $bolReplMeta $false "" $bolShowCriticalityColor
+                    }
+
+                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $bolShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+
                 }
                 "EXCEL"
                 {
@@ -14349,32 +15442,36 @@ else
                         {
                             $strFileEXCEL = $ExcelFile
                         }
-                        $rslt = Get-DefaultSD -strObjectClass "*" -bolChangedDefSD $true  -bolSDDL $false -Show $false -OutType "EXCEL"
+                        #$rslt = Get-DefaultSD -strObjectClass "*" -bolChangedDefSD $true  -bolSDDL $false -Show $Show -OutType "EXCEL"
+                        Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $bolShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
                     }
                 }
                 default
                 {
-                    $strFileDefSDHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
-                    #Set the path for the HTM file name
+
+
+                    #Set the path for the CSV file name
                     if($OutputFolder -gt "")
                     {
                         #Check if foler exist if not use current folder
                         if(Test-Path $OutputFolder)
                         {
-                            $strFileDefSDHTM = $OutputFolder + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                            $strFileCSV = $OutputFolder + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
                         }
                         else
                         {
                             Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                            $strFileDefSDHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                            $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv"
                         }
                     }
                     else
                     {
-                        $strFileDefSDHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm"  
+                        $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
                     }
-                    $rslt = Get-DefaultSD -strObjectClass "*" -bolChangedDefSD $true  -bolSDDL $false -Show $false -strFileDefSDHTM $strFileDefSDHTM -strFileDefSDHTA $strFileDefSDHTA -OutType "HTM"
-                    Write-host "Report saved in $strFileDefSDHTM" -ForegroundColor Yellow
+
+
+                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -File $strFileCSV -Show $Show  -OutType $Output -bolShowCriticalityColor $bolShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+
                 }
             }
 
@@ -14384,10 +15481,6 @@ else
 }# End if D
 else # Else GUI will open
 {
-    if([System.Windows.SystemParameters]::PrimaryScreenHeight -lt $Window.Height)
-    {
-    $Window.Height = [System.Windows.SystemParameters]::PrimaryScreenHeight * 0.94
-    }
     $global:bolCMD = $false
     [void]$Window.ShowDialog()
 }
