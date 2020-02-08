@@ -2872,7 +2872,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                             {
                                 if($global:IS_GC -eq "TRUE")
                                 {
-                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?",”Information”,3,"Warning")
+                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?","Information",3,"Warning")
                                     if($MsgBox -eq "Yes")
                                     {
                                         if($global:strDC.contains(":"))
@@ -2893,7 +2893,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                                 }
                                 else
                                 {
-                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.",”Information”,0,"Warning")
+                                    $MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.","Information",0,"Warning")
                                     $bolContinue = $false
                                 }
                             }
@@ -10837,8 +10837,7 @@ if($chkBoxScanUsingUSN.IsChecked -eq $true)
     {
         If ($bolReplMeta -eq $true)
         {
-            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nDid not find USNs in template.`nDo you want to continue?",”Information”,3,"Warning")
-            Switch ($MsgBOx)
+            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nDid not find USNs in template.`nDo you want to continue?","Information",3,"Warning")            Switch ($MsgBOx)
             {
                 "YES"
                 {$ExitCompare = $false}
@@ -10850,7 +10849,7 @@ if($chkBoxScanUsingUSN.IsChecked -eq $true)
         }
         else
         {
-            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nMake sure scan option SD Modified is selected.`nDo you want to continue?",”Information”,3,"Warning")
+            $MsgBox = [System.Windows.Forms.MessageBox]::Show("Could not compare using USN.`nMake sure scan option SD Modified is selected.`nDo you want to continue?","Information",3,"Warning")
             Switch ($MsgBOx)
             {
                 "YES"
@@ -13824,7 +13823,7 @@ if($base)
                             {
                                 if($global:IS_GC -eq "TRUE")
                                 {
-                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?",”Information”,3,"Warning")
+                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?","Information",3,"Warning")
                                     Write-Host "You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?"
                                     $a = Read-Host "Do you want to continue? Press Y[Yes] or N[NO]:"
                                     if($a -eq "Y")
@@ -13847,7 +13846,7 @@ if($base)
                                 }
                                 else
                                 {
-                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.",”Information”,0,"Warning")
+                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.","Information",0,"Warning")
                                     Write-host "You are not connected to the forest root domain: $global:ForestRootDomainDN." -ForegroundColor Yellow
                                     $bolContinue = $false
                                 }
