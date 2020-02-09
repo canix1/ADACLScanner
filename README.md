@@ -57,6 +57,7 @@ Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan6.0.png)
 ## Feature list
 
+* Scan linked Group Policy Objects
 * View HTML reports of DACLs/SACLs and save it to disk. 
 * Export DACLs/SACLs on Active Directory objects in a CSV format. 
 * Export DACLs/SACLs on Active Directory objects in a Excel sheet. 
