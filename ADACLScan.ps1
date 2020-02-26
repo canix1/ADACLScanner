@@ -79,20 +79,13 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 6.0
-    8 February, 2020
+    Version: 6.1
+    26 February, 2020
 
     *SHA256:* 
 
-    *New Feature*
-    * New improved UI
-    * More functions available from the command line
-    * Scan GPO permissions
-    * Filter permissions on criticality [Critical, Warning, Medium, Low, Info]
-    * Filter on Default Permissions
-    * Filter on Built-in Security Principals
-    * Recursive find group members, will list all resulting security principals in the ACL
-    * Recursive find filter, filter recursive results [*, User, Group, Computer] 
+    *Fixed issues*
+    * Legend does not match result
 
 #>
 Param
@@ -619,7 +612,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.0" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.1" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -8048,7 +8041,7 @@ Switch ($objRights)
                         }
                         default
                         {
-
+                            $intCriticalityLevel = 3
                         }
                     }#End switch
                 }

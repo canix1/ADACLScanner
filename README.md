@@ -1,13 +1,16 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.0**
+**Version: 6.1**
 
-**9 February, 2020**
+**26 February, 2020**
 
-**SHA256:** E50D408747E98CE7575A845DE82234A23A08632D45DEC1AF8FC2BAADF94EE92C
+**SHA256:** 5CD5D5C98C9E98C5A5740BEA6F2B355313D544AAAB8B8F65FA222EDE93AA9027
 
-*New Feature*
+*Fixed issues in 6.1*
+    * Legend does not match result
+
+*New Feature in 6.0*
 * New improved UI
 * More functions available from the command line
 * Scan GPO permissions
