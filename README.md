@@ -8,7 +8,7 @@
 **SHA256:** 5CD5D5C98C9E98C5A5740BEA6F2B355313D544AAAB8B8F65FA222EDE93AA9027
 
 *Fixed issues in 6.1*
-    * Legend does not match result
+* Legend does not match result
 
 *New Feature in 6.0*
 * New improved UI
