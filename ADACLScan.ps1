@@ -79,13 +79,13 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 6.1
-    26 February, 2020
+    Version: 6.2
+    26 April, 2020
 
     *SHA256:* 
 
     *Fixed issues*
-    * Legend does not match result
+    * Could not retrieve object sid 
 
 #>
 Param
@@ -612,7 +612,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.1" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.2" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -2648,7 +2648,7 @@ if ($global:DSType -eq "AD DS")
 	}
     if($global:bolLDAPConnection -eq $true)
     {
-        $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid[0]
+        $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
 
     }
      
@@ -2684,7 +2684,7 @@ if ($global:DSType -eq "AD DS")
 	    }
         if($global:bolLDAPConnection -eq $true)
         {
-            $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid[0]
+            $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
 
         }
     }
@@ -11188,7 +11188,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                                 $ADObject = $response.Entries[0]
 
                                 $recursiveobject = new-object psobject
-                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "IdentityReference"     -Value $(try{GetSidStringFromSidByte $ADObject.attributes.objectsid[0]}catch{})
+                                add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "IdentityReference"     -Value $(try{GetSidStringFromSidByte $ADObject.attributes.objectsid.GetValues([byte[]])[0]}catch{})
                                 add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "ActiveDirectoryRights" -Value $ace.ActiveDirectoryRights
                                 add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "InheritanceType"       -Value $ace.InheritanceType     
                                 add-member -inputobject $recursiveobject -MemberType NoteProperty -Name "ObjectType"            -Value $ace.ObjectType          
@@ -14705,7 +14705,7 @@ if($base -or $GPO)
 	        }
             if($global:bolLDAPConnection -eq $true)
             {
-                $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid[0]
+                $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
 
             }
      
@@ -14741,7 +14741,7 @@ if($base -or $GPO)
 	            }
                 if($global:bolLDAPConnection -eq $true)
                 {
-                    $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid[0]
+                    $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
 
                 }
             }
@@ -15282,7 +15282,7 @@ else
 	            }
                 if($global:bolLDAPConnection -eq $true)
                 {
-                    $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid[0]
+                    $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
 
                 }
      
@@ -15318,7 +15318,7 @@ else
 	                }
                     if($global:bolLDAPConnection -eq $true)
                     {
-                        $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid[0]
+                        $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
 
                     }
                 }
