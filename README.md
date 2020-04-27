@@ -1,14 +1,14 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.1**
+**Version: 6.2**
 
-**26 February, 2020**
+**26 April, 2020**
 
-**SHA256:** 5CD5D5C98C9E98C5A5740BEA6F2B355313D544AAAB8B8F65FA222EDE93AA9027
+**SHA256:** 398F226568FA56E3726808DEA4E17312C34E7132370F254E452DC72C5F890D7B
 
-*Fixed issues in 6.1*
-* Legend does not match result
+*Fixed issues in 6.2*
+* Could not retrieve object sid
 
 *New Feature in 6.0*
 * New improved UI
@@ -21,7 +21,7 @@
 * Recursive find filter, filter recursive results [*, User, Group, Computer] 
 
 ## Download
-**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.0)**
+**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.2)**
 
 ## Donate
 Do you appreciate my work and want to buy me a beer? You can donate via PayPal: https://www.paypal.me/canix1 or send Bitcoins to <b>bc1qte7vlwhvrju7msv9hzfytwy7jd9vlmnjfpm0366d62yx4ke89czsavk0hr</b>
