@@ -2,7 +2,7 @@
 .Synopsis
     ADACLScan.ps1
      
-    AUTHOR: Robin Granberg (robin.g@home.se)
+    AUTHOR: Robin Granberg (robin.granberg@protonmail.com)
     
     THIS CODE-SAMPLE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESSED 
     OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR 
@@ -79,13 +79,13 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 6.2
-    26 April, 2020
+    Version: 6.3
+    27 November, 2020
 
     *SHA256:* 
 
-    *Fixed issues*
-    * Could not retrieve object sid 
+    *Fixed issues in 6.3*
+   * Effective rights scan from cli did not include inherited permissions
 
 #>
 Param
@@ -334,7 +334,15 @@ Param
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [switch] 
-    $OnlyModified
+    $OnlyModified,
+
+    # Include inherited permissions
+    [Alias("in")]
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $IncludeInherited
 
 )
 
@@ -612,7 +620,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.2" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.3" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -3308,6 +3316,7 @@ If ($txtBoxSelected.Text)
 			        $Scope =  "subtree"
                 }
 
+                $IncludeInherited = $chkInheritedPerm.IsChecked
       
 			    $allSubOU = GetAllChildNodes $txtBoxSelected.Text $Scope
 
@@ -3317,7 +3326,7 @@ If ($txtBoxSelected.Text)
                     $bolToFile = $true
                     #Used from comand line only
                     $FilterBuiltin = $false
-                    Get-Perm $allSubOU $global:strDomainShortName $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $Protected $bolTranslateGUIDStoObject $Show $Format $bolToFile $chkBoxSeverity.IsChecked $combServerity.SelectedItem $bolShowCriticalityColor $GPO $FilterBuiltin $chkBoxTranslateGUID.isChecked $chkBoxRecursiveFind.isChecked $combRecursiveFind.SelectedValue
+                    Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $Protected $bolTranslateGUIDStoObject $Show $Format $bolToFile $chkBoxSeverity.IsChecked $combServerity.SelectedItem $bolShowCriticalityColor $GPO $FilterBuiltin $chkBoxTranslateGUID.isChecked $chkBoxRecursiveFind.isChecked $combRecursiveFind.SelectedValue
                 }
                 else
                 {
@@ -10747,7 +10756,7 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm 
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType)
+    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$IncludeInherited,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType)
 
 
 $bolCompare = $false
@@ -10921,7 +10930,7 @@ if ($rdbDACL.IsChecked)
                     }
                     else
                     {
-                        if(!($chkInheritedPerm.IsChecked))
+                        if(!($IncludeInherited))
                         {
                             if(($strSDDLPart.split(";")[1] -ne "CIID") -and ($strSDDLPart.split(";")[1] -ne "CIIOID"))
                             {
@@ -10945,7 +10954,7 @@ if ($rdbDACL.IsChecked)
         }
 
         &{#Try
-            $global:secd = $sec.GetAccessRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
+            $global:secd = $sec.GetAccessRules($true, $IncludeInherited, [System.Security.Principal.SecurityIdentifier])
 
         }
         Trap [SystemException]
@@ -10987,7 +10996,7 @@ else
     $sec = New-Object System.DirectoryServices.ActiveDirectorySecurity
     $sec.SetSecurityDescriptorBinaryForm($DSobject.Attributes.ntsecuritydescriptor[0])
     &{#Try
-        $global:secd = $sec.GetAuditRules($true, $chkInheritedPerm.IsChecked, [System.Security.Principal.SecurityIdentifier])
+        $global:secd = $sec.GetAuditRules($true, $IncludeInherited, [System.Security.Principal.SecurityIdentifier])
     }
     Trap [SystemException]
     { 
@@ -14496,6 +14505,7 @@ $global:intObjeComputer = 0
 $null = Add-Type -AssemblyName System.DirectoryServices.Protocols
 if($base -or $GPO) 
 {
+    
     if($Criticality)
     {
         $bolShowCriticalityColor = $true
@@ -14669,6 +14679,7 @@ if($base -or $GPO)
         if($(GetEffectiveRightSP $EffectiveRightsPrincipal $global:strDomainDNName))
          {
             $bolEffective = $true
+            $IncludeInherited = $true
         }
         else
         {
@@ -15000,7 +15011,7 @@ if($base -or $GPO)
                     }
                     else
                     {
-                        Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "HTML" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                        Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "HTML" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
                     }
 
                     Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
@@ -15059,7 +15070,7 @@ if($base -or $GPO)
                             }
                             else
                             {
-                                Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $SDDate $false $Owner $SDDate $false $bolEffective $Protected $false $Show "EXCEL" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                                Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $SDDate $false $Owner $SDDate $false $bolEffective $Protected $false $Show "EXCEL" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
                             }
                         }
                     }
@@ -15072,7 +15083,7 @@ if($base -or $GPO)
                         }
                         else
                         {
-                            Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                            Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
                             
                         }
                         
@@ -15091,7 +15102,7 @@ if($base -or $GPO)
                 }
                 else
                 {
-                    Get-Perm $allSubOU $global:strDomainShortName $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate $RecursiveFind $RecursiveObjectType
+                    Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate $RecursiveFind $RecursiveObjectType
                 }
             }
         }

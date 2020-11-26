@@ -1,11 +1,14 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.2**
+**Version: 6.3**
 
-**26 April, 2020**
+**27 November, 2020**
 
-**SHA256:** 398F226568FA56E3726808DEA4E17312C34E7132370F254E452DC72C5F890D7B
+**SHA256:** F282ACE186C892F2323845AE4E791EDA4B0650C417AD77885B2B982B3A7D18EA
+
+*Fixed issues in 6.3*
+* Effective rights scan from cli did not include inherited permissions
 
 *Fixed issues in 6.2*
 * Could not retrieve object sid
