@@ -376,7 +376,8 @@ $global:ForestFLHashAD = @{
 	4="Windows Server 2008 R2";
 	5="Windows Server 2012";
 	6="Windows Server 2012 R2";
-	7="Windows Server 2016"
+	7="Windows Server 2016";
+	8="Windows Server 2019"
 }
 #Hash table for Domain Level
 $global:DomainFLHashAD = @{
@@ -387,7 +388,8 @@ $global:DomainFLHashAD = @{
 	4="Windows Server 2008 R2";
 	5="Windows Server 2012";
 	6="Windows Server 2012 R2";
-	7="Windows Server 2016"
+	7="Windows Server 2016";
+	8="Windows Server 2019"
 }
 $global:SchemaHashAD = @{
 	13="Windows 2000 Server";
@@ -398,10 +400,11 @@ $global:SchemaHashAD = @{
 	56="Windows Server 2012";
 	69="Windows Server 2012 R2";
 	72="Windows Server 2016 Technical Preview";
-    81="Windows Server 2016 Technical Preview 2";
-    82="Windows Server 2016 Technical Preview 3";
-    85="Windows Server 2016 Technical Preview 4";
-    87="Windows Server 2016"
+	81="Windows Server 2016 Technical Preview 2";
+	82="Windows Server 2016 Technical Preview 3";
+	85="Windows Server 2016 Technical Preview 4";
+	87="Windows Server 2016";
+	88="Windows Server 2019"
 }
 	
 # List of Exchange Schema versions
@@ -425,10 +428,16 @@ $global:SchemaHashExchange = @{
 	15300="Exchange Server 2013 CU5";
 	15303="Exchange Server 2013 CU6";
 	15312="Exchange Server 2013 CU7";
-    15317="Exchange Server 2016";
-    15323="Exchange Server 2016 CU1";
-    15325="Exchange Server 2016 CU2";
-    15326="Exchange Server 2016 CU3";
+	15317="Exchange Server 2016";
+	15323="Exchange Server 2016 CU1";
+	15325="Exchange Server 2016 CU2";
+	15326="Exchange Server 2016 CU3-CU5";
+	15330="Exchange Server 2016 CU6";
+	15332="Exchange Server 2016 CU7-CU18";
+	15333="Exchange Server 2016 CU19";
+	17000="Exchange Server 2019";
+	17001="Exchange Server 2019 CU2-CU7";
+	17002="Exchange Server 2019 CU8"
 }
 	
 # List of Lync Schema versions
@@ -437,7 +446,7 @@ $global:SchemaHashLync = @{
 	1007="OCS 2007 R1";
 	1008="OCS 2007 R2";
 	1100="Lync Server 2010";
-	1150="Lync Server 2013"
+	1150="Lync Server 2013/Skype for Business 2015"
 }
 Function BuildSchemaDic
 {
