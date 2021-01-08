@@ -1,27 +1,17 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.3**
+**Version: 6.4**
 
-**27 November, 2020**
+**08 January, 2021**
 
-**SHA256:** F282ACE186C892F2323845AE4E791EDA4B0650C417AD77885B2B982B3A7D18EA
+**SHA256:** 59E95375E1C243FADEAB5E52F941AF1BD2926D94135EB4A712E5C3029D0AD9EC
 
-*Fixed issues in 6.3*
-* Effective rights scan from cli did not include inherited permissions
+*Updates*
+* Update with latest OS/Schema versions numbers 
 
-*Fixed issues in 6.2*
-* Could not retrieve object sid
-
-*New Feature in 6.0*
-* New improved UI
-* More functions available from the command line
-* Scan GPO permissions
-* Filter permissions on criticality [Critical, Warning, Medium, Low, Info]
-* Filter on Default Permissions
-* Filter on Built-in Security Principals
-* Recursive find group members, will list all resulting security principals in the ACL
-* Recursive find filter, filter recursive results [*, User, Group, Computer] 
+*Fixed issues*
+* Minor fixes
 
 ## Download
 **[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.3)**

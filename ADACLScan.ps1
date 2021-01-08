@@ -79,13 +79,15 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    Version: 6.3
-    27 November, 2020
+    **Version: 6.4**
 
-    *SHA256:* 
+    **08 January, 2021**
 
-    *Fixed issues in 6.3*
-   * Effective rights scan from cli did not include inherited permissions
+    *Updates*
+   * Update with latest OS/Schema versions numbers 
+   
+    *Fixed issues*
+   * Minor fixes
 
 #>
 Param
@@ -629,7 +631,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.3" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.4" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
