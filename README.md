@@ -14,7 +14,7 @@
 * Minor fixes
 
 ## Download
-**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.3)**
+**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.4)**
 
 ## Donate
 Do you appreciate my work and want to buy me a beer? You can donate via PayPal: https://www.paypal.me/canix1 or send Bitcoins to <b>bc1qte7vlwhvrju7msv9hzfytwy7jd9vlmnjfpm0366d62yx4ke89czsavk0hr</b>
