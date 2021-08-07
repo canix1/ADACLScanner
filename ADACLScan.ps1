@@ -79,15 +79,17 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 6.4**
+    **Version: 6.5**
 
-    **08 January, 2021**
+    **07 August, 2021**
 
     *Updates*
-   * Update with latest OS/Schema versions numbers 
+   * Add option for showing color coded criticality from command line
    
     *Fixed issues*
-   * Minor fixes
+   * Issues with Referenced Assemblies System.Drawing 
+   * Issues with PowerShell version checking
+   * Issues with searching for foreign security principals
 
 #>
 Param
@@ -208,6 +210,15 @@ Param
     [ValidateNotNullOrEmpty()]
     [String] 
     $Criticality="",
+    
+    # Show color of criticality
+    [Alias("color")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $ShowCriticalityColor,
 
     # Skip default permissions
     [Alias("sd")]
@@ -631,7 +642,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.4" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.5" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -1098,41 +1109,6 @@ $combObjectDefSD.SelectedValue="All Objects"
 if((!($base) -and (!($GPO))))
 {
 
-$code = @"
-using System;
-using System.Drawing;
-using System.Runtime.InteropServices;
-
-namespace System
-{
-	public class IconExtractor
-	{
-
-	 public static Icon Extract(string file, int number, bool largeIcon)
-	 {
-	  IntPtr large;
-	  IntPtr small;
-	  ExtractIconEx(file, number, out large, out small, 1);
-	  try
-	  {
-	   return Icon.FromHandle(largeIcon ? large : small);
-	  }
-	  catch
-	  {
-	   return null;
-	  }
-
-	 }
-	 [DllImport("Shell32.dll", EntryPoint = "ExtractIconExW", CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
-	 private static extern int ExtractIconEx(string sFile, int iIndex, out IntPtr piLargeVersion, out IntPtr piSmallVersion, int amountIcons);
-
-	}
-}
-"@
-
-
-Add-Type -TypeDefinition $code -ReferencedAssemblies System.Drawing
-
 $Window.Add_Loaded({
     $Global:observableCollection = New-Object System.Collections.ObjectModel.ObservableCollection[System.Object]
     $TextBoxStatusMessage.ItemsSource = $Global:observableCollection
@@ -1140,8 +1116,7 @@ $Window.Add_Loaded({
 
 if ($PSVersionTable.PSVersion -gt "2.0") 
 {
-if($psversiontable.clrversion.Major -ge 4)
-{
+
 try
 {
 Add-Type @"
@@ -1189,7 +1164,7 @@ Add-Type @"
 "@
 }catch
 {}
-}
+
 }
 
 
@@ -2613,30 +2588,15 @@ $txtrootdomainnamingcontext.text = ""
         #Test PS Version DeleteCommand requries PS 3.0 and above
         if ($PSVersionTable.PSVersion -gt "2.0") 
         {
-            if($psversiontable.clrversion.Major -ge 4)
-            {    
-                $TreeView1.ContextMenu.Items[0].Command = New-Object DelegateCommand( { Add-RefreshChild } )
-                $TreeView1.ContextMenu.Items[1].Command = New-Object DelegateCommand( { Add-ExcludeChild } )
-            }    
-            else
-            {
+ 
+            $TreeView1.ContextMenu.Items[0].Command = New-Object DelegateCommand( { Add-RefreshChild } )
+            $TreeView1.ContextMenu.Items[1].Command = New-Object DelegateCommand( { Add-ExcludeChild } )
 
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "(common language runtime) CLRVersion = $($psversiontable.clrversion.Major)" -strType "Warning" -DateStamp ))
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "Some GUI functions requrie .NET Framework run-time environment (common language runtime) 4.0!" -strType "Warning" -DateStamp ))
-                if((Get-HighestNetFrameWorkVer) -ge 4.0)
-                {
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "Installed .NET Framework version = $(Get-HighestNetFrameWorkVer)" -strType "Info" -DateStamp ))
-                }
-            }
         }
         else 
         {
-            $global:observableCollection.Insert(0,(LogMessage -strMessage "(common language runtime) CLRVersion = $($psversiontable.clrversion.Major)" -strType "Warning" -DateStamp ))
-            $global:observableCollection.Insert(0,(LogMessage -strMessage "Some GUI functions requrie PowerShell 3.0 and .NET Framework run-time environment (common language runtime) 4.0!" -strType "Warning" -DateStamp ))
-            if((Get-HighestNetFrameWorkVer) -ge 4.0)
-            {
-            $global:observableCollection.Insert(0,(LogMessage -strMessage "Installed .NET Framework version = $(Get-HighestNetFrameWorkVer)" -strType "Info" -DateStamp ))
-            }
+            Write-Error "Requries PS 3.0 and above"
+            break
         }
         #Update Connection Info
         $txtDC.text = $global:strDC
@@ -4299,7 +4259,7 @@ $xamlLegend =@"
                                                     <Setter Property="Template">
                                                         <Setter.Value>
                                                             <ControlTemplate TargetType="DataGridCell">
-                                                                <TextBox Text="Warning" BorderBrush='{x:Null}' Background="#FFCC00"/>
+                                                                <TextBox Text="Warning" BorderBrush='{x:Null}' Background="#FFD700"/>
                                                             </ControlTemplate>
                                                         </Setter.Value>
                                                     </Setter>
@@ -5875,12 +5835,11 @@ else
     $SIDs = $ADobject.Attributes.tokengroupsglobalanduniversal
 }
 #Get selected principal SID
-$strOwnerSIDs = [string]$($ADobject.Attributes.objectsid)
-$ownerSIDs = New-Object System.Security.Principal.SecurityIdentifier $ADobject.Attributes.objectsid[0], 0
+$ownerSIDs = (New-Object System.Security.Principal.SecurityIdentifier $ADobject.Attributes.objectsid[0], 0).Value
 # Add selected principal SID to tokenGroups
-[void]$tokenGroups.Add($ownerSIDs.Value)
+[void]$tokenGroups.Add($ownerSIDs)
 
-$arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $strOwnerSIDs) $global:CREDS
+$arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ownerSIDs) $global:CREDS
 
 foreach ($ForeignMemb in $arrForeignSecGroups)
 {
@@ -5905,7 +5864,9 @@ $response = $LDAPConnection.SendRequest($request)
 $colResults = $response.Entries
 foreach ($objResult in $colResults)
 {             
-	$ForeignDefaultWellKnownSIDs = [string]$($objResult.Attributes.objectsid)
+	
+    [byte[]] $byte = $objResult.Attributes.objectsid.GetValues([byte[]])[0]
+    $ForeignDefaultWellKnownSIDs = (New-Object System.Security.Principal.SecurityIdentifier($byte, 0)).value
 
     $arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ForeignDefaultWellKnownSIDs) $global:CREDS
 
@@ -5958,13 +5919,20 @@ Function GenerateSearchAbleSID
 {
 Param([String] $SidValue)
 
-$SidDec =$SidValue.tostring().split("")
-Foreach ($intSID in $SIDDec)
+# Create SID .NET object using SID string provided
+$sid = New-Object system.Security.Principal.SecurityIdentifier $SidValue
+
+# Create a byte array of the proper length
+$sidBytes = New-Object byte[] $sid.BinaryLength
+$SidDec = $sid.GetBinaryForm( $sidBytes, 0 )
+#$SidDec =$sidBytes.tostring().split("")
+Foreach ($intSID in $sidBytes)
 {
 [string] $SIDHex = "{0:X2}" -f [int] $intSID
 $strSIDHextString = $strSIDHextString + "\" + $SIDHex
 
 }
+
 
 return $strSIDHextString
 }
@@ -8303,7 +8271,7 @@ else
 #==========================================================================
 function WriteOUT
 {
-    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$xlsxout,[string]$Type,[bool]$GPO,[string]$GPODisplayname)
+    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$xlsxout,[string]$Type,[bool]$GPO,[string]$GPODisplayname,[bool]$bolShowCriticalityColor)
 
 if($Type -eq "HTML")
 {
@@ -8339,7 +8307,7 @@ $strLegendColorMedium=@"
 bgcolor="#FFFF00"
 "@
 $strLegendColorWarning=@"
-bgcolor="#FFCC00"
+bgcolor="#FFD700"
 "@
 $strLegendColorCritical=@"
 bgcolor="#DF0101"
@@ -8930,18 +8898,25 @@ If($Excel)
 
     if($boolOUProtected)
     {
-        $objhashtableACE | Add-Member NoteProperty "Inheritance Disabled" $bolOUProtected.toString() -PassThru 
+        $objhashtableACE | Add-Member NoteProperty "Inheritance Disabled" $bolOUProtected.toString()
     }
 
     if($boolReplMetaDate)
     {
-        $objhashtableACE | Add-Member NoteProperty "Security Descriptor Modified" $strReplMetaDate -PassThru 
+        $objhashtableACE | Add-Member NoteProperty "Security Descriptor Modified" $strReplMetaDate
     }
 
     if($CompareMode)
     {
-        $objhashtableACE | Add-Member NoteProperty State $($_.State.toString()) -PassThru 
+        $objhashtableACE | Add-Member NoteProperty State $($_.State.toString())
     }
+
+    if ($bolCriticalityLevel -or $bolShowCriticalityColor)
+    {
+
+        $objhashtableACE | Add-Member NoteProperty 'Criticality Level' $strLegendTextVal
+    }   
+
     [VOID]$global:ArrayAllACE.Add($objhashtableACE)
 }
 
@@ -9203,7 +9178,7 @@ $strLegendColorMedium=@"
 bgcolor="#FFFF00"
 "@
 $strLegendColorWarning=@"
-bgcolor="#FFCC00"
+bgcolor="#FFD700"
 "@
 $strLegendColorCritical=@"
 bgcolor="#DF0101"
@@ -11379,13 +11354,13 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				 	        if ($permcount -eq 0)
 				 	        {
                                 $bolOUHeader = $true    
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
 
 				 	        }
 				 	        else
 				 	        {
                                     $bolOUHeader = $false 
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
 
 				 	        }# End If
                         }
@@ -11412,7 +11387,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    if ($permcount -eq 0)
 		 	    {
                     $bolOUHeader = $true 
-		 		    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
+		 		    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
 
                    
 		 	    }
@@ -11420,7 +11395,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    {
                     $bolOUHeader = $false 
                     $GetOwnerEna = $false
-                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
+                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
                     #$aclcount++
 		 	    }
             }
@@ -11434,7 +11409,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             if (($permcount -eq 0) -and ($index -gt 0))
             {
                 $bolOUHeader = $true 
-	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname
+	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
                 $aclcount++
             }# End If
         }# End if bolCSVOnly
@@ -11499,8 +11474,32 @@ else
         if($OutType -eq "EXCEL")
         {
             $tablename  = $($strNode+"acltbl") -replace '[^a-zA-Z]+',''
-            $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $tablename -NoLegend -AutoSize -FreezeTopRow -Append
-            
+
+            if($bolShowCriticalityColor)
+            {
+                # Array with alphabet characters
+                $ExcelColumnAlphabet = @()  
+                for ([byte]$c = [char]'A'; $c -le [char]'Z'; $c++)  
+                {  
+                    $ExcelColumnAlphabet += [char]$c  
+                }  
+                
+                #Define Column name for "criticality" by using position in array
+                $RangeColumnCriticality = $ExcelColumnAlphabet[$(($global:ArrayAllACE | get-member -MemberType NoteProperty ).count -1 )]
+
+                $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $($strNode+"acltbl") -NoLegend -AutoSize -FreezeTopRow -ConditionalText $( 
+                New-ConditionalText -RuleType Equal -ConditionValue Low -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor DeepSkyBlue -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Critical -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Red -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Warning -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Gold -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Medium -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Yellow -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Info -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor LightGray -ConditionalTextColor Black
+                )
+            }
+            else
+            {
+                $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $tablename -NoLegend -AutoSize -FreezeTopRow -Append
+            }
+
             if($bolCMD)
             {
                 Write-host "Report saved in: $strFileEXCEL" -ForegroundColor Yellow
@@ -12160,11 +12159,11 @@ while($count -le $ALOUdn.count -1)
                                             {
                                                 $intAclOccurence++
                                                 $bolOUHeader = $true 
-                                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                             
                                             }
                                             $bolOUHeader = $false 
-                                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                                         }#End !$bolCSVOnly
                                     }#End Returns
                                 }
@@ -12357,11 +12356,11 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                         
                             }
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                         }#End !$bolCSVOnly
                         
                     }
@@ -12384,10 +12383,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                             }   
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                         }#End !$bolCSVO
                         }#End Returns
 
@@ -12604,10 +12603,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                             }
                             $bolOUHeader = $false               
-                            WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                            WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                         }#End !$bolCSVOnly
                         }#End Returns
                         $histSDObject = ""
@@ -12690,10 +12689,10 @@ while($count -le $ALOUdn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                                 }
                                 $bolOUHeader = $false 
-                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                             }#End !$bolCSVOnly
                         }
                     }
@@ -12722,10 +12721,10 @@ while($count -le $ALOUdn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                                 }
                                 $bolOUHeader = $false                  
-                                WriteOUT $true $MissingOUSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                                WriteOUT $true $MissingOUSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                             }#End !$bolCSVOnly
                         }#End Returns
                         }
@@ -12816,10 +12815,10 @@ while($count -le $ALOUdn.count -1)
                 {
                     $intAclOccurence++
                     $bolOUHeader = $true 
-                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
                 }
                 $bolOUHeader = $false               
-                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname
+                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
             }#End !$bolCSVOnly
             $histSDObject = ""
         }
@@ -12870,12 +12869,44 @@ if (($count -gt 0))
             #If excel output
             if($OutType -eq "EXCEL")
             {
-                $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $($strNode+"acltbl") -NoLegend -AutoSize -FreezeTopRow -Append -ConditionalText $( 
-                New-ConditionalText Missing -Range "I:I" -BackgroundColor Red -ConditionalTextColor Black
-                New-ConditionalText Match -Range "I:I" -BackgroundColor Green -ConditionalTextColor Black
-                New-ConditionalText New -Range "I:I" -BackgroundColor Yellow -ConditionalTextColor Black
-                )
-            
+                # Array with alphabet characters
+                $ExcelColumnAlphabet = @()  
+                for ([byte]$c = [char]'A'; $c -le [char]'Z'; $c++)  
+                {  
+                    $ExcelColumnAlphabet += [char]$c  
+                } 
+
+                if($bolShowCriticalityColor)
+                {
+ 
+                    #Define Column name for "criticality" by using position in array
+                    $RangeColumnCriticality = $ExcelColumnAlphabet[$(($global:ArrayAllACE | get-member -MemberType NoteProperty ).count -1 )]
+                    #Define Column name for "state" by using position in array
+                    $RangeColumnState = $ExcelColumnAlphabet[$(($global:ArrayAllACE | get-member -MemberType NoteProperty ).count -2 )]
+
+                    $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $($strNode+"acltbl") -NoLegend -AutoSize -FreezeTopRow -ConditionalText $( 
+                    New-ConditionalText -RuleType Equal -ConditionValue Low -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor DeepSkyBlue -ConditionalTextColor Black
+                    New-ConditionalText -RuleType Equal -ConditionValue Critical -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Red -ConditionalTextColor Black
+                    New-ConditionalText -RuleType Equal -ConditionValue Warning -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Gold -ConditionalTextColor Black
+                    New-ConditionalText -RuleType Equal -ConditionValue Medium -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Yellow -ConditionalTextColor Black
+                    New-ConditionalText -RuleType Equal -ConditionValue Info -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor LightGray -ConditionalTextColor Black
+                    New-ConditionalText Missing -Range "$($RangeColumnState):$($RangeColumnState)" -BackgroundColor Red -ConditionalTextColor Black
+                    New-ConditionalText Match -Range "$($RangeColumnState):$($RangeColumnState)" -BackgroundColor Green -ConditionalTextColor Black
+                    New-ConditionalText New -Range "$($RangeColumnState):$($RangeColumnState)" -BackgroundColor Yellow -ConditionalTextColor Black
+                    )
+                }
+                else
+                {
+                    #Define Column name for "state" by using position in array
+                    $RangeColumnState = $ExcelColumnAlphabet[$(($global:ArrayAllACE | get-member -MemberType NoteProperty ).count -1 )]
+
+                    $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $($strNode+"acltbl") -NoLegend -AutoSize -FreezeTopRow -Append -ConditionalText $( 
+                    New-ConditionalText Missing -Range "$($RangeColumnState):$($RangeColumnState)" -BackgroundColor Red -ConditionalTextColor Black
+                    New-ConditionalText Match -Range "$($RangeColumnState):$($RangeColumnState)" -BackgroundColor Green -ConditionalTextColor Black
+                    New-ConditionalText New -Range "$($RangeColumnState):$($RangeColumnState)" -BackgroundColor Yellow -ConditionalTextColor Black
+                    )
+                }
+                        
                 if($bolCMD)
                 {
                     Write-host "Report saved in: $strFileEXCEL" -ForegroundColor Yellow
@@ -13129,7 +13160,7 @@ If(Test-Path $CSVInput)
             {
   
                 $bolOUHeader = $true   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
    
     
                 $tmpOU = $strOU
@@ -13137,7 +13168,7 @@ If(Test-Path $CSVInput)
             else
             {
                 $bolOUHeader = $false   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
 
 
             }
@@ -14519,12 +14550,9 @@ if($base -or $GPO)
     
     if($Criticality)
     {
-        $bolShowCriticalityColor = $true
+        $ShowCriticalityColor = $true
     }
-    else
-    {
-        $bolShowCriticalityColor = $false
-    }
+
     if($Output -eq "")
     {
         $Show = $false
@@ -15006,23 +15034,23 @@ if($base -or $GPO)
                         CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
                         if($Template)
                         {
-                            InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
-                            InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                            InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                            InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
                         }
                         else
                         {
 
-                        InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
-                        InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $bolShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                        InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                        InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
                         }
 
                     if($Template)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "HTML" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO 
+                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "HTML" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO 
                     }
                     else
                     {
-                        Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "HTML" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                        Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "HTML" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate
                     }
 
                     Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
@@ -15077,11 +15105,11 @@ if($base -or $GPO)
 
                             if($Template)
                             {
-                                Get-PermCompare $allSubOU $SkipDefaults $false $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO
+                                Get-PermCompare $allSubOU $SkipDefaults $false $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
                             }
                             else
                             {
-                                Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $SDDate $false $Owner $SDDate $false $bolEffective $Protected $false $Show "EXCEL" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                                Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $SDDate $false $Owner $SDDate $false $bolEffective $Protected $false $Show "EXCEL" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate
                             }
                         }
                     }
@@ -15090,11 +15118,11 @@ if($base -or $GPO)
                         $bolCSV = $true
                         if($Template)
                         {
-                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO
+                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
                         }
                         else
                         {
-                            Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                            Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate
                             
                         }
                         
@@ -15109,11 +15137,11 @@ if($base -or $GPO)
                 $file = $false
                 if($Template)
                 {
-                    Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $bolShowCriticalityColor $bolAssess $Criticality $GPO
+                    Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
                 }
                 else
                 {
-                    Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $bolShowCriticalityColor $GPO $SkipBuiltIn $Translate $RecursiveFind $RecursiveObjectType
+                    Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate $RecursiveFind $RecursiveObjectType
                 }
             }
         }
@@ -15135,11 +15163,11 @@ else
  
          if($Criticality)
         {
-            $bolShowCriticalityColor = $true
+            $ShowCriticalityColor = $true
         }
         else
         {
-            $bolShowCriticalityColor = $false
+            $ShowCriticalityColor = $false
         }
  
         if($Criticality)
@@ -15404,11 +15432,11 @@ else
                     {
                         CreateHTM $strNode $strFileDefSDHTM					
                         CreateHTA $strNode $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath $global:strDomainDNName $global:strDC
-                        InitiateDefSDAccessHTM $strFileDefSDHTA $strObjectClass $bolReplMeta $false "" $bolShowCriticalityColor
-                        InitiateDefSDAccessHTM $strFileDefSDHTM $strObjectClass $bolReplMeta $false "" $bolShowCriticalityColor
+                        InitiateDefSDAccessHTM $strFileDefSDHTA $strObjectClass $bolReplMeta $false "" $ShowCriticalityColor
+                        InitiateDefSDAccessHTM $strFileDefSDHTM $strObjectClass $bolReplMeta $false "" $ShowCriticalityColor
                     }
 
-                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $bolShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
 
                 }
                 "EXCEL"
@@ -15458,7 +15486,7 @@ else
                             $strFileEXCEL = $ExcelFile
                         }
                         #$rslt = Get-DefaultSD -strObjectClass "*" -bolChangedDefSD $true  -bolSDDL $false -Show $Show -OutType "EXCEL"
-                        Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $bolShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+                        Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
                     }
                 }
                 default
@@ -15485,7 +15513,7 @@ else
                     }
 
 
-                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -File $strFileCSV -Show $Show  -OutType $Output -bolShowCriticalityColor $bolShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -File $strFileCSV -Show $Show  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
 
                 }
             }
