@@ -1,22 +1,17 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.5**
+**Version: 6.6**
 
-**07 August, 2021**
+**08 August, 2021**
 
-**SHA256:** 497D6E35D5BE916D1401B405266B2D931F3E1F364E9136D82F19DB516B74F183
-
-*Updates*
-* Add option for showing color coded criticality from command line
+**SHA256:** C957D0BAF9072864F8E62924F975CE635B1A6620EBEBBA3BCFBBD3A2B962556E
 
 *Fixed issues*
-* Issues with Referenced Assemblies System.Drawing 
-* Issues with PowerShell version checking
-* Issues with searching for foreign security principals
+* Issues with empty rows in HTML report
 
 ## Download
-**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.5)**
+**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.6)**
 
 ## Donate
 Do you appreciate my work and want to buy me a beer? You can donate via PayPal: https://www.paypal.me/canix1 or send Bitcoins to <b>bc1qte7vlwhvrju7msv9hzfytwy7jd9vlmnjfpm0366d62yx4ke89czsavk0hr</b>
