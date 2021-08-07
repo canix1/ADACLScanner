@@ -79,17 +79,14 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 6.5**
+    **Version: 6.6**
 
     **07 August, 2021**
 
-    *Updates*
-   * Add option for showing color coded criticality from command line
-   
-    *Fixed issues*
-   * Issues with Referenced Assemblies System.Drawing 
-   * Issues with PowerShell version checking
-   * Issues with searching for foreign security principals
+   *Fixed issues*
+   * Issues empty rows in HTML report
+
+
 
 #>
 Param
@@ -642,7 +639,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.5" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.6" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -11311,21 +11308,21 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				    {
                         #Remove Protect Against Accidental Deletaions Permissions if SkipProtectedPerm selected
                         if($SkipProtectedPerm)
-                                                                                {
-                        if($sdOUProtect -eq "")
                         {
-                            $sdOUProtect = Get-ProtectedPerm
+                            if($sdOUProtect -eq "")
+                            {
+                                $sdOUProtect = Get-ProtectedPerm
+                            }
+                            $indexProtected=0
+                            while($indexProtected -le $sdOUProtect.count -1)
+                            {
+			                    if (($sdOUProtect[$indexProtected].IdentityReference -eq $strNTAccount) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sd[$index].ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sd[$index].AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sd[$index].ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sd[$index].InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sd[$index].InheritedObjectType))
+			                    {
+			                        $bolMatchprotected = $true
+			                    }#End If
+                                $indexProtected++
+                            } #End While
                         }
-                        $indexProtected=0
-                        while($indexProtected -le $sdOUProtect.count -1)
-                        {
-			                if (($sdOUProtect[$indexProtected].IdentityReference -eq $strNTAccount) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sd[$index].ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sd[$index].AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sd[$index].ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sd[$index].InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sd[$index].InheritedObjectType))
-			                {
-			                    $bolMatchprotected = $true
-			                }#End If
-                            $indexProtected++
-                        } #End While
-                    }
 
                         if($bolMatchprotected)
 				        {
@@ -11384,14 +11381,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 			    {
 			    $strColorTemp = "1"
 			    }		
-		 	    if ($permcount -eq 0)
-		 	    {
-                    $bolOUHeader = $true 
-		 		    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
-
-                   
-		 	    }
-		 	    else
+		 	    if ($permcount -ne 0)
 		 	    {
                     $bolOUHeader = $false 
                     $GetOwnerEna = $false
