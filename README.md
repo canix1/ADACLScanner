@@ -1,20 +1,22 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.4**
+**Version: 6.5**
 
-**08 January, 2021**
+**07 August, 2021**
 
-**SHA256:** 59E95375E1C243FADEAB5E52F941AF1BD2926D94135EB4A712E5C3029D0AD9EC
+**SHA256:** 497D6E35D5BE916D1401B405266B2D931F3E1F364E9136D82F19DB516B74F183
 
 *Updates*
-* Update with latest OS/Schema versions numbers 
+* Add option for showing color coded criticality from command line
 
 *Fixed issues*
-* Minor fixes
+* Issues with Referenced Assemblies System.Drawing 
+* Issues with PowerShell version checking
+* Issues with searching for foreign security principals
 
 ## Download
-**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.4)**
+**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.5)**
 
 ## Donate
 Do you appreciate my work and want to buy me a beer? You can donate via PayPal: https://www.paypal.me/canix1 or send Bitcoins to <b>bc1qte7vlwhvrju7msv9hzfytwy7jd9vlmnjfpm0366d62yx4ke89czsavk0hr</b>
@@ -32,11 +34,8 @@ Related blog posts
 ## History
 
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
-#### 16 May,2019
 
-* Fixing problem with effective rights.
-
-## New Features
+## Features
 * Run effective rights report from the command line.
 * parameter from command line to get modified date of security descriptor in report.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/effectiverights.gif)
