@@ -79,12 +79,12 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 6.6**
+    **Version: 6.7**
 
-    **07 August, 2021**
+    **08 August, 2021**
 
    *Fixed issues*
-   * Issues empty rows in HTML report
+   * Updated the download function for templates
 
 
 
@@ -639,7 +639,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.6" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.7" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -4497,33 +4497,82 @@ $btnOK.add_Click({
 $TemplateDownloaderSchemaDefSDGui.Close()
 })
 $btnDownloadCSVFileSchema2019_1809.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!252&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!252&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFileSchema2016.add_Click({
- [System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21173&authkey=!ANmZFP4r67-yvGs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9%21173&authkey=!ANmZFP4r67-yvGs&ithint=file%2ccsv"
+DownloadFile $URL
  })
 $btnDownloadCSVFileSchema2012R2.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!108&authkey=!AH2bxltG5s-l3YY&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!108&authkey=!AH2bxltG5s-l3YY&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFileSchema2012.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!111&authkey=!APeksydtWJ9B1Fc&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!111&authkey=!APeksydtWJ9B1Fc&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFileSchema2008R2.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!110&authkey=!AKYYkARRfsC7IyM&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!110&authkey=!AKYYkARRfsC7IyM&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFileSchema2003SP1.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9%21164&authkey=AI5D2Q7kmGI_17Q&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9%21164&authkey=AI5D2Q7kmGI_17Q&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFileSchema2003.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!109&authkey=!AKZcScjykAZr9sw&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!109&authkey=!AKZcScjykAZr9sw&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFileSchema2000SP4.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!112&authkey=!ACo2xB2BHPYSkOE&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!112&authkey=!ACo2xB2BHPYSkOE&ithint=file%2ccsv"
+DownloadFile $URL
 })
 
 
 
 $TemplateDownloaderSchemaDefSDGui.ShowDialog()
+
+}
+#==========================================================================
+# Function		: DownloadFile
+# Arguments     : -
+# Returns   	: -
+# Description   : download file
+#==========================================================================
+Function DownloadFile
+{
+param([string]$URL)
+(65..90) + (97..122) | Get-Random -Count 8 | % {$TempFileName+=[char]$_}
+$TemporaryDestination = $(join-path -Path $CurrentFSPath -ChildPath $TempFileName) 
+try
+{
+    $WebReq = Invoke-WebRequest -Uri $URL -OutFile $TemporaryDestination -PassThru
+}
+catch
+{
+    $MsgBox = [System.Windows.Forms.MessageBox]::Show("Download failed", "Error" ,0,"Error")
+}
+
+if(($WebReq.Headers.'Content-Type' -eq "application/octet-stream") -or ($WebReq.Headers.'Content-Type' -eq "application/zip"))
+{
+    if((Test-Path -Path $TemporaryDestination))
+    {
+        $FileName = $WebReq.Headers.'Content-Disposition'.split(";") | ForEach-Object{if($_ -match "filename"){$_.split("=")[-1].Replace('"',"")}}
+        $Destination = $(join-path -Path $CurrentFSPath -ChildPath $FileName) 
+        Move-Item -Path $TemporaryDestination -Destination $Destination -Force
+        $MsgBox = [System.Windows.Forms.MessageBox]::Show("File downloaded: `n$Destination", "Downloads" ,0,"Information")
+    }
+    else
+    {
+        $MsgBox = [System.Windows.Forms.MessageBox]::Show("Download failed", "Error" ,0,"Error")
+    }
+}
+else
+{
+    $MsgBox = [System.Windows.Forms.MessageBox]::Show("Download failed! Wrong URI or file type!", "Error" ,0,"Error")
+}
+
 
 }
 #==========================================================================
@@ -4846,163 +4895,210 @@ $TemplateDownloaderGui.Close()
 
 ## START 2019 1809
 $btnDownloadCSVFile2019_1809.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!230&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv
-")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!230&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
+
 })
 $btnDownloadCSVFile2019_1809Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!227&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!227&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2019_1809Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!226&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!226&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2019_1809Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!231&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!231&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2019_1809DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!229&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!229&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2019_1809ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!228&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!228&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2019_1809AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!225&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!225&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip"
+DownloadFile $URL
 })
 ## END 2019 1809
 
 ## START 2016
 $btnDownloadCSVFile2016.add_Click({
- [System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!247&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv ")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!247&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2016Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!243&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!243&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2016Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!244&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!244&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2016Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!248&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!248&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2016DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!246&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!246&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2016ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!245&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!245&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2016AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!242&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!242&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip"
+DownloadFile $URL
 })
 ## END 2016
 
 ## START 2012 R2
 $btnDownloadCSVFile2012R2.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!209&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!209&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012R2Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!206&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!206&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012R2Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!205&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!205&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012R2Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!210&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!210&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012R2DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!207&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!207&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012R2ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!208&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!208&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012R2AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!204&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!204&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip"
+DownloadFile $URL
 })
 ## END 2012 R2
 ## START 2012
 $btnDownloadCSVFile2012.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!216&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!216&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!213&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!213&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!212&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!212&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!217&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!217&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!214&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!214&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!215&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!215&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2012AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!211&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!211&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip"
+DownloadFile $URL
 })
 ## END 2012
 ## START 2008 R2
 $btnDownloadCSVFile2008R2.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!201&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!201&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2008R2Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!198&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!198&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2008R2Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!197&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!197&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2008R2Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!237&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!237&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2008R2DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!199&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!199&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2008R2ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!200&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!200&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2008R2AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!236&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!236&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip"
+DownloadFile $URL
 })
 ## END 2008 R2
 ## START 2003
 
 $btnDownloadCSVFile2003.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!194&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!194&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2003Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!191&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!191&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2003Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!190&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!190&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2003Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!195&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!195&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2003DomainDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!192&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!192&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2003ForestDNS.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!193&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!193&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2003AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!189&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!189&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip"
+DownloadFile $URL
 })
 ## END 2003
 
 ## START 2000 SP4
 
 $btnDownloadCSVFile2000SP4.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!187&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!187&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2000SP4Domain.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!183&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!183&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2000SP4Config.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!186&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!186&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2000SP4Schema.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!188&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!188&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv"
+DownloadFile $URL
 })
 $btnDownloadCSVFile2000SP4AllFiles.add_Click({
-[System.Diagnostics.Process]::Start("https://onedrive.live.com/download?resid=3FC56366F033BAA9!182&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip")
+$URL = "https://onedrive.live.com/download?resid=3FC56366F033BAA9!182&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip"
+DownloadFile $URL
 })
 ## END 2000
 
