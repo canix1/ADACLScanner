@@ -1,17 +1,17 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.6**
+**Version: 6.7**
 
 **08 August, 2021**
 
-**SHA256:** C957D0BAF9072864F8E62924F975CE635B1A6620EBEBBA3BCFBBD3A2B962556E
+**SHA256:** 555662D4CCBB940D87869E6295EC7CC74BB85D8C8FC5916EC34D1226704578C5
 
 *Fixed issues*
-* Issues with empty rows in HTML report
+* Updated the download function for templates
 
 ## Download
-**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.6)**
+**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.7)**
 
 ## Donate
 Do you appreciate my work and want to buy me a beer? You can donate via PayPal: https://www.paypal.me/canix1 or send Bitcoins to <b>bc1qte7vlwhvrju7msv9hzfytwy7jd9vlmnjfpm0366d62yx4ke89czsavk0hr</b>
