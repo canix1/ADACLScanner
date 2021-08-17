@@ -79,13 +79,12 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 6.7**
+    **Version: 6.8**
 
-    **08 August, 2021**
+    **17 August, 2021**
 
    *Fixed issues*
-   * Updated the download function for templates
-
+   * Missing icons in the browsing view from release 6.8
 
 
 #>
@@ -639,7 +638,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.7" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.8" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -1061,6 +1060,57 @@ $Githubbitmap.EndInit()
 $Githubbitmap.Freeze()
 
 $imgGithub.Source = $Githubbitmap
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 0
+$OUpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAUrSURBVFhH7Zd7TJVlHMdtq9ZWIEyBuUAEQYutOhS51tJs2Wazi80uVixzsHVzbi3LodwEBLkGiJqIpBkzScp0ioJFaXEXkIsgcgnkfrgjyOEIv76/533fc14OL8fm/KM/erbP3ud9nt/z/X5/D4dxmPP/uJuj8tRnb7Xl+tO17I9n0JLzCfHehQw/X5TeD+4Rh+7mYIOhq2lWqT0fQih1BBxi+ij65fPA5ryviGn67UtqxFNiKzX9vpWaLwRQy8Xt1JofRO2FodRZHEbdlyJIX7HLBJtYjm1ZRF8cbDQFyNzz3gbY2QDzLbD5QFUI/Zn56R1RfnIztf6xhXoKttBQb/M0YrMaKSC1ROwx1TkBfAsLwH3CnEd/VazomsbOE40yuSCH6MZZkE00wpzRpDZ7E+Uc/NAU4nbIATzBg8KchzA3lhF1JBJ1JYFkGZ6DTswV2lFz/WuiVsBPhOgo2UFHol+lo3FrKTNxHf2c8g6d+3Yj5WV8hBvaRAVZmwWqAF7AVpjz4BugiVKIw6yDDWdBmAM2VwK0g7FfpVvjWxk8TtT/gyb5x/ysBDAUSYJtLAoTgWzAa7x3PQHGQMzV6wryfku8DL/Le6gdrI0SPy5YagQY/0s6oD6k0AoxgWzARoqZMGSw/3ecRDPD7xzCjPUAY3nmYj6oPqwYTYNrJLMpTeIlUMNwndUAU6PnUIQgAqULwAJCUIMm0BhLk40xMjwHTWamFLBuPcDwCSIUMVMNEpMyUxAXCLE4mICGOLp1LQZEmzDK8HyyQQY1CtYDDGZKQvUssMuEsZ6fbASRegQCijHvTVxVE0UTdVFkAEboSPtYk/etB+j/Xhw04ICCEYdEIAt4nQVFPRiHsBoDmKibvn/zSpT1AJO9380Ugoi5O9yGjNLleG2kxBULxPlIYTpWE2nCaoBbPek4gEPVO2UkMQOEuCNmHILMzRoWVomjXlATIRitZnbSjSomwsRtAqTRKIoY5QCLqDsYq+F3CZNBZQSNWKA2Vq8PoqFZAxg796MonIYvh4snI0LIQSRDORybqIQtGRZP1gqjoQoJng/gVjUD6C/HkLF977TikcowmHAQtbgUjEMyQxUKZiOBbDysXitHAITXDNBdFk2Gtt3mYhnFyAy6A5Z1CoMVOwTKfKAclEn0gz6c1QzQUYJfmbYk+aBaVN0lKJcYnAHOqRgAbNh/KZT61EBTM0BrAT7p+AMkEqspgxgji3I4gWKk7Ku6NFEaSr1AXxpC+hKJPqxrBmi8GEGGFgRAgUSooF9GWlMbTkfqFlcMQwV9cbCgB3QXBVNXUZAIpBmgLi8MARJmXhnMGTYwh1N1CVO1cS93C3rQbTeM2bSr0ExvySwBqnNDaRw3oO5AYBnIYr0XRoy+BN0C0a0wBoWB1FkQSB35ZvTFIXR6v+/MALmH/SnnkD++x/nR2fSNdAYpTx/YQKdSP6CT3/jSiX3v00973qXjKevpx+S36Vjim3Q0YR1lxL9BR2LX0uHo1+hQ1CuUHrmG0iJeptTw1bQv9CXaG7yKUoJepN2BL1Dy9pWUtG0lJQY8PzPAUg9HGx+dy1JPdwedp9t8ndcSR28vT+AxD8zH3El+d/Re7rNo2eurHn129Yolzzz9uLPPI4sdnvRwnafzWGinW+xsI3B3ttWt8Fm4zM3Z3tvdxV7n5mwn8bCtztnpoSdguQiYvxVj3At4Ye6/wc72AbvlPq4O69c85vTcU64OLgvm2mvVWYG92POOB/9Xo4Xl0Fr7r4w5c/4B2rPd2qevIDUAAAAASUVORK5CYII=
+"@
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 60
+$Computerpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAACqSURBVFhH7Y5BCsMwEAPzdD/NP3Mj1JCQlevQlaEUj5mbV9K26NAm+JhWa7WLXMaPkQFZkcv4MfejhMUxoCV0DWj34Kf+zYCvXQPWgDUgPaCkTQ1wilzGj5EBWZHL+M8cH2faRS53ix7WReSBW/SwLiIP3KKHdZHz0/tdD0fivqf4Jzk/lf3T7vXQJXpYF5EHbtHDuog8cIse1kXkgVv0sE5zfJjp4pfYthfqvQdyNdrtOAAAAABJRU5ErkJggg==
+"@
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 66
+$Containerpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAEISURBVFhH1Y4BboQwEAP5/6v42bUOu9U2nQQHaE8daaQ7sL1s/43XRR/htYo6R/U+MemjzlG9T0z6qHNU7xOTPuqEt4lJH3X2fW/qd3iJmPRRJ49X9Ty0iUkfdeh4VZlwSkz6qEMHq8oUh8Skjzp0sKpMJ0LBU+lglTqfIrPCD/tDJPVCxC03a5akThFZGqJsSvlOBMdSva9SRva5gQgO9io3yuY7QwRHRypfO/nfFPl2wFW9CyJ4wFHdRREcd1R3wSE47qiu6RQcd1TX8JQWpANnZnfiEq1Eh0ZmZ+Bl2gAd7M0s+AhtjA6nmel8nDZsfsCv0o5MPuDP+PqQ/K2H7+Ctxx9g2z4AyFihLQt96+cAAAAASUVORK5CYII=
+"@
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 95
+$DomainDNSpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAADuSURBVFhH7ZZRDoQgDEQ9OkfzZq6P2tishcJKzJowyQsEpkztl8s/a/uRIdrWde2GuoNbch+PoC6ldLsBfaAbwoc04H1dBHWzgYBmuQE1qAGRv6pnJ5QbUgJ/SvVwXfHhzykVqakZaaAeztrcgPelJfDzsJ2C7rUxvQf8OaUiN6gEfg2ykrNrE/hzSkVuUAn8+rjo3Mt63gP+nFKRG1QCvwZZydlbJ9CLBlnJ2Vsn4AWVwK9BVnI2JzAn8MAEgBrFm4C93wnlhkRQZ/6GvumSGxBB3fwnfLyBPSXDnroR4egS1AJ1B0NkH+zhjVqWDwWbZLRmE0YzAAAAAElFTkSuQmCC
+"@
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 59
+$Grouppng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAFWSURBVFhH7ZFRkoMwDEM5OkfjZu0KolQxckiAz9XMG2diWwrt8lCfCV6VCxhlWs7kKUNyi2/SlVt4m1Ru+Dbbtn0gVCA9Kx14jIazll6qxmAUDZCQescqPau6OIMGsOKeZ61lJ1U1nQHSID4ghCqp3HAXSMMh3OsdxlCP876XigOXaAAU+1CcQQVlxqoxcdAoVrQ0wM2wFi8rNk/0DGMFVzvF96QaGOHiaHU7vC9Y6UCDGo1W7PHMWvxS1cAMGmVVQuodq/RS1eUeNMxqb6Z4dFWDHDTKKkN4jhSfrmqYAyYMy6rbE4bkFpuQHphd13Wn7N6WDYe0F+HMKw+AYrgGMMTNvPIAZ6z1F7La3pNH7KbOWOsvAH/LMd/26gPIkP4GYUho1PtKcJ5vfcD1I8JC5DCG2q9UdJbn+guArsrCFS5Qe00gGFZYjOaRe185o2jc4183tCxfI3xJToZZFYUAAAAASUVORK5CYII=
+"@
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 58
+$Userpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAECSURBVFhH7ZFBDsMwCATz9DwtP0tDDNWCwDXY6SkjjahkvGs120uBM+FSvIJRp/FCs5bxwqqm8UJmTOOF/PQ4jpOgScJZCrw4LJbL5LM0KnhUKZX51wdIKU4+K6HCewalaAkvSEnYcpp0RLP9vndLfIusXmk0Sb6XRpWiEj46+V4aVYqOlNrJd1OoUk8JjyYUk2nwcqiURZP3yqgyq5RE8/EH9Mpl8u4UqlTEkp68vwS3nMAzx2XcZbZc5r7vt7TX1tcTluMjaK+tr0WCu4946gFXIH1nkUqa9hFPfIYrCMut7SGE+QfQKa4Ar9iKhe5ZGQlgbbgVd9TdZdjgni8DbNsHGNd/8V9LX0IAAAAASUVORK5CYII=
+"@
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 126
+$Otherpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAErSURBVFhH1ZABjsMwCATzdD8tP2s1GCMUNQY3JFVXQtu7sDvI27/qpfMTvbrsiEcPMbh3/q9zqwR2hHtnR6dcBsk4+zolktII+snJ6nwtK7vi9OgsScJR+YrT2atjWajK6dQJZaEqp7O1ljrAQlVOJ/DWci8gSyN81eka8IUXsEvld9e6k/fw9Avs+y4FOH8zXXknc4QvvYA/YhSOb13nzt4n+FcvcHS+M11rcFzzU0nR7IgBGrtdMRzX3FQh3Dv7YyI4rrtTpeHeyUVwnD2hTJSGeicXwXH2hDJRGuqdXATH2RPKRGmod3IVcJSGeidXAUdpqHdyFXAkgQzUO5kKuJeEM3Cc3Uq4lxRFR7BzB9xLSs+O4NudcC8BnL2Afn9EAvMvoPO4LsK37Q0ZagAN4BkscgAAAABJRU5ErkJggg==
+"@
+
+# Base64 representation of Icon file from shell32.dll Index 234
+$excludepng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAANTSURBVFhH7ZZLTxNRGIbnBwBFQcFLjD8B2erCGBUFGveujCuNG68ovwBR8IKgK9yCeElASltughZFRRAXGAKllrZUoPTCRmNsPt93phchpZ0ZcOeXvGkaynme882Zc47yvzLV6qRVVj9bJaamWmITWqLMeDJVEvn0V8a0hMcqJfwxnZUPaiYSQ+srwiX4yGQeiiwwLUizSMSpSiSG1lecOQeLe2oxQN86QLasgy88EAlD4P1JowLV6oDGBDLAAxRwSMiwAJ41B9UvsAE80AQB+78WyAIP3NcERg0KcLVz8NwCOeCBeyIrZgTwmhGQXUAH3E+BHlneegGdcP9dCNhk+d0JowJVKiizgAG4/445Ae5smQUMwrdWwATc1wiBbll6u2kBk3BfAwRemhDAobJGwCzcd3uzAjcSAibh/FsIAiMGBXiksu3xOQr06oLHnDUysHe/xBzXNDgTwP+FumTRdVQWRyrKOPYLpbAM8fBThWUqnuNse3zuOgScuuD9BaXiVbbLG3zGHFe1Lix1yM+5BllyHYFExcTAgX2HnUphZBq/68Tn840kNIGWtECOtnPmhEeVIllGhiERHaiX+GK7hEet8mvqvATarNKfVyw+/G4B+Yo8QycSyLWlCTRDoEY9z3M9c7adMyc8jCwiQ5Y94gf0x5ezEu0+J4MFJSk4Ze3oAAQyd4A3GLY97qaAIys8ueDYds6c8BASBGQwf4d46k8Zg7NUAbQ97saCwnGaC65m/pZEHZdlCBKELyEBxKVsMwZnaQJNaQEdcJmvR25K1H5JXkGC8O8IZZLwXqyBnHAW73Bse9yN1YzzXC9cjbdOvI2n1Zkn4ZQZxvfJ2nJ9+wGvUGy7JtBjCB61X8QzL021nXA/4kGc6MBTPR1QBdD2uPsKBGym4Ww7Z074POJGbFgDHYoluwSvUGx7SsAkvC+/WDx1ldKHt4Dwb8gMhLoVS+RJNglNwHzbCe+37BZva7n8nrogkc4z4izYqcLnkGmkCxLtG0nwDsdLRDI8zVLBwYJ9XYtLi21XCQZNw7naZx8fkuDr4xIcZo7JTOtBsecVqfBZZBxpUyyZd0KjxYOFezu312zvOdvOmROOdRCBQO4Fqbd4sADsyfWes+2cuQZXlD9Le+RDT9WknQAAAABJRU5ErkJggg==
+"@
+
+# Base64 representation of Icon file from mmcndmgr.dll Index 6
+$Expandpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABCSURBVFhH7c6xDQAgFALRv//SusAVxKCN9xJaYCTp0II85YG/DtBYmgoqTlNBxWkqqDhNBRWnuebpGPGABySpZGYDyjh8hAYS3OQAAAAASUVORK5CYII=
+"@
+
+# Base64 representation of Icon file from shell32.dll Index 238
+$refreshpng = @"
+iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAPkSURBVFhH7Vc7UxNRFOYXKOIDeagQIA9C2M0mAbTiJ/ATQHkEMGHxgcyIEJ8zykjUUUEt0t0iKZzZJiVFipQpaCgyk4bCLj/h+J3lbtwkuyTY6pn5ZvZx7zln755zv+92/LN2YU50ysv2zXdfzIysiszwqij5Hhrk38iTD/A+ztPNuCj1L4lM35KYkcNd7eKcyCCBaXl7to0mRGcgIVKBtWxVeV6gaPqY7vz45YjoxzL5nxWofyVbvb4gUt0LzV/ZeVdkuu8b1FYCY0mhBhOiEn5VpKn9E7r9/VdbmMRYf6pIPcu5yrV5oUp3HZcQPPC6RMPbxdYJhNbE7PiGQbFPZZqC079B+EOZ+pMGXZ0Xs5fvnQbn50OtElAQXHli0AS+ZBIT7OBn4d0jCr0o0phE8HmRlHdHFPvaPJ6f9SEJDm49G3p2RgKqLlSVg2PixDcElGBHoVSBfMlcBUWYHloR0x5gYFlM34qL6Rtxkb65mqvw0kcb5jbC0yKBShTFFMNACxHccxGiC3Q5zNX6FoV+I/GzqqbrfdjhmkBYFykNBRc9QEVLaPiPo3q2ik6oFVMr61kUam88S9qXkzpfFgbdEtAeZqsRLF8Eg0zAQRDB0YptB2dDAmbB1fw0wDEBbV3MaC8KpGGABeUlCizZetnthl9gBrf7acTAlkMCkXWRCe8dU3gf7cP4jKJbz1Xk67aMd0IOXvPhArcEDnnDYaj4cmX7kLARpeXrloYuyAzoBnl3ijTCQK/zhsM9z23HhcdLz+heyzvXwH/7ty22laeJN0WKvcZGJBEBeGNiWMUZeGQQtuKMnNbSQERpz+ahWZxWgUIPHMrXf4yDO3G8HdrbErEgkVPasuvxXGXy4KTmQ3l/zAk0dxcn4MTtFjg4uOBcwaEFdB++2O7H87TACTSrphgSaORzCxzcf87gUENqTzxbjYG+LT983bWYrcoh9cb/3s7jFpj/QUacwHnJqMqCxO6LNyZIspQcVm+cgBN3M5ieRx/8bIuOe0HHfctZk47tPhTcQ5K5b+1c9U7cbYFFxjjUj9cmSAYhRmqCZOlUkHghSplR7XP5vidhUNe9M1bRbD0wFYP/uQI9GHXgc6Zoll8swxijUEABIPT2yHzXOJ41QS+CQxPOylDOxj3PXG0GXxOZUFLMhpAEC5JGPm8X43tlUw9egSiVYdwtwhsOgkOS1aodWkAN6rkKLz1/iRO3O4GpnNkQnVAny880bdMgSDLHVuODiR+aMLhTMIvJieMZY7vHNLJVIC5Ct4OJq7EgkZeu5rWOZiuixMexEWD4UZ486wZBD5wezRZbH83+2x/r6PgNVo1XtD2bLOEAAAAASUVORK5CYII=
+"@
+
 
 $txtTempFolder.Text = $CurrentFSPath
 $global:bolConnected = $false
@@ -2540,47 +2590,65 @@ $txtrootdomainnamingcontext.text = ""
 
         If (!(Test-Path ($env:temp + "\OU.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 0, $true)).ToBitMap()).Save($env:temp + "\OU.png")
+
+            $IconFilePath = $env:temp + "\OU.png"
+            $bytes = [Convert]::FromBase64String($OUpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes)        
+
         }
         If (!(Test-Path ($env:temp + "\Expand.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 6, $true)).ToBitMap()).Save($env:temp + "\Expand.png")
+            $IconFilePath = $env:temp + "\Expand.png"
+            $bytes = [Convert]::FromBase64String($Expandpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes)         
         }
         If (!(Test-Path ($env:temp + "\User.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 58, $true)).ToBitMap()).Save($env:temp + "\User.png")
+            $IconFilePath = $env:temp + "\User.png"
+            $bytes = [Convert]::FromBase64String($Userpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes) 
         }
         If (!(Test-Path ($env:temp + "\Group.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 59, $true)).ToBitMap()).Save($env:temp + "\Group.png")
+            $IconFilePath = $env:temp + "\Group.png"
+            $bytes = [Convert]::FromBase64String($Grouppng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes) 
         }
         If (!(Test-Path ($env:temp + "\Computer.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 60, $true)).ToBitMap()).Save($env:temp + "\Computer.png")
+            $IconFilePath = $env:temp + "\Computer.png"
+            $bytes = [Convert]::FromBase64String($Computerpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes) 
         }
         If (!(Test-Path ($env:temp + "\Container.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 66, $true)).ToBitMap()).Save($env:temp + "\Container.png")
+            $IconFilePath = $env:temp + "\Container.png"
+            $bytes = [Convert]::FromBase64String($Containerpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes) 
         }
         If (!(Test-Path ($env:temp + "\DomainDNS.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 95, $true)).ToBitMap()).Save($env:temp + "\DomainDNS.png")
+            $IconFilePath = $env:temp + "\DomainDNS.png"
+            $bytes = [Convert]::FromBase64String($DomainDNSpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes) 
         }
         If (!(Test-Path ($env:temp + "\Other.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 126, $true)).ToBitMap()).Save($env:temp + "\Other.png")    
+            $IconFilePath = $env:temp + "\Other.png"
+            $bytes = [Convert]::FromBase64String($Otherpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes)   
         }
         If (!(Test-Path ($env:temp + "\refresh.png")))
         {
-        (([System.IconExtractor]::Extract("mmcndmgr.dll", 46, $true)).ToBitMap()).Save($env:temp + "\refresh.png")
-        }
-        If (!(Test-Path ($env:temp + "\refresh2.png")))
-        {
-        (([System.IconExtractor]::Extract("shell32.dll", 238, $true)).ToBitMap()).Save($env:temp + "\refresh2.png")
+            $IconFilePath = $env:temp + "\refresh.png"
+            $bytes = [Convert]::FromBase64String($refreshpng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes) 
         }
         If (!(Test-Path ($env:temp + "\exclude.png")))
         {
-        (([System.IconExtractor]::Extract("shell32.dll", 234, $true)).ToBitMap()).Save($env:temp + "\exclude.png")
+            $IconFilePath = $env:temp + "\exclude.png"
+            $bytes = [Convert]::FromBase64String($excludepng)
+            [IO.File]::WriteAllBytes($IconFilePath, $bytes) 
         }
         #Test PS Version DeleteCommand requries PS 3.0 and above
         if ($PSVersionTable.PSVersion -gt "2.0") 
@@ -3759,7 +3827,7 @@ function Get-XMLDomainOUTree
     $RootNode = $global:xmlDoc.createElement("DomainRoot")
     AddXMLAttribute -Node ([ref]$RootNode) -szName "Name" -value $szDomainRoot
     AddXMLAttribute -node ([ref]$RootNode) -szName "Text" -value $DNName
-    AddXMLAttribute -node ([ref]$RootNode) -szName "Icon" -value "$env:temp\refresh2.png"
+    AddXMLAttribute -node ([ref]$RootNode) -szName "Icon" -value "$env:temp\refresh.png"
     AddXMLAttribute -node ([ref]$RootNode) -szName "Icon2" -value "$env:temp\exclude.png"
 
      Switch ($strObClass)
