@@ -1,11 +1,14 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.7**
+**Version: 6.8**
 
-**08 August, 2021**
+**17 August, 2021**
 
-**SHA256:** 555662D4CCBB940D87869E6295EC7CC74BB85D8C8FC5916EC34D1226704578C5
+*Fixed issues*
+* Missing icons in the browsing view from release 6.8
+
+**SHA256:** BD95616546745446E4CE14EAFB635D7A53BB88F8CA9DD46EED6A01FEE8EE2D1C
 
 *Fixed issues*
 * Updated the download function for templates
