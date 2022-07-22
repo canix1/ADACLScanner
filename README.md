@@ -1,20 +1,27 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 6.8**
+**Version: 7.0**
 
-**17 August, 2021**
+**22 July, 2022**
 
-*Fixed issues*
-* Missing icons in the browsing view from release 6.8
+**SHA256:** 43EE6AFD2358BFE169B627B3336559FD6AC678F518501BB97305BFEAF3320D8C
 
-**SHA256:** BD95616546745446E4CE14EAFB635D7A53BB88F8CA9DD46EED6A01FEE8EE2D1C
 
-*Fixed issues*
-* Updated the download function for templates
+*New Features*
+* Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
+
+![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan7.0_Permission.png)
+
+* From the CLI you can select Target and select RiskyTemplates to scan published certificate templates with "supply in request".
+* The default output from CLI is structured and translated
+* The default csv file output option is structured and translated and cannot be used for comparing.
+* New output option for comparing that is called CSVTEMPLATE from CLI and "CSV Template" in GUI.
+* Old CLI output format is produced by using the -RAW switch
+
 
 ## Download
-**[Release](https://github.com/canix1/ADACLScanner/releases/tag/6.8)**
+**[Release](https://github.com/canix1/ADACLScanner/releases/tag/7.0)**
 
 ## Donate
 Do you appreciate my work and want to buy me a beer? You can donate via PayPal: https://www.paypal.me/canix1 or send Bitcoins to <b>bc1qte7vlwhvrju7msv9hzfytwy7jd9vlmnjfpm0366d62yx4ke89czsavk0hr</b>
