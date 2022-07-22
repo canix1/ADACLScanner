@@ -23,6 +23,11 @@
     Create a CSV file with the permissions of the object CORP.
 
 .EXAMPLE
+    .\ADACLScan.ps1 -Base rootdse
+
+    Returns the ACL of the domain root.
+
+.EXAMPLE
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Output HTML
 
     Create a HTML file with the permissions of the object CORP.
@@ -53,7 +58,7 @@
     Create a CSV file with the permissions of the object CORP and all child objects of type OrganizationalUnit.
 
 .EXAMPLE
-    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree -EffectiveRightsPrincipal joe"
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Scope subtree -EffectiveRightsPrincipal joe
 
     Create a CSV file with the effective permissions of all the objects in the path for the user "joe".
 
@@ -72,6 +77,16 @@
 
     Targeted search against server "DC1" on port 389 that will create a CSV file with the permissions of all the objects in the path and below that matches the filter (objectClass=user).
 
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "ou=mig,dc=contoso,dc=com" -Output CSVTEMPLATE
+    
+    This will result in a CSV-file with a format adapted for comparing.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "ou=mig,dc=contoso,dc=com" -Template C:\Scripts\mig_CONTOSO_adAclOutput20220722_182746.csv
+
+    The following command will result in an output with the possibility to see the state of each ACE on the object compared with the CSV-template.
+
 .OUTPUTS
     The output is an CSV,HTML or EXCEL report.
 
@@ -79,18 +94,23 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 6.8**
+    **Version: 7.0**
 
-    **17 August, 2021**
+    **22 July, 2022**
 
-   *Fixed issues*
-   * Missing icons in the browsing view from release 6.8
+   *New Features*
+   * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
+   * From the CLI you can select Target and select RiskyTemplates to scan published certificate templates with "supply in request".
+   * The default output from CLI is structured and translated
+   * The default csv file output option is structured and translated and cannot be used for comparing.
+   * New output option for comparing that is called CSVTEMPLATE from CLI and "CSV Template" in GUI.
+   * Old CLI output format is produced by using the -RAW switch
 
 
 #>
 Param
 (
-    # DistinguishedName to start your search at. Always included as long as your filter matches your object.
+    # DistinguishedName to start your search at or type RootDSE for the domain root. Will be included in the result if your filter matches the object.
     [Alias("b")]
     [Parameter(Mandatory=$false, 
                 ValueFromPipeline=$true,
@@ -101,7 +121,20 @@ Param
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $Base,
+    $Base="",
+
+    # Targets allows you to use a predefined search for specific objects
+    [Parameter(Mandatory=$false, 
+                ValueFromPipeline=$true,
+                ValueFromPipelineByPropertyName=$true, 
+                ValueFromRemainingArguments=$false, 
+                Position=0,
+                ParameterSetName='Default')]
+    [ValidateSet("RiskyTemplates")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Targets,
 
     # Filter. Specify your custom filter. Default is OrganizationalUnit.
     [Alias("f")]
@@ -142,7 +175,7 @@ Param
     [String] 
     $Port,
 
-    # EffectiveRightsPrincipal. Specify your security principal to chech for effective permissions
+    # Specify the samAccountName of a security principal to check for its effective permissions
     [Parameter(Mandatory=$false, 
                 Position=5,
                 ParameterSetName='Default')]
@@ -155,7 +188,7 @@ Param
     [Parameter(Mandatory=$false, 
                 Position=6,
                 ParameterSetName='Default')]
-    [ValidateSet("CSV", "HTML", "EXCEL")]
+    [ValidateSet("CSV","CSVTEMPLATE", "HTML", "EXCEL")]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
@@ -314,13 +347,6 @@ Param
     [switch] 
     $Protected,
 
-    # Data Managment Delegation OU Name
-    [Parameter(Mandatory=$false, 
-                ParameterSetName='Default')]
-    [ValidateNotNull()]
-    [ValidateNotNullOrEmpty()]
-    [switch] 
-    $help,
     # Scan Default Security Descriptor
     [Alias("dsd")]
     [Parameter(Mandatory=$false)]
@@ -351,7 +377,47 @@ Param
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [switch] 
-    $IncludeInherited
+    $IncludeInherited,
+
+    # Returns ACE's in the format that .Net presents access permissions
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $RAW,
+
+    # Filter ACL for access type
+    [Alias("acc")]
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("Allow", "Deny")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $AccessType,
+
+    # Filter ACL for a specific permission
+    [Alias("perm")]
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $Permission,
+
+    # Filter ACL ObjectName
+    [Alias("at")]
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $ApplyTo="",
+
+    # Filter ACL for matching strings in Trustee
+    [Alias("ft")]
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $FilterTrustee=""
 
 )
 
@@ -612,7 +678,7 @@ $xamlBase = @"
                         </TabControl>
                         <GroupBox x:Name="gBoxSelectNodeTreeView" Grid.Column="0" Header="Nodes" HorizontalAlignment="Left" Height="330" Margin="0,0,0,0" VerticalAlignment="Top" Width="350"  Foreground="White" BorderThickness="0" BorderBrush="#FF2A3238" >
                             <StackPanel Orientation="Vertical">
-                                <TreeView x:Name="treeView1"  Height="320" Width="340"  Margin="0,5,0,0" HorizontalAlignment="Left"
+                                <TreeView x:Name="treeView1"  Height="300" Width="340"  Margin="0,5,0,0" HorizontalAlignment="Left"
                 DataContext="{Binding Source={StaticResource DomainOUData}, XPath=/DomainRoot}"
                 ItemTemplate="{StaticResource NodeTemplate}"
                 ItemsSource="{Binding}">
@@ -638,7 +704,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 6.8" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.0" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -708,6 +774,7 @@ $xamlBase = @"
                                                     <StackPanel Orientation="Horizontal">
                                                         <RadioButton x:Name="rdbOnlyHTA" Content="HTML" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput" IsChecked="True"/>
                                                         <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
+                                                        <RadioButton x:Name="rdbOnlyCSVTEMPLATE" Content="CSV Template" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="91" GroupName="rdbGroupOutput"/>
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal">
                                                         <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
@@ -892,10 +959,15 @@ $xamlBase = @"
 
                                         </StackPanel>
                                         <StackPanel Orientation="Vertical" Margin="5,5,0,0" Width="320">
+                                            <Label x:Name="lblPermission" Content="Filter by permissions:&#10;Examples:&#10;GenericALL &#10;WriteProperty|ExtendedRight" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxPermission" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <TextBox x:Name="txtPermission" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="160" IsEnabled="False"/>
+                                            </StackPanel>
                                             <Label x:Name="lblFilterTrusteeExpl" Content="Filter by Trustee:&#10;Examples:&#10;CONTOSO\User&#10;CONTOSO\JohnDoe*&#10;*Smith&#10;*Doe*" />
                                             <StackPanel Orientation="Horizontal" Margin="0,0">
                                                 <CheckBox x:Name="chkBoxTrustee" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                <TextBox x:Name="txtFilterTrustee" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
+                                                <TextBox x:Name="txtFilterTrustee" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="160" IsEnabled="False"/>
                                             </StackPanel>
 
                                             <StackPanel Orientation="Horizontal" Margin="0,0">
@@ -1153,7 +1225,7 @@ $combObjectDefSD.SelectedValue="All Objects"
 #TODO: Place custom script here
 
 #### Check if UI should be loaded
-if((!($base) -and (!($GPO))))
+if((!($base) -and (!($GPO)) -and (!($Targets))))
 {
 
 $Window.Add_Loaded({
@@ -1642,6 +1714,9 @@ $chkBoxCompare.add_Click(
         $chkBoxType.IsEnabled = $false
         $chkBoxObject.IsEnabled = $false
         $chkBoxTrustee.IsEnabled =  $false
+        $chkBoxPermission.IsEnabled =  $false
+        $chkBoxPermission.IsChecked =  $false
+        $txtPermission.IsEnabled =  $false
         $chkBoxFilterBuiltin.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
@@ -1695,6 +1770,9 @@ $chkBoxEffectiveRights.add_Click(
         $chkBoxType.IsEnabled = $false
         $chkBoxObject.IsEnabled = $false
         $chkBoxTrustee.IsEnabled =  $false
+        $chkBoxPermission.IsEnabled =  $false
+        $chkBoxPermission.IsChecked =  $false
+        $txtPermission.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
         $chkBoxFilterBuiltin.IsChecked =  $false
@@ -1765,6 +1843,8 @@ $chkBoxFilter.add_Click(
         $chkBoxType.IsEnabled = $true
         $chkBoxObject.IsEnabled = $true
         $chkBoxTrustee.IsEnabled =  $true
+        $chkBoxPermission.IsEnabled =  $true
+        $txtPermission.IsEnabled =  $true
         $chkBoxFilterBuiltin.IsEnabled =  $true
         $combObjectFilter.IsEnabled = $true
         $txtFilterTrustee.IsEnabled = $true
@@ -1788,6 +1868,9 @@ $chkBoxFilter.add_Click(
         $chkBoxType.IsEnabled = $false
         $chkBoxObject.IsEnabled = $false
         $chkBoxTrustee.IsEnabled =  $false
+        $chkBoxPermission.IsEnabled =  $false
+        $chkBoxPermission.IsChecked =  $false
+        $txtPermission.IsEnabled =  $false
         $chkBoxFilterBuiltin.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
@@ -2947,6 +3030,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
     {
             if ($(Test-Path $txtCompareTemplate.Text) -eq $true)
             {
+
             if (($chkBoxEffectiveRights.isChecked -eq $true) -or ($chkBoxFilter.isChecked -eq $true))
             {
                 if ($chkBoxEffectiveRights.isChecked)
@@ -2962,6 +3046,13 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
             {
                 $global:bolCSVLoaded = $false
                 $strCompareFile = $txtCompareTemplate.Text
+                &{#Try
+                    Test-Path -Path "C:\"
+                }
+                Trap [SystemException]
+                {
+                Write-Host "ERROR"
+                }
                 &{#Try
                     $global:bolCSVLoaded = $true
                     $global:csvHistACLs = import-Csv $strCompareFile 
@@ -2984,7 +3075,14 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 	               $BolSkipDefPerm = $chkBoxDefaultPerm.IsChecked
                    $BolSkipProtectedPerm =  $chkBoxSkipProtectedPerm.IsChecked
                    $global:bolProgressBar = $chkBoxSkipProgressBar.IsChecked
-                   $bolCSV = $rdbOnlyCSV.IsChecked
+                   if(($rdbOnlyCSV.IsChecked) -or ($rdbOnlyCSVTEMPLATE.IsChecked))
+                   {
+                        $bolCSV = $true
+                   }
+                   else
+                   {
+                        $bolCSV = $false
+                   }
 	               if ($chkBoxTemplateNodes.IsChecked -eq $false)
                     {
                         $sADobjectName = $txtBoxSelected.Text.ToString()
@@ -3140,7 +3238,14 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                         }
                         else
                         {
-                            $Format = "CSV"
+                            if($rdbOnlyCSV.IsChecked)
+                            {
+                                $Format = "CSV"
+                            }
+                            if($rdbOnlyCSVTEMPLATE.IsChecked)
+                            {
+                                $Format = "CSVTEMPLATE"
+                            }
                             $Show = $false
                         }
                         If (($txtBoxSelected.Text.ToString().Length -gt 0) -or (($chkBoxTemplateNodes.IsChecked -eq $true)))
@@ -3150,11 +3255,25 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 		                    {
                                 If ($rdbSubtree.IsChecked -eq $true)
 		                        {
-			                        $allSubOU = GetAllChildNodes $txtBoxSelected.Text "subtree"
+			                        if($rdbScanFilter.IsChecked -eq $true)
+                                    {
+                                        $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "subtree" -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text
+                                    }
+                                    else
+                                    {
+                                       $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "subtree" -ExcludedDNs $txtBoxExcluded.text
+                                    }
                                 }
                                 else
                                 {
-                                    $allSubOU = GetAllChildNodes $txtBoxSelected.Text "onelevel"
+			                        if($rdbScanFilter.IsChecked -eq $true)
+                                    {
+                                        $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "onelevel" -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text
+                                    }
+                                    else
+                                    {
+                                       $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "onelevel" -ExcludedDNs $txtBoxExcluded.text
+                                    }
                                 }	    
                             }
 		                    else
@@ -3168,7 +3287,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                                 $bolToFile = $true
                                 #Used from comand line only
                                 $FilterBuiltin = $false
-                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $Returns $bolToFile $bolShowCriticalityColor $chkBoxSeverity.IsChecked $combServerity.SelectedItem $FilterBuiltin $chkBoxTranslateGUID.isChecked
+                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $Returns $bolToFile $bolShowCriticalityColor $chkBoxSeverity.IsChecked $combServerity.SelectedItem $chkBoxTranslateGUID.isChecked
                             }	
                             else
                             {
@@ -3230,7 +3349,7 @@ else
 $bolPreChecks = $true
 If ($txtBoxSelected.Text)
 {
-    If(($chkBoxFilter.IsChecked -eq $true) -and  (($chkBoxType.IsChecked -eq $false) -and ($chkBoxObject.IsChecked -eq $false) -and ($chkBoxTrustee.IsChecked -eq  $false) -and ($chkBoxFilterBuiltin.IsChecked -eq  $false)))
+    If(($chkBoxFilter.IsChecked -eq $true) -and  (($chkBoxType.IsChecked -eq $false) -and ($chkBoxObject.IsChecked -eq $false) -and ($chkBoxTrustee.IsChecked -eq  $false) -and ($chkBoxFilterBuiltin.IsChecked -eq  $false) -and ($chkBoxPermission.IsChecked -eq  $false)))
     {
                    
                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Filter Enabled , but no filter is specified!" -strType "Error" -DateStamp ))
@@ -3238,7 +3357,7 @@ If ($txtBoxSelected.Text)
     }
     else
     {
-        If(($chkBoxFilter.IsChecked -eq $true) -and  (($combAccessCtrl.SelectedIndex -eq -1) -and ($combObjectFilter.SelectedIndex -eq -1) -and ($txtFilterTrustee.Text -eq  "") -and ($chkBoxFilterBuiltin.IsChecked -eq  $false)))
+        If(($chkBoxFilter.IsChecked -eq $true) -and  (($combAccessCtrl.SelectedIndex -eq -1) -and ($combObjectFilter.SelectedIndex -eq -1) -and ($txtFilterTrustee.Text -eq  "") -and ($txtPermission.Text -eq  "") -and ($chkBoxFilterBuiltin.IsChecked -eq  $false)))
         {
                        
                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Filter Enabled , but no filter is specified!" -strType "Error" -DateStamp ))
@@ -3262,8 +3381,10 @@ If ($txtBoxSelected.Text)
 	    $BolSkipDefPerm = $chkBoxDefaultPerm.IsChecked
         $BolSkipProtectedPerm =  $chkBoxSkipProtectedPerm.IsChecked
         $global:bolProgressBar = $chkBoxSkipProgressBar.IsChecked
-	    $bolCSV = $rdbOnlyCSV.IsChecked
-
+        if(($rdbOnlyCSV.IsChecked) -or ($rdbOnlyCSVTEMPLATE.IsChecked))
+        {
+        $bolCSV = $true
+        }
         $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest
@@ -3333,7 +3454,14 @@ If ($txtBoxSelected.Text)
             }
             else
             {
-                $Format = "CSV"
+                if($rdbOnlyCSV.IsChecked)
+                {
+                    $Format = "CSV"
+                }
+                if($rdbOnlyCSVTEMPLATE.IsChecked)
+                {
+                    $Format = "CSVTEMPLATE"
+                }
                 $Show = $false
             }           		
 	        If ($txtBoxSelected.Text.ToString().Length -gt 0)
@@ -3354,15 +3482,23 @@ If ($txtBoxSelected.Text)
 
                 $IncludeInherited = $chkInheritedPerm.IsChecked
       
-			    $allSubOU = GetAllChildNodes $txtBoxSelected.Text $Scope
+			    if($rdbScanFilter.IsChecked -eq $true)
+                {
+                    $allSubOU = @(GetAllChildNodes -firstnode $txtBoxSelected.Text -scope $Scope -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text)
+                }
+                else
+                {
+                    $allSubOU = @(GetAllChildNodes -firstnode $txtBoxSelected.Text -scope $Scope -ExcludedDNs $txtBoxExcluded.text)
+                }
 
                 #if any objects found read ACLs
                 if($allSubOU.count -gt 0)
                 {			        
                     $bolToFile = $true
                     #Used from comand line only
-                    $FilterBuiltin = $false
-                    Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxFilter.IsChecked $chkBoxGetOwner.IsChecked $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $chkBoxEffectiveRights.IsChecked $Protected $bolTranslateGUIDStoObject $Show $Format $bolToFile $chkBoxSeverity.IsChecked $combServerity.SelectedItem $bolShowCriticalityColor $GPO $FilterBuiltin $chkBoxTranslateGUID.isChecked $chkBoxRecursiveFind.isChecked $combRecursiveFind.SelectedValue
+                    $FilterBuiltin = $chkBoxFilterBuiltin.IsChecked
+
+                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $combObjectFilter.SelectedItem -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -ACLPermissionFilter $txtPermission.Text
                 }
                 else
                 {
@@ -3406,6 +3542,7 @@ function AddXMLAttribute
 	$attribute = $global:xmlDoc.createAttribute($szName);
 	[void]$node.value.setAttributeNode($attribute);
 	$node.value.setAttribute($szName, $value);
+
 	#return $node;
 }
 
@@ -3551,11 +3688,10 @@ function ProcessOUTree
             $colResults = $response.Entries
 	        foreach ($objResult in $colResults)
 	        {             
-		    
+		        $NewOUNode = $global:xmlDoc.createElement("OU");
                 if ($objResult.attributes.Count -ne 0)
                 {
-		            $NewOUNode = $global:xmlDoc.createElement("OU");
-            
+
                     # Add an Attribute for the Name
 
                     if (($null -ne $($objResult.attributes.name[0])))
@@ -3563,7 +3699,7 @@ function ProcessOUTree
 
                         # Add an Attribute for the Name
                         $OUName = "$($objResult.attributes.name[0])"
-        
+
                         AddXMLAttribute -node ([ref]$NewOUNode) -szName "Name" -value $OUName
                         $DNName = $objResult.distinguishedname
                             AddXMLAttribute -node ([ref]$NewOUNode) -szName "Text" -value $DNName
@@ -3609,27 +3745,25 @@ function ProcessOUTree
                 }
                 else
                 {
-                 if ($null -ne $objResult.distinguishedname)
-		            {
-
-                        # Add an Attribute for the Name
-                        $DNName = $objResult.distinguishedname
-                        $OUName = $DNName.toString().Split(",")[0]
-                        if($OUName -match "=")
-                        {
-                        $OUName = $OUName.Split("=")[1]
-                        }
+                     if ($null -ne $objResult.distinguishedname)
+		                {
+                            # Add an Attribute for the Name
+                            $DNName = $objResult.distinguishedname
+                            $OUName = $DNName.toString().Split(",")[0]
+                            if($OUName -match "=")
+                            {
+                            $OUName = $OUName.Split("=")[1]
+                            }
         
-                        AddXMLAttribute -node ([ref]$NewOUNode) -szName "Name" -value $OUName
-                
-                        AddXMLAttribute -node ([ref]$NewOUNode) -szName "Text" -value $DNName
-                        AddXMLAttribute -node ([ref]$NewOUNode) -szName "Img" -value "$env:temp\Container.png"
-                        AddXMLAttribute -node ([ref]$NewOUNode) -szName "Tag" -value "Enumerated"
-                        $child = $node.appendChild($NewOUNode);
-                        ProcessOUTreeStep2OnlyShow -node $NewOUNode -DNName $DNName
-                    }
+                            AddXMLAttribute -node ([ref]$NewOUNode) -szName "Name" -value $OUName
+                            AddXMLAttribute -node ([ref]$NewOUNode) -szName "Text" -value $DNName
+                            AddXMLAttribute -node ([ref]$NewOUNode) -szName "Img" -value "$env:temp\Container.png"
+                            AddXMLAttribute -node ([ref]$NewOUNode) -szName "Tag" -value "Enumerated"
+                            $child = $node.appendChild($NewOUNode);
+                            ProcessOUTreeStep2OnlyShow -node $NewOUNode -DNName $DNName
+                        }
 
-                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Could not read object $($objResult.distinguishedname). Enough permissions?" -strType "Warning" -DateStamp ))
+                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Could not read object $($objResult.distinguishedname). Enough permissions?" -strType "Warning" -DateStamp ))
                 }
 
             }
@@ -3729,7 +3863,6 @@ function ProcessOUTreeStep2OnlyShow
                     # Add an Attribute for the Name
                 
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Name" -value "Click ..."
-            
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Text" -value "Click ..."
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Img" -value "$env:temp\Expand.png"
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Tag" -value "NotEnumerated"
@@ -3746,7 +3879,6 @@ function ProcessOUTreeStep2OnlyShow
                     # Add an Attribute for the Name
                 
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Name" -value "Click ..."
-            
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Text" -value "Click ..."
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Img" -value "$env:temp\Expand.png"
                     AddXMLAttribute -node ([ref]$NewOUNode) -szName "Tag" -value "NotEnumerated"
@@ -4077,7 +4209,14 @@ Do
                 [void]$request.Attributes.Add("objectclass")
                 [void]$request.Attributes.Add("member")
 
-                $response = $LDAPConnection.SendRequest($request)
+                Try{
+                    $response = $LDAPConnection.SendRequest($request)
+                }
+                catch
+                {
+                    Write-Verbose "Error - Could not read objectClass $Member";
+                    continue;
+                }
                 $ADObject = $response.Entries[0]
 
                 Try{
@@ -5482,6 +5621,7 @@ $btnOK.add_Click(
 $strSelectedDomain = $objListBoxDomainList.SelectedItem
 if ($strSelectedDomain)
 {
+    $global:TempDC = $null
     if($strSelectedDomain.Contains("."))
     {
         $global:TempDC = $strSelectedDomain
@@ -6559,10 +6699,19 @@ $Scope,
             ValueFromPipeline=$true,
             ValueFromPipelineByPropertyName=$true, 
             ValueFromRemainingArguments=$false, 
+            Position=2,
+            ParameterSetName='Default')]
+[string]
+$CustomFilter="",
+# Distinguishednames to exlude in result
+[Parameter(Mandatory=$false, 
+            ValueFromPipeline=$true,
+            ValueFromPipelineByPropertyName=$true, 
+            ValueFromRemainingArguments=$false, 
             Position=3,
             ParameterSetName='Default')]
 [string]
-$CustomFilter=""
+$ExcludedDNs=""
 )
 
 $nodelist = New-Object System.Collections.ArrayList
@@ -6607,12 +6756,12 @@ If ($rdbScanContainer.IsChecked -eq $true)
 }
 If ($rdbScanFilter.IsChecked -eq $true) 
 {
-    if($txtCustomFilter.text.Length -gt 0)
+    if($CustomFilter -gt 0)
     {
-        $ReqFilter = $txtCustomFilter.Text
+        $ReqFilter = $CustomFilter
     }
 }
-if($CustomFilter -ne"")
+if($CustomFilter -ne "")
 {
     $ReqFilter = $CustomFilter
 }
@@ -6621,9 +6770,9 @@ if($Scope -eq "base")
 {
     If ($rdbScanFilter.IsChecked -eq $true)
     {        
-        if($txtCustomFilter.text.Length -gt 0)
+        if($CustomFilter -gt 0)
         {
-            $ReqFilter = $txtCustomFilter.Text
+            $ReqFilter = $CustomFilter
         }
         else 
         {
@@ -6690,8 +6839,9 @@ if ($Scope -eq "onelevel")
     #if the filter catch the first node add it to list
     If ($response2.Entries.Count -gt 0) 
     {
-        if($txtBoxExcluded.text.Length -gt 0)
+        if($ExcludedDNs)
         {
+            $arrExcludedDN = $ExcludedDNs.split(";")
             $bolInclude = $true
             Foreach( $strExcludeDN in $arrExcludedDN)
             {
@@ -6721,9 +6871,9 @@ if ($Scope -eq "onelevel")
     }
 }#End if Scope = onelevel
 $request.filter =  $ReqFilter
-if($txtBoxExcluded.text.Length -gt 0)
+if($ExcludedDNs)
 {
-    $arrExcludedDN = $txtBoxExcluded.text.split(";")
+    $arrExcludedDN = $ExcludedDNs.split(";")
     while ($true)
     {
         try
@@ -7135,7 +7285,6 @@ Function CacheRightsGuids
             }
             Trap [SystemException]
             {
-                #Write-host "Failed to add CAR:$strRightDisplayName" -ForegroundColor red
                 continue
             }
 
@@ -8432,19 +8581,14 @@ else
 #==========================================================================
 function WriteOUT
 {
-    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$xlsxout,[string]$Type,[bool]$GPO,[string]$GPODisplayname,[bool]$bolShowCriticalityColor)
+    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$Type,[bool]$GPO,[string]$GPODisplayname,[bool]$bolShowCriticalityColor)
 
 if($Type -eq "HTML")
 {
 $htm = $true
 $fileout = $htmfileout
 }
-if($Type -eq "EXCEL")
-{
-$EXCEL = $true
-$fileout = $xlsxout
-}
-if($HTM)
+    if($HTM)
 {
 $strTHOUColor = "E5CF00"
 $strTHColor = "EFAC00"
@@ -8872,7 +9016,7 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      	    $strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+		      	    $strApplyTo = "Descendant $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName}) objects"
                     $strPerm = "$objRights"
 		      	}
 		      	"None"
@@ -8926,12 +9070,12 @@ if ($bolACLExist)
 	    	{ 
 		      	"ObjectAceTypePresent"
 	      		{
-		      		$strApplyTo = "This object and all child objects within this conatainer only"
+		      		$strApplyTo = "This object and all child objects within this container only"
                     $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	}
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo = "Children within this conatainer only"
+		      		$strApplyTo = "This object and all child objects within this container only"
                     $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
 		      	} 
 
@@ -8959,12 +9103,12 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo = "Children within this conatainer only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+		      		$strApplyTo = "Descendant $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName}) objects within this container only"
+                    $strPerm = "$objRights"
 		      	} 
 		      	"None"
 		      	{
-		      		$strApplyTo = "Children  within this conatainer only"
+		      		$strApplyTo = "Children  within this container only"
                     $strPerm = "$objRights"
 		      	} 	      	
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
@@ -8974,7 +9118,7 @@ if ($bolACLExist)
 		      	} 	
 		      	"ObjectAceTypePresent"
 	      		{
-		      		$strApplyTo = "Children within this conatainer only"
+		      		$strApplyTo = "Children within this container only"
                     $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 		      	
 		      	default
@@ -8994,7 +9138,7 @@ if ($bolACLExist)
 
 ##
 
-If($Excel)
+if($Type -eq "Object")
 {
 
     if($Canonical)
@@ -9753,12 +9897,12 @@ if ($bolACLExist)
 	    	{ 
 		      	"ObjectAceTypePresent"
 	      		{
-		      		$strApplyTo = "This object and all child objects within this conatainer only"
+		      		$strApplyTo = "This object and all child objects within this container only"
                     $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	}
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo = "Children within this conatainer only"
+		      		$strApplyTo = "Children within this container only"
                     $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
 		      	} 
 
@@ -9786,12 +9930,12 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo = "Children within this conatainer only"
+		      		$strApplyTo = "Children within this container only"
                     $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
 		      	} 
 		      	"None"
 		      	{
-		      		$strApplyTo = "Children  within this conatainer only"
+		      		$strApplyTo = "Children  within this container only"
                     $strPerm = "$objRights"
 		      	} 	      	
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
@@ -9801,7 +9945,7 @@ if ($bolACLExist)
 		      	} 	
 		      	"ObjectAceTypePresent"
 	      		{
-		      		$strApplyTo = "Children within this conatainer only"
+		      		$strApplyTo = "Children within this container only"
                     $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
 		      	} 		      	
 		      	default
@@ -10903,7 +11047,7 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm 
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[string]$DomainNetbiosName,[boolean]$IncludeInherited,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType)
+    Param([System.Collections.ArrayList]$AllObjectDn,[string]$DomainNetbiosName,[boolean]$IncludeInherited,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType,[string]$ApplyTo,[bool]$ACLObjectFilter,[string]$FilterTrustee,[bool]$FilterForTrustee,[string]$AccessType,[bool]$AccessFilter,[string]$ACLPermissionFilter)
 
 
 $bolCompare = $false
@@ -10915,7 +11059,15 @@ $aclcount = 0
 $sdOUProtect = ""
 $global:ArrayAllACE = New-Object System.Collections.ArrayList
 
-if($OutType -eq "CSV")
+if(($OutType -eq "EXCEL") -or ($OutType -eq "CSV"))
+{
+  $WriteOut = "Object"
+}
+else
+{
+    $WriteOut = "HTML"
+}
+if(($OutType -eq "CSVTEMPLATE") -or ($OutType -eq "CSV"))
 {
     $bolCSV = $true
 	If ((Test-Path $strFileCSV) -eq $true)
@@ -10936,7 +11088,7 @@ if($global:bolCMD)
 {
     $intTot = 0
     #calculate percentage
-    $intTot = $ALOUdn.count
+    $intTot = $AllObjectDn.count
 }
 else
 {
@@ -10944,7 +11096,7 @@ else
     {
         $intTot = 0
         #calculate percentage
-        $intTot = $ALOUdn.count
+        $intTot = $AllObjectDn.count
         if ($intTot -gt 0)
         {
         LoadProgressBar
@@ -10953,15 +11105,15 @@ else
     }
 }
 
-while($count -le $ALOUdn.count -1)
+while($count -le $AllObjectDn.count -1)
 {
 if($GPO)
 {
-    $ADObjDN = $ALOUdn[$count].Split(";")[0]
-    $GPOTarget = $ALOUdn[$count].Split(";")[1]
+    $ADObjDN = $AllObjectDn[$count].Split(";")[0]
+    $GPOTarget = $AllObjectDn[$count].Split(";")[1]
     if($GPO)
     {
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest
         $request.DistinguishedName = $ADObjDN
@@ -10981,7 +11133,7 @@ if($GPO)
 }
 else
 {
-    $ADObjDN = $($ALOUdn[$count])
+    $ADObjDN = $($AllObjectDn[$count])
 }
 $global:secd = ""
 $bolACLExist = $true
@@ -11242,44 +11394,45 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 
     If (($FilterEna -eq $true) -and ($bolEffectiveR -eq $false))
     {
-        If ($chkBoxType.IsChecked)
+        If ($AccessFilter)
         {
-            if ($combAccessCtrl.SelectedIndex -gt -1)
+            if ($AccessType.Length -gt 0)
             {
-            $sd = @($sd | Where-Object{$_.AccessControlType -eq $combAccessCtrl.SelectedItem})
+            $sd = @($sd | Where-Object{$_.AccessControlType -eq $AccessType})
             }
         }    
-        If ($chkBoxObject.IsChecked)
+
+        If ($ACLObjectFilter)
         {
-            if ($combObjectFilter.SelectedIndex -gt -1)
+            if ($ApplyTo.Length -gt 0)
             {
 
-                $sd = @($sd | Where-Object{($_.ObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($combObjectFilter.SelectedItem)) -or ($_.InheritedObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($combObjectFilter.SelectedItem))})
+                $sd = @($sd | Where-Object{($_.ObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($ApplyTo)) -or ($_.InheritedObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($ApplyTo))})
             }
         }
-        If ($chkBoxTrustee.IsChecked)
+
+        If ($ACLPermissionFilter)
         {
-            if ($txtFilterTrustee.Text.Length -gt 0)
+            if ($ACLPermissionFilter.Length -gt 0)
+            {
+                $sd = @($sd | Where-Object{$_.ActiveDirectoryRights -match $ACLPermissionFilter})
+            }
+        }
+
+        If ($FilterForTrustee)
+        {
+            if ($FilterTrustee.Length -gt 0)
             {
                 $sd = @($sd | Where-Object{if($_.IdentityReference -like "S-1-*"){`
-                $(ConvertSidToName -server $global:strDomainLongName -Sid $_.IdentityReference) -like $txtFilterTrustee.Text}`
-                else{$_.IdentityReference -like $txtFilterTrustee.Text}})
+                $(ConvertSidToName -server $global:strDomainLongName -Sid $_.IdentityReference) -like $FilterTrustee}`
+                else{$_.IdentityReference -like $FilterTrustee}})
             
             }
 
         }
-        If ($chkBoxFilterBuiltin.IsChecked)
-        {
-            # Filter out default and built-in security principals
-            $sd = @($sd | Where-Object{`
-                ($_.IdentityReference -match "S-1-5-21-") -and `
-                ($_.IdentityReference -notmatch $("^"+$domainsid+"-5\d{2}$")) -and 
-                ($_.IdentityReference -notmatch $("^"+$domainsid+"-4\d{2}$"))
-                }) 
-        }
-
 
     }
+
     if($FilterBuiltin)
     {
         # Filter out default and built-in security principals
@@ -11495,11 +11648,17 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                         {
 					    If ($bolCSV)
 					    {
-
                             $intCSV++
 
-				 		    WritePermCSV $sd[$index] $strDistinguishedName $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $false $bolToFile $GPO $GPOdisplayname $TranslateGUID
-
+                            if($OutType -eq "CSVTEMPLATE")
+                            {
+				 		        WritePermCSV $sd[$index] $strDistinguishedName $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $false $bolToFile $GPO $GPOdisplayname $TranslateGUID
+                            }
+                            else
+                            {
+                                $bolOUHeader = $false
+                                WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
+                            }
 
 				 	    }# End If
                         Else
@@ -11515,13 +11674,13 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				 	        if ($permcount -eq 0)
 				 	        {
                                 $bolOUHeader = $true    
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
 
 				 	        }
 				 	        else
 				 	        {
                                     $bolOUHeader = $false 
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
 
 				 	        }# End If
                         }
@@ -11549,7 +11708,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    {
                     $bolOUHeader = $false 
                     $GetOwnerEna = $false
-                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
+                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
                     #$aclcount++
 		 	    }
             }
@@ -11563,7 +11722,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             if (($permcount -eq 0) -and ($index -gt 0))
             {
                 $bolOUHeader = $true 
-	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPOdisplayname $bolShowCriticalityColor
+	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
                 $aclcount++
             }# End If
         }# End if bolCSVOnly
@@ -11604,23 +11763,52 @@ else
 
     if($bolCSV)
     {
-        if($bolCMD)
+        if($OutType -eq "CSVTEMPLATE")
         {
-            if($bolToFile)
+            if($bolCMD)
             {
-                Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
-                Write-output $strFileCSV
+                if($bolToFile)
+                {
+                    Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                    Write-output $strFileCSV
+                }
             }
-        }
-        else
-        {
-            $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
-        }
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
+            }
             #If Get-Perm was called with Show then open the CSV file.
             if($Show)
             {
 	            Invoke-Item $strFileCSV
             }
+        }
+        else
+        {
+            if($bolCMD)
+            {
+                if($bolToFile)
+                {
+                    $global:ArrayAllACE | export-csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                    Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                    Write-output $strFileCSV
+                }
+                else
+                {
+                    $global:ArrayAllACE
+                }
+            }
+            else
+            {
+                $global:ArrayAllACE | export-csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
+            }
+            #If Get-Perm was called with Show then open the CSV file.
+            if($Show)
+            {
+	            Invoke-Item $strFileCSV
+            }
+        }
     }
     else
     {
@@ -11752,7 +11940,7 @@ $secd = $null
 #==========================================================================
 Function Get-PermCompare
 {
-    Param([System.Collections.ArrayList]$ALOUdn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $Returns,[bool]$bolToFile,[bool]$bolShowCriticalityColor,[bool]$bolAssess,[string] $AssessLevel,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID)
+    Param([System.Collections.ArrayList]$AllObjectDn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $Returns,[bool]$bolToFile,[bool]$bolShowCriticalityColor,[bool]$bolAssess,[string] $AssessLevel,[bool]$GPO,[bool]$TranslateGUID)
 
 &{#Try
 $arrOUList = New-Object System.Collections.ArrayList
@@ -11769,6 +11957,15 @@ $SDUsnCheck = $false
 $ExitCompare = $false
 $sdOUProtect = ""
 $global:ArrayAllACE = New-Object System.Collections.ArrayList
+
+if(($OutType -eq "EXCEL") -or ($OutType -eq "CSV"))
+{
+  $WriteOut = "Object"
+}
+else
+{
+    $WriteOut = "HTML"
+}
 
 If ($bolAssess)
 {
@@ -11821,7 +12018,7 @@ if ($chkBoxTemplateNodes.IsChecked -eq $true)
         $arrOUListUnique = $arrOUListUnique -replace $txtReplaceDN.text,$global:strDomainDNName
 
     }
-    $ALOUdn = @($arrOUListUnique)
+    $AllObjectDn = @($arrOUListUnique)
 }
 
 If ($bolReplMeta -eq $true)
@@ -11887,7 +12084,7 @@ if($global:bolCMD)
 {
     $intTot = 0
     #calculate percentage
-    $intTot = $ALOUdn.count
+    $intTot = $AllObjectDn.count
 }
 else
 {
@@ -11895,7 +12092,7 @@ else
     {
         $intTot = 0
         #calculate percentage
-        $intTot = $ALOUdn.count
+        $intTot = $AllObjectDn.count
         if ($intTot -gt 0)
         {
         LoadProgressBar
@@ -11904,7 +12101,7 @@ else
     }
 }
 
-while($count -le $ALOUdn.count -1)
+while($count -le $AllObjectDn.count -1)
 {
     $global:GetSecErr = $false
     $global:secd = ""
@@ -11932,8 +12129,8 @@ while($count -le $ALOUdn.count -1)
     $GetOwnerEna = $bolGetOwnerEna
     if($GPO)
     {
-        $ADObjDN = $ALOUdn[$count].Split(";")[0]
-        $GPOTarget = $ALOUdn[$count].Split(";")[1]
+        $ADObjDN = $AllObjectDn[$count].Split(";")[0]
+        $GPOTarget = $AllObjectDn[$count].Split(";")[1]
         if($GPO)
         {
             $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
@@ -11956,7 +12153,7 @@ while($count -le $ALOUdn.count -1)
     }
     else
     {
-        $ADObjDN = $($ALOUdn[$count])
+        $ADObjDN = $($AllObjectDn[$count])
     }
     $OUdnorgDN = $ADObjDN 
 
@@ -12304,8 +12501,15 @@ while($count -le $ALOUdn.count -1)
                                         If ($bolCSV)
                                         {
                                             $intCSV++
-                                            WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
-
+                                            if($OutType -eq "CSVTEMPLATE")
+                                            {
+                                                WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                                            }
+                                            else
+                                            {
+                                                $bolOUHeader = $false               
+                                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                            }
                                         }# End If
                                         Else
                                         {
@@ -12313,11 +12517,11 @@ while($count -le $ALOUdn.count -1)
                                             {
                                                 $intAclOccurence++
                                                 $bolOUHeader = $true 
-                                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                             
                                             }
                                             $bolOUHeader = $false 
-                                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                                         }#End !$bolCSVOnly
                                     }#End Returns
                                 }
@@ -12361,11 +12565,10 @@ while($count -le $ALOUdn.count -1)
                     $strTemoObjectClass = $strObjectClass
                     $indexDef=0
                     while($indexDef -le $sdOUDef.count -1) {
-                                #if (($sdOUDef[$indexDef].IdentityReference -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                    if (($sdOUDef[$indexDef].PrincipalName -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                    {
 			                        $bolMatchDef = $true
-			                    }#} #End If
+			                    } #End If
                         $indexDef++
                     } #End While
                 }
@@ -12501,8 +12704,15 @@ while($count -le $ALOUdn.count -1)
 					    If ($bolCSV)
 					    {
                             $intCSV++
-				 		    WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
-
+                            if($OutType -eq "CSVTEMPLATE")
+                            {
+				 		        WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                            }
+                            else
+                            {
+                                $bolOUHeader = $false               
+                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                            }
 				 	    }# End If
                         Else
                         {
@@ -12510,11 +12720,11 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                         
                             }
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                         }#End !$bolCSVOnly
                         
                     }
@@ -12528,8 +12738,15 @@ while($count -le $ALOUdn.count -1)
                         If ($bolCSV)
 					    {
                             $intCSV++
-				 		    WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
-
+                            if($OutType -eq "CSVTEMPLATE")
+                            {
+				 		        WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                            }
+                            else
+                            {
+                                $bolOUHeader = $false               
+                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                            }
 				 	    }# End If
                         Else
                         {
@@ -12537,10 +12754,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                             }   
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                         }#End !$bolCSVO
                         }#End Returns
 
@@ -12748,8 +12965,15 @@ while($count -le $ALOUdn.count -1)
 					    If ($bolCSV)
 					    {
                             $intCSV++
-				 		    WritePermCSV $histSDObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
-
+                            if($OutType -eq "CSVTEMPLATE")
+                            {
+    				            WritePermCSV $histSDObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                            }
+                            else
+                            {
+                                $bolOUHeader = $false               
+                                WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                            }
 				 	    }# End If
                         Else
                         {                    
@@ -12757,10 +12981,10 @@ while($count -le $ALOUdn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                             }
                             $bolOUHeader = $false               
-                            WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                            WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                         }#End !$bolCSVOnly
                         }#End Returns
                         $histSDObject = ""
@@ -12817,7 +13041,7 @@ while($count -le $ALOUdn.count -1)
                 {   
                     if($SkipDefaultPerm -or $bolCompareDelegation) 
                     {
-                        $strDelegationNotation = "Out of Policy"
+                        $strDelegationNotation = "Node not in file"
 
 
                         If (($strNTAccount -eq $global:strOwnerTemplate) -and ($sdObject.ActiveDirectoryRights -eq "Read permissions, Modify permissions") -and ($sdObject.AccessControlType -eq "Owner") -and ($sdObject.ObjectType -eq "None") -and ($sdObject.InheritanceType -eq "None") -and ($sdObject.InheritedObjectType -eq "None"))
@@ -12834,8 +13058,16 @@ while($count -le $ALOUdn.count -1)
 				            If ($bolCSV)
 					        {
                                 $intCSV++
-				 		        WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
-
+				 		        
+                                if($OutType -eq "CSVTEMPLATE")
+                                {
+    				                WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                                }
+                                else
+                                {
+                                    $bolOUHeader = $false               
+                                    WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                }
 				 	        }# End If
                             Else
                             {   
@@ -12843,10 +13075,10 @@ while($count -le $ALOUdn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                                 }
                                 $bolOUHeader = $false 
-                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                             }#End !$bolCSVOnly
                         }
                     }
@@ -12866,8 +13098,16 @@ while($count -le $ALOUdn.count -1)
  				            If ($bolCSV)
 					        {
                                 $intCSV++
-				 		        WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                                if($OutType -eq "CSVTEMPLATE")
+                                {
+    				                WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                                }
+                                else
 
+                                {
+                                    $bolOUHeader = $false               
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                }
 				 	        }# End If
                             Else
                             {   
@@ -12875,10 +13115,10 @@ while($count -le $ALOUdn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                                 }
                                 $bolOUHeader = $false                  
-                                WriteOUT $true $MissingOUSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $true $MissingOUSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                             }#End !$bolCSVOnly
                         }#End Returns
                         }
@@ -12959,8 +13199,17 @@ while($count -le $ALOUdn.count -1)
             $intReturned++
             If ($bolCSV)
 			{
-                $intCSV++
-				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                if($OutType -eq "CSVTEMPLATE")
+                {
+    				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                }
+                else
+
+                {
+                    $bolOUHeader = $false               
+                    WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                }
+
 
 			}# End If
             Else
@@ -12969,10 +13218,10 @@ while($count -le $ALOUdn.count -1)
                 {
                     $intAclOccurence++
                     $bolOUHeader = $true 
-                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
                 }
                 $bolOUHeader = $false               
-                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
             }#End !$bolCSVOnly
             $histSDObject = ""
         }
@@ -12980,7 +13229,7 @@ while($count -le $ALOUdn.count -1)
     }
   }#End if adobject missing name
   $count++
-}# End While $ALOUdn.count
+}# End While $AllObjectDn.count
 
 if (($count -gt 0))
 {
@@ -12999,25 +13248,55 @@ if (($count -gt 0))
     
         if($intReturned -gt 0)
         {
-        if($bolCSV)
-        {
-            if($bolCMD)
+            if($bolCSV)
             {
-                if($bolToFile)
+                if($OutType -eq "CSVTEMPLATE")
                 {
-                    Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
-                    Write-output $strFileCSV
+                    if($bolCMD)
+                    {
+                        if($bolToFile)
+                        {
+                            Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                            Write-output $strFileCSV
+                        }
+                    }
+                    else
+                    {
+                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
+                    }
+                    #If Get-Perm was called with Show then open the CSV file.
+                    if($Show)
+                    {
+	                    Invoke-Item $strFileCSV
+                    }
+                }
+                else
+                {
+                    if($bolCMD)
+                    {
+                        if($bolToFile)
+                        {
+                            $global:ArrayAllACE | export-csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                            Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                            Write-output $strFileCSV
+                        }
+                        else
+                        {
+                            $global:ArrayAllACE
+                        }
+                    }
+                    else
+                    {
+                        $global:ArrayAllACE | export-csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
+                    }
+                    #If Get-Perm was called with Show then open the CSV file.
+                    if($Show)
+                    {
+	                    Invoke-Item $strFileCSV
+                    }
                 }
             }
-            else
-            {
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
-            }
-            if($Show)
-            {
-                Invoke-Item $strFileCSV
-            }            
-        }
         else
         {
             #If excel output
@@ -13314,7 +13593,7 @@ If(Test-Path $CSVInput)
             {
   
                 $bolOUHeader = $true   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
    
     
                 $tmpOU = $strOU
@@ -13322,7 +13601,7 @@ If(Test-Path $CSVInput)
             else
             {
                 $bolOUHeader = $false   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $strFileEXCEL $OutType $GPO $GPODisplayname $bolShowCriticalityColor
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
 
 
             }
@@ -13815,7 +14094,8 @@ if($intNumberofDefSDFound  -gt 0)
         #If excel output
         if($OutType -eq "EXCEL")
         {
-            $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname "DefaultSD" -BoldTopRow -TableStyle Medium2 -TableName "defaultsdacltbl" -NoLegend -AutoSize -FreezeTopRow -Append
+            $global:ArrayAllACE 
+            #| Export-Excel -path $strFileEXCEL -WorkSheetname "DefaultSD" -BoldTopRow -TableStyle Medium2 -TableName "defaultsdacltbl" -NoLegend -AutoSize -FreezeTopRow -Append
             
             if($bolCMD)
             {
@@ -14537,7 +14817,7 @@ else
     }
     else
     {
-        $global:strPinDomDC = $(GetDomainController $global:strDomainPrinDNName $false)
+        $global:strPinDomDC = $global:strDC
         $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $false)
     }
 }
@@ -14606,9 +14886,13 @@ else
 return $SPFound
 }
 
-
-
-function LoadProgressBar
+#==========================================================================
+# Function		: LoadProgressBar
+# Arguments     : n/a
+# Returns   	: n/a
+# Description   : Open up a progress bar in a XAML window
+#==========================================================================
+Function LoadProgressBar
 {
 $global:ProgressBarWindow = [hashtable]::Synchronized(@{})
 $newRunspace =[runspacefactory]::CreateRunspace()
@@ -14662,6 +14946,13 @@ $psCmd.Runspace = $newRunspace
 
 
 }
+
+#==========================================================================
+# Function		: Update-ProgressBar
+# Arguments     : n/a
+# Returns   	: n/a
+# Description   : Update progress bar in a XAML window
+#==========================================================================
 Function Update-ProgressBar
 {
 Param ($txtlabel,$valProgress)
@@ -14676,6 +14967,222 @@ Param ($txtlabel,$valProgress)
         }
 
 }
+
+#==========================================================================
+# Function		: Find-RiskyTemplates
+# Arguments     : Configuration partition distinguishedname
+# Returns   	: An array of distinguishednames for templates that are published
+# Description   : Find and returns an array of distinguishednames for templates that are published and have supply in request without certificate manage approval
+#==========================================================================
+Function Find-RiskyTemplates
+{
+    Param(
+    [Parameter(Mandatory=$true, 
+                ValueFromPipeline=$true,
+                ValueFromPipelineByPropertyName=$true, 
+                ValueFromRemainingArguments=$false, 
+                Position=0,
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $ConfigurationDN="")
+
+    #array Published templates names
+    $arrPublishedPKITemplates = New-Object System.Collections.ArrayList
+
+    #array Published templates DN
+    $arrPublishedTemplatesDN = New-Object System.Collections.ArrayList
+
+    # Search published for PKI templates
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection.SessionOptions.ReferralChasing = "None"
+    $SearchFilter = "(objectClass=pKIEnrollmentService)"
+    $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Enrollment Services,CN=Public Key Services,CN=Services,$ConfigurationDN", $SearchFilter, "OneLevel")
+    [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
+    $request.Controls.Add($pagedRqc) | Out-Null
+    [void]$request.Attributes.Add("certificatetemplates")
+
+    while ($true)
+    {
+        $response = $LdapConnection.SendRequest($request, (new-object System.Timespan(0,0,$global:TimeoutSeconds))) -as [System.DirectoryServices.Protocols.SearchResponse];
+                
+        #for paged search, the response for paged search result control - we will need a cookie from result later
+        if($global:PageSize -gt 0) {
+            [System.DirectoryServices.Protocols.PageResultResponseControl] $prrc=$null;
+            if ($response.Controls.Length -gt 0)
+            {
+                foreach ($ctrl in $response.Controls)
+                {
+                    if ($ctrl -is [System.DirectoryServices.Protocols.PageResultResponseControl])
+                    {
+                        $prrc = $ctrl;
+                        break;
+                    }
+                }
+            }
+            if($null -eq $prrc) {
+                #server was unable to process paged search
+                throw "Find-LdapObject: Server failed to return paged response for request $SearchFilter"
+            }
+        }
+        #now process the returned list of distinguishedNames and fetch required properties using ranged retrieval
+        $colResults = $response.Entries
+	    foreach ($objResult in $colResults)
+	    {             
+		    for($i=0;$i -lt $objResult.attributes.certificatetemplates.count;$i++)
+            {
+                [void]$arrPublishedPKITemplates.Add($objResult.attributes.certificatetemplates[$i])
+            }
+
+
+        }
+        if($global:PageSize -gt 0) {
+            if ($prrc.Cookie.Length -eq 0) {
+                #last page --> we're done
+                break;
+            }
+            #pass the search cookie back to server in next paged request
+            $pagedRqc.Cookie = $prrc.Cookie;
+        } else {
+            #exit the processing for non-paged search
+            break;
+        }
+    }#End While
+
+    #if any results found in published template names continue to a search for the object
+    if($arrPublishedPKITemplates)
+    {
+        # For each template name searc for the object
+        Foreach($PublishedTemplate in $arrPublishedPKITemplates)
+        {
+            # Search for PKI templates objects
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+            $LDAPConnection.SessionOptions.ReferralChasing = "None"
+            $SearchFilter = "(&(objectClass=pKICertificateTemplate)(cn=$PublishedTemplate)(msPKI-Certificate-Name-Flag=1)(msPKI-Certificate-Application-Policy=1.3.6.1.5.5.7.3.2))"
+            $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigurationDN", $SearchFilter, "OneLevel")
+            [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
+            $request.Controls.Add($pagedRqc) | Out-Null
+            [void]$request.Attributes.Add("mspki-enrollment-flag")
+            
+
+            $arrPublishedPKITemplates = New-Object System.Collections.ArrayList
+            while ($true)
+            {
+                $response = $LdapConnection.SendRequest($request, (new-object System.Timespan(0,0,$global:TimeoutSeconds))) -as [System.DirectoryServices.Protocols.SearchResponse];
+                
+                #for paged search, the response for paged search result control - we will need a cookie from result later
+                if($global:PageSize -gt 0) {
+                    [System.DirectoryServices.Protocols.PageResultResponseControl] $prrc=$null;
+                    if ($response.Controls.Length -gt 0)
+                    {
+                        foreach ($ctrl in $response.Controls)
+                        {
+                            if ($ctrl -is [System.DirectoryServices.Protocols.PageResultResponseControl])
+                            {
+                                $prrc = $ctrl;
+                                break;
+                            }
+                        }
+                    }
+                    if($null -eq $prrc) {
+                        #server was unable to process paged search
+                        throw "Find-LdapObject: Server failed to return paged response for request $SearchFilter"
+                    }
+                }
+                #now process the returned list of distinguishedNames and fetch required properties using ranged retrieval
+                $colResults = $response.Entries
+	            foreach ($objResult in $colResults)
+	            {             
+		            for($i=0;$i -le $objResult.attributes.certificatetemplates.count;$i++)
+                    {
+                        $strEnrollmentFlag = $(GetEnrollmentFlag $objResult.attributes.'mspki-enrollment-flag'[0])
+                        if(($strEnrollmentFlag -eq "") -or (-not($strEnrollmentFlag -match  "CT_FLAG_PEND_ALL_REQUESTS")))
+                        {
+                            [void]$arrPublishedTemplatesDN.Add($objResult.distinguishedname)
+                        }
+                    }
+
+
+                }
+                if($global:PageSize -gt 0) {
+                    if ($prrc.Cookie.Length -eq 0) {
+                        #last page --> we're done
+                        break;
+                    }
+                    #pass the search cookie back to server in next paged request
+                    $pagedRqc.Cookie = $prrc.Cookie;
+                } else {
+                    #exit the processing for non-paged search
+                    break;
+                }
+            }#End While
+        }
+    }
+    
+    # Return all published template objects
+    return $arrPublishedTemplatesDN
+    
+}
+
+#==========================================================================
+# Function		: GetEnrollmentFlag 
+# Arguments     : Enrollment flags of a certificate template
+# Returns   	: String of the translated values
+# Description   : Returns a certificate enrollment flag status
+#==========================================================================
+Function GetEnrollmentFlag ($EnrollmentFlag)
+{
+
+
+[string] $strStatus = ""
+
+if ($EnrollmentFlag -band 0x00000001)
+{ $strStatus = $strStatus + ",CT_FLAG_INCLUDE_SYMMETRIC_ALGORITHMS"}
+if ($EnrollmentFlag -band 0x00000002)
+{ $strStatus = $strStatus + ",CT_FLAG_PEND_ALL_REQUESTS"}
+if ($EnrollmentFlag -band 0x00000004)
+{ $strStatus = $strStatus + ",CT_FLAG_PUBLISH_TO_KRA_CONTAINER"}
+if ($EnrollmentFlag -band 0x00000008)
+{ $strStatus = $strStatus + ",CT_FLAG_PUBLISH_TO_DS"}
+if ($EnrollmentFlag -band 0x00000010)
+{ $strStatus = $strStatus + ",CT_FLAG_AUTO_ENROLLMENT_CHECK_USER_DS_CERTIFICATE"}
+if ($EnrollmentFlag -band 0x00000020)
+{ $strStatus = $strStatus + ",CT_FLAG_AUTO_ENROLLMENT"}
+if ($EnrollmentFlag -band 0x00000040)
+{ $strStatus = $strStatus + ",CT_FLAG_PREVIOUS_APPROVAL_VALIDATE_REENROLLMENT"}
+if ($EnrollmentFlag -band 0x00000100)
+{ $strStatus = $strStatus + ",CT_FLAG_USER_INTERACTION_REQUIRED"}
+if ($EnrollmentFlag -band 0x00000400)
+{ $strStatus = $strStatus + ",CT_FLAG_REMOVE_INVALID_CERTIFICATE_FROM_PERSONAL_STORE"}
+if ($EnrollmentFlag -band 0x00000800)
+{ $strStatus = $strStatus + ",CT_FLAG_ALLOW_ENROLL_ON_BEHALF_OF"}
+if ($EnrollmentFlag -band 0x00001000)
+{ $strStatus = $strStatus + ",CT_FLAG_ADD_OCSP_NOCHECK"}
+if ($EnrollmentFlag -band 0x00002000)
+{ $strStatus = $strStatus + ",CT_FLAG_ENABLE_KEY_REUSE_ON_NT_TOKEN_KEYSET_STORAGE_FULL"}
+if ($EnrollmentFlag -band 0x00004000)
+{ $strStatus = $strStatus + ",CT_FLAG_NOREVOCATIONINFOINISSUEDCERTS"}
+if ($EnrollmentFlag -band 0x00008000)
+{ $strStatus = $strStatus + ",CT_FLAG_INCLUDE_BASIC_CONSTRAINTS_FOR_EE_CERTS"}
+if ($EnrollmentFlag -band 0x00010000)
+{ $strStatus = $strStatus + ",CT_FLAG_ALLOW_PREVIOUS_APPROVAL_KEYBASEDRENEWAL_VALIDATE_REENROLLMENT"}
+if ($EnrollmentFlag -band 0x00020000)
+{ $strStatus = $strStatus + ",CT_FLAG_ISSUANCE_POLICIES_FROM_REQUEST"}
+if ($EnrollmentFlag -band 0x00040000)
+{ $strStatus = $strStatus + ",CT_FLAG_SKIP_AUTO_RENEWAL"}
+
+
+[int] $index = $strStatus.IndexOf(",")
+If($index -eq 0)
+{
+$strStatus = $strStatus.substring($strStatus.IndexOf(",") + 1, $strStatus.Length -1 )
+}
+
+
+return $strStatus
+
+}#End function
 
 
 
@@ -14711,13 +15218,54 @@ if($base -or $GPO)
     {
         $Show = $false
     }
+
+    if($AccessType.Length -gt 0)
+    {
+        $AccessFilter = $true
+    }
+    else
+    {
+        $AccessFilter = $false
+    }
+
+    if($ApplyTo.Length -gt 0)
+    {
+        $ACLObjectFilter = $true
+    }
+    else
+    {
+        $ACLObjectFilter = $false
+    }
+
+    if($FilterTrustee.Length -gt 0)
+    {
+        $FilterForTrustee = $true
+    }
+    else
+    {
+        $FilterForTrustee = $false
+    }
+
+    if($FilterForTrustee -or $ACLObjectFilter -or $AccessFilter)
+    {
+        $ACLFilter = $True
+    }
+    else
+    {
+        $ACLFilter= $False
+    }
+
     $global:bolProgressBar = $false
     #Connect to Custom Naming Context
     $global:bolCMD = $true
  
     if (($base.Length -gt 0) -or ($GPO))
     {
-        $strNamingContextDN = $base
+
+        if($base -ne "RootDSE")
+        {
+            $strNamingContextDN = $base
+        }
         if($Server -eq "")
         {
             if($Port -eq "")
@@ -14958,23 +15506,29 @@ if($base -or $GPO)
     
         }
 
-        if($GPO)
+        if($GPO -or ($base -eq "RootDSE"))
         {
-            if($base -eq "")
+            if(($base -eq "") -or ($base -eq "RootDSE"))
             {
                 $base = $global:strDomainDNName
             }
         }
 
 
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest($base, "(objectClass=*)", "base")
         [void]$request.Attributes.Add("name")               
         $response = $LDAPConnection.SendRequest($request)
 
+        try
+        {
         #Set search base as the name of the output file
         $strNode = fixfilename $response.Entries[0].Attributes.name[0]
+        }
+        catch
+        {
+        }
         
 	    if($GPO)
         {
@@ -14994,7 +15548,7 @@ if($base -or $GPO)
                 Trap [SystemException]
                 {
                     $strCSVErr = $_.Exception.Message
-                    Write-Host "Failed to load CSV3. $strCSVErr" -ForegroundColor Red
+                    Write-Host "Failed to load CSV. $strCSVErr" -ForegroundColor Red
                     $global:bolCSVLoaded = $false
                     continue
                 }   
@@ -15112,16 +15666,31 @@ if($base -or $GPO)
         
         #Get current date
         $date= get-date -uformat %Y%m%d_%H%M%S
-
-        if(-not($GPO))
+        
+        if($ACLObjectFilter)
         {
-            #Get all LDAP objects to read ACL's on
-            $allSubOU = GetAllChildNodes $base $Scope $Filter
+            GetSchemaObjectGUID  -Domain $global:strDomainDNName
+        }
+
+        if($Targets)
+        {
+            if($Targets -eq "RiskyTemplates")
+            {
+                $allSubOU = Find-RiskyTemplates -ConfigurationDN $global:ConfigDN
+            }
         }
         else
         {
-            #Get all LDAP objects to read ACL's on
-            $allSubOU = GetAllChildNodes $base $Scope "(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))"
+            if(-not($GPO))
+            {
+                #Get all LDAP objects to read ACL's on
+                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter $Filter)
+            }
+            else
+            {
+                #Get all LDAP objects to read ACL's on
+                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter "(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))")
+            }
         }
 
         if($CanonicalNames)
@@ -15156,7 +15725,7 @@ if($base -or $GPO)
                 $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
             }
             $bolAssess = if($Criticality){$true}else{$false} 
-            if(($Output -eq "CSV")  -or ($Output -eq "HTML") -or ($Output -eq "EXCEL"))
+            if(($Output -eq "CSV") -or ($Output -eq "CSVTEMPLATE")  -or ($Output -eq "HTML") -or ($Output -eq "EXCEL"))
             {
                 $file = $true
                 # Check if HTML switch is selected , creates a HTML file
@@ -15204,7 +15773,7 @@ if($base -or $GPO)
                     }
                     else
                     {
-                        Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "HTML" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -Access $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
                     }
 
                     Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
@@ -15263,9 +15832,24 @@ if($base -or $GPO)
                             }
                             else
                             {
-                                Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $SDDate $false $Owner $SDDate $false $bolEffective $Protected $false $Show "EXCEL" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "EXCEL" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
                             }
                         }
+                    }
+                "CSVTEMPLATE"
+                    {
+                        $bolCSV = $true
+                        if($Template)
+                        {
+                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                        }
+                        else
+                        {
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                           
+                        }
+                        
+
                     }
                 default
                     {
@@ -15276,7 +15860,7 @@ if($base -or $GPO)
                         }
                         else
                         {
-                            Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
                             
                         }
                         
@@ -15287,16 +15871,34 @@ if($base -or $GPO)
             }
             else
             {
-                $bolCSV = $true
-                $file = $false
-                if($Template)
+                if($RAW)
                 {
-                    Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                    $bolCSV = $true
+                    $file = $false
+                    if($Template)
+                    {
+                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                    }
+                    else
+                    {
+                        
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                    }
                 }
                 else
                 {
-                    Get-Perm $allSubOU $global:strDomainShortName $IncludeInherited $SkipDefaults $false $false $Owner $SDDate $false $bolEffective $Protected $false $Show "CSV" $file $bolAssess $Criticality $ShowCriticalityColor $GPO $SkipBuiltIn $Translate $RecursiveFind $RecursiveObjectType
+                    $bolCSV = $true
+                    $file = $false
+                    if($Template)
+                    {
+                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                    }
+                    else
+                    {
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                    }
                 }
+
             }
         }
         else
