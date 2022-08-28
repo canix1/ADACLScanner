@@ -1,14 +1,19 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 7.0**
+**Version: 7.1**
 
-**22 July, 2022**
+**28 Augst, 2022**
 
-**SHA256:** 43EE6AFD2358BFE169B627B3336559FD6AC678F518501BB97305BFEAF3320D8C
-
+**SHA256:** 6BF82CF9845C649557FC02D1E3D0B6A9FB4F827CC7815BF477DD0CB51246DA45
 
 *New Features*
+* Connect using credentials from CLI
+
+**Fixed issues**
+* Get-Perm function, argument's name "Access" is not correct.
+
+*7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan7.0_Permission.png)
