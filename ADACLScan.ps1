@@ -20,12 +20,17 @@
 .EXAMPLE
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM"
 
-    Create a CSV file with the permissions of the object CORP.
+    Returns the permissions of the object CORP.
 
 .EXAMPLE
     .\ADACLScan.ps1 -Base rootdse
 
     Returns the ACL of the domain root.
+
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Credentials $CREDS -Server 10.0.0.20
+
+    Returns the permissions of the object CORP using credentials on Domain Controller 10.0.0.20.
 
 .EXAMPLE
     .\ADACLScan.ps1 -Base "OU=CORP,DC=CONTOS,DC=COM" -Output HTML
@@ -94,18 +99,15 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.0**
+    **Version: 7.1**
 
-    **22 July, 2022**
+    **28 August, 2022**
 
    *New Features*
-   * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
-   * From the CLI you can select Target and select RiskyTemplates to scan published certificate templates with "supply in request".
-   * The default output from CLI is structured and translated
-   * The default csv file output option is structured and translated and cannot be used for comparing.
-   * New output option for comparing that is called CSVTEMPLATE from CLI and "CSV Template" in GUI.
-   * Old CLI output format is produced by using the -RAW switch
+   * Connect using credentials from CLI
 
+   **Fixed issues**
+   * Get-Perm function, argument's name "Access" is not correct.
 
 #>
 Param
@@ -204,6 +206,7 @@ Param
     $OutputFolder,
 
     # Template to compare with.
+    # This parameter will allow you compare the current state of a security descriptor with a previos created tempate.
     [Parameter(Mandatory=$false, 
                 Position=8,
                 ParameterSetName='Default')]
@@ -212,17 +215,24 @@ Param
     [String] 
     $Template,
 
-    # Template to compare with.
+    # Filter what to return when comparing with a template.
+    # This parameter will allow you to filter the out put on "ALL", "MATCH", "MISSING","NEW"
+    # Example 1. -Returns "ALL"
+    # Example 2. -Returns "MATCH"
+    # Example 3. -Returns "MISSING"
+    # Example 4. -Returns "NEW"
     [Parameter(Mandatory=$false, 
                 Position=8,
                 ParameterSetName='Default')]
-    [ValidateSet("ALL", "MATCH", "NEW","MISSING")]
+    [ValidateSet("ALL", "MATCH", "MISSING","NEW")]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
     $Returns="ALL",
 
-    # Template to compare with.
+    # User ExcelFile to defined your own path for the excel output
+    # This parameter will allow you to type the excel file path.
+    # Example 1. -ExcelFile "C:\Temp\ExcelOutput.xlsx"
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -231,6 +241,7 @@ Param
     $ExcelFile="",
 
     # Filter on Criticality.
+    # This parameter will filter the result based on a defined criticality level
     [Alias("c")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -241,6 +252,7 @@ Param
     $Criticality="",
     
     # Show color of criticality
+    # This parameter will add colors to the report if you selected HTML or EXCEL using the -OUTPUT parameter
     [Alias("color")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -250,6 +262,7 @@ Param
     $ShowCriticalityColor,
 
     # Skip default permissions
+    # This parameter will skip permissions that match the permissions defined in the schema partition for the object
     [Alias("sd")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -259,6 +272,7 @@ Param
     $SkipDefaults,
 
     # Skip Built-in security principals
+    # This parameter will skip permissions that match the built in groups
     [Alias("sb")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -268,6 +282,7 @@ Param
     $SkipBuiltIn,
 
     # Expand groups
+    # This parameter will search any nested groups to show all security prinicpals that have access.
     [Alias("rf")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -276,7 +291,8 @@ Param
     [switch] 
     $RecursiveFind,
 
-    # Filter on Criticality.
+    # Filter on RecursiveObjectType.
+    # This parameter will filter the nested groups to show only users that have access.
     [Alias("ro")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -286,7 +302,8 @@ Param
     [String] 
     $RecursiveObjectType="*",
 
-    # Skip Built-in security principals
+    # Translate GUIDs
+    # This parameter will translate any GUIDs if necessary
     [Alias("tr")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -296,6 +313,7 @@ Param
     $Translate,
 
     # Get Group Policy Objects linked 
+    # This parameter will let you search permissions on group policy objects that are linked to the path you have selected
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -304,6 +322,7 @@ Param
     $GPO,
             
     # Open HTML report
+    # This parameter will open the out report if you selected one using the -OUTPUT parameter
     [Alias("s")]
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
@@ -313,6 +332,7 @@ Param
     $Show,
 
     # Include Security Descriptor modified date in report
+    # This parameter will include the date when the security descriptor was last changed
     [Parameter(Mandatory=$false, 
                 ParameterSetName='Default')]
     [ValidateNotNull()]
@@ -321,6 +341,7 @@ Param
     $SDDate,
 
     # Include Owner in report
+    # This parameter will make the scan to search the owner section in the security descriptor.
     [Alias("o")]
     [Parameter(Mandatory=$false, 
     ParameterSetName='Default')]
@@ -339,6 +360,7 @@ Param
     $CanonicalNames,
 
     # Include if inheritance is disabled in report
+    # This parameter will add information in the report whether the object have disabled it's inheritnace 
     [Alias("p")]
     [Parameter(Mandatory=$false, 
     ParameterSetName='Default')]
@@ -348,6 +370,7 @@ Param
     $Protected,
 
     # Scan Default Security Descriptor
+    # This parameter will make AD ACL Scanner to search the schema partition for security descriptors of all objects.
     [Alias("dsd")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
@@ -355,15 +378,19 @@ Param
     [switch] 
     $DefaultSecurityDescriptor,
 
-    # Filter Default Security Descriptor on ObjectName
-    [Alias("on")]
+    # Filter Default Security Descriptor on a schema object
+    # This parameter let you select the schema object you would like to see the default security descriptor on.
+    # Example 1. -SchemaObjectName "User"
+    # Example 2. -SchemaObjectName "Computer"
+    [Alias("son")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $ObjectName="*",
+    $SchemaObjectName="*",
 
     # Filter Default Security Descriptor on modified with version number higher than 1
+    # This parameter will check the metadata of the NTSecurityDescriptor if it have ever been changed, basically have a version number higher than 1.
     [Alias("om")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
@@ -372,6 +399,7 @@ Param
     $OnlyModified,
 
     # Include inherited permissions
+    # By default only explicit permissions are shown
     [Alias("in")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
@@ -380,6 +408,7 @@ Param
     $IncludeInherited,
 
     # Returns ACE's in the format that .Net presents access permissions
+    # Use this option if you would like to create a template for compairson
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
@@ -387,6 +416,8 @@ Param
     $RAW,
 
     # Filter ACL for access type
+    # Example 1. -AccessType "Allow"
+    # Example 2. -AccessType "Deny"
     [Alias("acc")]
     [Parameter(Mandatory=$false)]
     [ValidateSet("Allow", "Deny")]
@@ -396,6 +427,8 @@ Param
     $AccessType,
 
     # Filter ACL for a specific permission
+    # Example 1. -Permissions "WriteProperty"
+    # Example 2. -Permissions "GenericAll"
     [Alias("perm")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
@@ -404,6 +437,8 @@ Param
     $Permission,
 
     # Filter ACL ObjectName
+    # Example 1. -ApplyTo computer
+    # Example 2. -ApplyTo user
     [Alias("at")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
@@ -412,12 +447,19 @@ Param
     $ApplyTo="",
 
     # Filter ACL for matching strings in Trustee
+    # Example 1 -FilterTrustee "*Domain*"
+    # Example 1 -FilterTrustee "contoso\user1"
     [Alias("ft")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $FilterTrustee=""
+    $FilterTrustee="",
+
+    # Add Credentials to the command by first creating a pscredential object like for example $CREDS = get-credential
+    [Parameter(Mandatory=$false)]
+    [PSCredential] 
+    $Credentials
 
 )
 
@@ -704,7 +746,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.0" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.1" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -1197,7 +1239,7 @@ $global:strEffectiveRightAccount = ""
 $global:strSPNobjectClass = ""
 $global:tokens = New-Object System.Collections.ArrayList
 $global:tokens.Clear()
-$global:strDommainSelect = "rootDSE"
+$global:strDomainSelect = "rootDSE"
 $global:bolTempValue_InhertiedChkBox = $false
 [void]$combReturns.Items.Add("ALL")
 [void]$combReturns.Items.Add("NEW")
@@ -1221,6 +1263,8 @@ $combRecursiveFind.SelectedValue="*"
 [void]$combObjectDefSD.Items.Add("All Objects")
 $combObjectDefSD.SelectedValue="All Objects"
 
+$CREDS = $null
+$script:CREDS = $null
 ###################
 #TODO: Place custom script here
 
@@ -1355,7 +1399,7 @@ $btnGetForestInfo.add_Click({
 
     if ($global:bolConnected -eq $true)
     {
-        Get-SchemaData $global:CREDS
+        Get-SchemaData -CREDS $CREDS
         $global:observableCollection.Insert(0,(LogMessage -strMessage "Information collected!" -strType "Info" -DateStamp ))
     }
         else
@@ -1373,7 +1417,7 @@ $btnGetSchemaClass.add_Click(
 
     if ($global:bolConnected -eq $true)
     {
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $SearchFilter = "(objectClass=classSchema)"
         $request = New-Object System.directoryServices.Protocols.SearchRequest("$global:SchemaDN", $SearchFilter, "Subtree")
@@ -1451,7 +1495,7 @@ $btnExportDefSD.add_Click(
     {
         $global:observableCollection.Insert(0,(LogMessage -strMessage "Scanning..." -strType "Info" -DateStamp ))
         $strFileCSV = $txtTempFolder.Text + "\" +$global:strDomainShortName + "_DefaultSecDescriptor" + $date + ".csv" 
-        Write-DefaultSDCSV $strFileCSV
+        Write-DefaultSDCSV -fileout $strFileCSV -CREDS $CREDS
         $global:observableCollection.Insert(0,(LogMessage -strMessage "Finished" -strType "Info" -DateStamp ))
     }
         else
@@ -1497,7 +1541,7 @@ $btnCompDefSD.add_Click(
                         $strSelectedItem = "*"
                     }
                     $global:observableCollection.Insert(0,(LogMessage -strMessage "Scanning..." -strType "Info" -DateStamp ))
-                    Get-DefaultSDCompare $strSelectedItem $strDefaultSDCompareFile
+                    Get-DefaultSDCompare -strObjectClass $strSelectedItem -strTemplate $strDefaultSDCompareFile -CREDS $CREDS
                     $global:observableCollection.Insert(0,(LogMessage -strMessage "Finished" -strType "Info" -DateStamp ))
                 }
                 else
@@ -1573,7 +1617,7 @@ $btnScanDefSD.add_Click(
             InitiateDefSDAccessHTM $strFileDefSDHTM $strSelectedItem $bolReplMeta $false "" $bolShowCriticalityColor
         }
 
-        Get-DefaultSD -strObjectClass $strSelectedItem -bolChangedDefSD $chkModifedDefSD.IsChecked -bolSDDL $rdbDefSD_SDDL.IsChecked -Show $true -File $strFileDefSDHTM -OutType "HTML" -bolShowCriticalityColor $bolShowCriticalityColor -Assess $chkBoxSeverity.IsChecked -Criticality $combServerity.SelectedItem -bolReplMeta $bolReplMeta
+        Get-DefaultSD -strObjectClass $strSelectedItem -bolChangedDefSD $chkModifedDefSD.IsChecked -bolSDDL $rdbDefSD_SDDL.IsChecked -Show $true -File $strFileDefSDHTM -OutType "HTML" -bolShowCriticalityColor $bolShowCriticalityColor -Assess $chkBoxSeverity.IsChecked -Criticality $combServerity.SelectedItem -bolReplMeta $bolReplMeta -CREDS $CREDS
         
         $global:observableCollection.Insert(0,(LogMessage -strMessage "Finished" -strType "Info" -DateStamp ))
 
@@ -1623,7 +1667,7 @@ $btnGetSPAccount.add_Click(
 
         If (!($txtBoxSelectPrincipal.Text -eq ""))
         {
-            GetEffectiveRightSP $txtBoxSelectPrincipal.Text $global:strDomainPrinDNName
+            GetEffectiveRightSP $txtBoxSelectPrincipal.Text $global:strDomainPrinDNName -CREDS $CREDS
         }
         else
         {
@@ -1643,7 +1687,7 @@ $btnListDdomain.add_Click(
 
 GenerateDomainPicker
 
-$txtBoxDomainConnect.Text = $global:strDommainSelect
+$txtBoxDomainConnect.Text = $global:strDomainSelect
 
 })
 
@@ -1652,7 +1696,7 @@ $btnListLocations.add_Click(
 
     if ($global:bolConnected -eq $true)
     {
-        GenerateTrustedDomainPicker
+        GenerateTrustedDomainPicker -CREDS $CREDS
     }
         else
     {
@@ -1897,7 +1941,7 @@ $rdbDSSchm.add_Click(
     $btnListDdomain.IsEnabled = $false
      If($rdbDSdef.IsChecked -eq $true)
     {
-        $txtBoxDomainConnect.Text = $global:strDommainSelect
+        $txtBoxDomainConnect.Text = $global:strDomainSelect
         $btnListDdomain.IsEnabled = $true
         $txtBdoxDSServerPort.IsEnabled = $false
         $txtBdoxDSServer.IsEnabled = $false
@@ -1990,7 +2034,7 @@ $rdbDSdef.add_Click(
         {
             $txtBdoxDSServerPort.IsEnabled = $false
             $txtBdoxDSServer.IsEnabled = $false
-            $txtBoxDomainConnect.Text = $global:strDommainSelect
+            $txtBoxDomainConnect.Text = $global:strDomainSelect
             $btnListDdomain.IsEnabled = $true
 
 
@@ -2096,7 +2140,7 @@ $btnDSConnect.add_Click(
 if($chkBoxCreds.IsChecked)
 {
 
-$global:CREDS = Get-Credential -Message "Type User Name and Password"
+$script:CREDS = Get-Credential -Message "Type User Name and Password"
 $Window.Activate()
 
 }
@@ -2124,7 +2168,7 @@ $txtrootdomainnamingcontext.text = ""
             if ($null -eq $global:TempDC)
             {
                 $strNamingContextDN = $txtBoxDomainConnect.Text
-                If(CheckDNExist $strNamingContextDN "")
+                If(CheckDNExist -sADobjectName $strNamingContextDN -strDC "" -CREDS $CREDS)
                 {
                 $root = New-Object system.directoryservices.directoryEntry("LDAP://"+$strNamingContextDN)
                 $global:strDomainDNName = $root.distinguishedName.tostring()
@@ -2134,7 +2178,7 @@ $txtrootdomainnamingcontext.text = ""
                 $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strDomainLongName )
                 $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
                 $global:strDC = $($ojbDomain.FindDomainController()).name
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
                 $LDAPConnection.SessionOptions.ReferralChasing = "None"
                 $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
                 [void]$request.Attributes.Add("dnshostname")
@@ -2165,10 +2209,10 @@ $txtrootdomainnamingcontext.text = ""
                     $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
                 }
 
-                $global:DirContext = Get-DirContext $global:strDC $global:CREDS
+                $global:DirContext = Get-DirContext $global:strDC -CREDS $CREDS
 
-                $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                 $global:DSType = "AD DS"
                 $global:bolADDSType = $true
                 $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
@@ -2184,13 +2228,13 @@ $txtrootdomainnamingcontext.text = ""
             else
             {
                 $strNamingContextDN = $txtBoxDomainConnect.Text
-                If(CheckDNExist $strNamingContextDN "$global:TempDC")
+                If(CheckDNExist -sADobjectName $strNamingContextDN -strDC "$global:TempDC" -CREDS $CREDS)
                 {
                 $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:TempDC )
                 $global:TempDC = $null
                 $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
                 $global:strDC = $($ojbDomain.FindDomainController()).name
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
                 $LDAPConnection.SessionOptions.ReferralChasing = "None"
                 $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
                 [void]$request.Attributes.Add("dnshostname")
@@ -2222,10 +2266,10 @@ $txtrootdomainnamingcontext.text = ""
                     $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
                 }
 
-                $global:DirContext = Get-DirContext $global:strDC $global:CREDS
+                $global:DirContext = Get-DirContext $global:strDC $CREDS
 
-                $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                 $global:DSType = "AD DS"
                 $global:bolADDSType = $true
                 $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
@@ -2271,7 +2315,7 @@ $txtrootdomainnamingcontext.text = ""
                     $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strDomainLongName )
                     $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
                     $global:strDC = $($ojbDomain.FindDomainController()).name
-                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
                     $LDAPConnection.SessionOptions.ReferralChasing = "None"
                     $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
                     [void]$request.Attributes.Add("dnshostname")
@@ -2302,9 +2346,9 @@ $txtrootdomainnamingcontext.text = ""
                         $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
                     }
 
-                    $global:DirContext = Get-DirContext $global:strDC $global:CREDS
-                    $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                    $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                    $global:DirContext = Get-DirContext $global:strDC $CREDS
+                    $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                     $global:DSType = "AD DS"
                     $global:bolADDSType = $true
                     $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
@@ -2317,38 +2361,97 @@ $txtrootdomainnamingcontext.text = ""
     #Connect to Config Naming Context
 	If ($rdbDSConf.IsChecked)
 	{
-
-
         if ($global:bolRoot -eq $true)
         {
-            $LDAPConnection = $null
-            $request = $null
-            $response = $null
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
-            $LDAPConnection.SessionOptions.ReferralChasing = "None"
-            $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
-            [void]$request.Attributes.Add("defaultnamingcontext")
-            try
-	        {
-                $response = $LDAPConnection.SendRequest($request)
-                $global:strDomainDNName = $response.Entries[0].attributes.defaultnamingcontext[0]
-                $global:bolLDAPConnection = $true
-	        }
-	        catch
-	        {
-		        $global:bolLDAPConnection = $false
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
-            }
-
-            if($global:bolLDAPConnection)
+            if($global:strDomainSelect.Contains("."))
             {
+                $global:TempDC = $global:strDomainSelect
+                $strSelectedDomain  = "DC=" + $global:strDomainSelect.Replace(".",",DC=")
+            }
+            if ($null -eq $global:TempDC)
+            {
+                $LDAPConnection = $null
+                $request = $null
+                $response = $null
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
+                $LDAPConnection.SessionOptions.ReferralChasing = "None"
+                $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
+                [void]$request.Attributes.Add("defaultnamingcontext")
+                try
+	            {
+                    $response = $LDAPConnection.SendRequest($request)
+                    $global:strDomainDNName = $response.Entries[0].attributes.defaultnamingcontext[0]
+                    $global:bolLDAPConnection = $true
+	            }
+	            catch
+	            {
+		            $global:bolLDAPConnection = $false
+                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+                }
+
+                if($global:bolLDAPConnection)
+                {
+                    $global:strDomainPrinDNName = $global:strDomainDNName
+                    $global:strDomainLongName = $global:strDomainDNName.Replace("DC=","")
+                    $global:strDomainLongName = $global:strDomainLongName.Replace(",",".")
+                    $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strDomainLongName )
+                    $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
+                    $global:strDC = $($ojbDomain.FindDomainController()).name
+                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
+                    $LDAPConnection.SessionOptions.ReferralChasing = "None"
+                    $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
+                    [void]$request.Attributes.Add("dnshostname")
+                    [void]$request.Attributes.Add("supportedcapabilities")
+                    [void]$request.Attributes.Add("namingcontexts")
+                    [void]$request.Attributes.Add("defaultnamingcontext")
+                    [void]$request.Attributes.Add("schemanamingcontext")
+                    [void]$request.Attributes.Add("configurationnamingcontext")
+                    [void]$request.Attributes.Add("rootdomainnamingcontext")
+                    [void]$request.Attributes.Add("isGlobalCatalogReady")
+
+                    try
+    	            {
+                        $response = $LDAPConnection.SendRequest($request)
+                        $global:bolLDAPConnection = $true
+    	            }
+    	            catch
+    	            {
+    		            $global:bolLDAPConnection = $false
+                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+    	            }
+                    if($global:bolLDAPConnection -eq $true)
+                    {
+                        $global:ForestRootDomainDN = $response.Entries[0].attributes.rootdomainnamingcontext[0]
+                        $global:SchemaDN = $response.Entries[0].attributes.schemanamingcontext[0]
+                        $global:ConfigDN = $response.Entries[0].attributes.configurationnamingcontext[0]
+                        $global:strDomainDNName = $response.Entries[0].attributes.defaultnamingcontext[0]
+                        $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
+                    }
+
+                    $global:DirContext = Get-DirContext $global:strDC -CREDS $CREDS
+                    $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:DSType = "AD DS"
+                    $global:bolADDSType = $true
+                    $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
+                    $NCSelect = $true
+                    $strNamingContextDN = $global:ConfigDN
+                }
+            }
+            else
+             {
+                $strNamingContextDN = $global:strDomainSelect
+                If(CheckDNExist -sADobjectName $strNamingContextDN -strDC $global:TempDC -CREDS $CREDS)
+                {
+                $root = New-Object system.directoryservices.directoryEntry("LDAP://"+$strNamingContextDN)
+                $global:strDomainDNName = $root.distinguishedName.tostring()
                 $global:strDomainPrinDNName = $global:strDomainDNName
                 $global:strDomainLongName = $global:strDomainDNName.Replace("DC=","")
                 $global:strDomainLongName = $global:strDomainLongName.Replace(",",".")
                 $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strDomainLongName )
                 $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
                 $global:strDC = $($ojbDomain.FindDomainController()).name
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
                 $LDAPConnection.SessionOptions.ReferralChasing = "None"
                 $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
                 [void]$request.Attributes.Add("dnshostname")
@@ -2359,17 +2462,17 @@ $txtrootdomainnamingcontext.text = ""
                 [void]$request.Attributes.Add("configurationnamingcontext")
                 [void]$request.Attributes.Add("rootdomainnamingcontext")
                 [void]$request.Attributes.Add("isGlobalCatalogReady")
-
+                                
                 try
-    	        {
+	            {
                     $response = $LDAPConnection.SendRequest($request)
                     $global:bolLDAPConnection = $true
-    	        }
-    	        catch
-    	        {
-    		        $global:bolLDAPConnection = $false
+	            }
+	            catch
+	            {
+		            $global:bolLDAPConnection = $false
                     $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
-    	        }
+	            }
                 if($global:bolLDAPConnection -eq $true)
                 {
                     $global:ForestRootDomainDN = $response.Entries[0].attributes.rootdomainnamingcontext[0]
@@ -2379,14 +2482,21 @@ $txtrootdomainnamingcontext.text = ""
                     $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
                 }
 
-                $global:DirContext = Get-DirContext $global:strDC $global:CREDS
-                $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                $global:DirContext = Get-DirContext $global:strDC -CREDS $CREDS
+                $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                 $global:DSType = "AD DS"
                 $global:bolADDSType = $true
                 $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
                 $NCSelect = $true
                 $strNamingContextDN = $global:ConfigDN
+            }
+               else
+                {
+                   $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+                   $global:bolConnected = $false
+                }
+              
             }
         }
 	}
@@ -2423,7 +2533,7 @@ $txtrootdomainnamingcontext.text = ""
                 $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strDomainLongName )
                 $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
                 $global:strDC = $($ojbDomain.FindDomainController()).name
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
                 $LDAPConnection.SessionOptions.ReferralChasing = "None"
                 $request = New-Object System.directoryServices.Protocols.SearchRequest($null, "(objectClass=*)", "base")
                 [void]$request.Attributes.Add("dnshostname")
@@ -2454,9 +2564,9 @@ $txtrootdomainnamingcontext.text = ""
                     $global:IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
                 }
 
-                $global:DirContext = Get-DirContext $global:strDC $global:CREDS
-                $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                $global:DirContext = Get-DirContext $global:strDC $CREDS
+                $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                 $global:DSType = "AD DS"
                 $global:bolADDSType = $true
                 $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
@@ -2495,7 +2605,7 @@ $txtrootdomainnamingcontext.text = ""
                     }
                 }
                     $global:bolLDAPConnection = $false
-                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
                     $LDAPConnection.SessionOptions.ReferralChasing = "None"
                     $request = New-Object System.directoryServices.Protocols.SearchRequest("", "(objectClass=*)", "base")
                     if($global:bolShowDeleted)
@@ -2577,8 +2687,8 @@ $txtrootdomainnamingcontext.text = ""
                                     
                                 }
                                 $global:strDomainPrinDNName = $global:strDomainDNName
-                                $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                                $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                                $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                                $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                                 $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
                             }
                             default
@@ -2603,7 +2713,7 @@ $txtrootdomainnamingcontext.text = ""
                         {
                             $strNamingContextDN = $global:strDomainDNName
                         }
-                        If(CheckDNExist $strNamingContextDN $global:strDC)
+                        If(CheckDNExist -sADobjectName $strNamingContextDN -strDC $global:strDC -CREDS $CREDS)
                         {
                             $NCSelect = $true
                         }
@@ -2630,7 +2740,7 @@ $txtrootdomainnamingcontext.text = ""
 	    If (!($strLastCacheGuidsDom -eq $global:strDomainDNName))
 	    {
 	        $global:dicRightsGuids = @{"Seed" = "xxx"}
-	        CacheRightsGuids 
+	        CacheRightsGuids -CREDS $CREDS
 	        $strLastCacheGuidsDom = $global:strDomainDNName
         
         
@@ -2638,7 +2748,7 @@ $txtrootdomainnamingcontext.text = ""
         #Check Directory Service type
         $global:DSType = ""
         $global:bolADDSType = $false
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest("", "(objectClass=*)", "base")
         $response = $LDAPConnection.SendRequest($request)
@@ -2663,7 +2773,7 @@ $txtrootdomainnamingcontext.text = ""
         #Plaing with AD LDS Locally
         $global:TreeViewRootPath = $strNamingContextDN
 
-        $xml = Get-XMLDomainOUTree $global:TreeViewRootPath
+        $xml = Get-XMLDomainOUTree $global:TreeViewRootPath -CREDS $CREDS
             # Change XML Document, XPath and Refresh
         $xmlprov.Document = $xml
         $xmlProv.XPath = "/DomainRoot"
@@ -2758,7 +2868,7 @@ $txtrootdomainnamingcontext.text = ""
 #Get Forest Root Domain ObjectSID
 if ($global:DSType -eq "AD DS")
 {
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest($global:strDomainDNName, "(objectClass=*)", "base")
     [void]$request.Attributes.Add("objectsid")
@@ -2783,9 +2893,9 @@ if ($global:DSType -eq "AD DS")
     {
         $global:strForestDomainLongName = $global:ForestRootDomainDN.Replace("DC=","")
         $global:strForestDomainLongName = $global:strForestDomainLongName.Replace(",",".")
-        if($global:CREDS.UserName)
+        if($CREDS.UserName)
         {
-            $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strForestDomainLongName,$global:CREDS.UserName,$global:CREDS.GetNetworkCredential().Password) 
+            $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strForestDomainLongName,$CREDS.UserName,$CREDS.GetNetworkCredential().Password) 
         }
         else
         {
@@ -2794,7 +2904,7 @@ if ($global:DSType -eq "AD DS")
         $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
         $global:strForestDC = $($ojbDomain.FindDomainController()).name
 
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest($global:ForestRootDomainDN, "(objectClass=*)", "base")
         [void]$request.Attributes.Add("objectsid")
@@ -2827,22 +2937,24 @@ if ($global:DSType -eq "AD DS")
 })
 
 $chkBoxCreds.add_UnChecked({
-$global:CREDS = $null
+$script:CREDS = $null
 })
 
 $btnScan.add_Click( 
 {
+
+    
     $UseCanonicalName = $chkBoxUseCanonicalName.IsChecked
 
     $Protected  = $chkBoxGetOUProtected.IsChecked
 
     If($chkBoxCompare.IsChecked)
     {
-        RunCompare
+        RunCompare -CREDS $script:CREDS
     }
     else
     {
-        RunScan
+        RunScan -CREDS $script:CREDS
     }
 
 
@@ -2859,7 +2971,7 @@ else
 {
     #if ($global:bolConnected -eq $true)
     #{
-        ConvertCSVtoHTM $txtCSVImport.Text $chkBoxTranslateGUIDinCSV.isChecked
+        ConvertCSVtoHTM $txtCSVImport.Text $chkBoxTranslateGUIDinCSV.isChecked -CREDS $CREDS
     #}
     #else
     #{
@@ -2890,7 +3002,7 @@ $dicWellKnownSids= $null
 $myPID= $null
 $observableCollection= $null
 $strDomainPrinDNName= $null
-$strDommainSelect= $null
+$strDomainSelect= $null
 $strEffectiveRightAccount= $null
 $strEffectiveRightSP= $null
 $strPinDomDC= $null
@@ -2905,6 +3017,8 @@ $strDomainDNName = $null
 $strDomainLongName = $null
 $strDomainShortName = $null
 $strOwner = $null
+#$CREDS = $null
+#remove-variable -name "CREDS"
 remove-variable -name "bolConnected" -Scope Global
 remove-variable -name "bolTempValue_InhertiedChkBox" -Scope Global
 remove-variable -name "dicDCSpecialSids" -Scope Global
@@ -2916,7 +3030,7 @@ remove-variable -name "dicWellKnownSids" -Scope Global
 remove-variable -name "myPID" -Scope Global
 remove-variable -name "observableCollection" -Scope Global
 remove-variable -name "strDomainPrinDNName" -Scope Global
-remove-variable -name "strDommainSelect" -Scope Global
+remove-variable -name "strDomainSelect" -Scope Global
 remove-variable -name "strEffectiveRightAccount" -Scope Global
 remove-variable -name "strEffectiveRightSP" -Scope Global
 remove-variable -name "strPinDomDC" -Scope Global
@@ -2926,6 +3040,7 @@ remove-variable -name "strPrinDomDir" -Scope Global
 remove-variable -name "strPrinDomFlat" -Scope Global
 remove-variable -name "strSPNobjectClass" -Scope Global
 remove-variable -name "tokens" -Scope Global
+
 
 
 $ErrorActionPreference = "SilentlyContinue"
@@ -2950,7 +3065,7 @@ $btnGetObjFullFilter.add_Click(
 {
     if ($global:bolConnected -eq $true)
     {
-        GetSchemaObjectGUID  -Domain $global:strDomainDNName
+        GetSchemaObjectGUID  -Domain $global:strDomainDNName -CREDS $CREDS
         $global:observableCollection.Insert(0,(LogMessage -strMessage "All schema objects and attributes listed!" -strType "Info" -DateStamp ))
     }
     else
@@ -2986,7 +3101,7 @@ if ($this.SelectedItem.Tag -eq "NotEnumerated")
     $treeNodePath = $NodeDNPath
        
     # Initialize and Build Domain OU Tree 
-    ProcessOUTree -node $($Mynodes) -ADSObject $treeNodePath #-nodeCount 0 
+    ProcessOUTree -node $($Mynodes) -ADSObject $treeNodePath -CREDS $CREDS
     # Set tag to show this node is already enumerated 
     $this.SelectedItem.Tag  = "Enumerated" 
 	
@@ -3006,6 +3121,11 @@ if ($this.SelectedItem.Tag -eq "NotEnumerated")
 #region 
 function RunCompare
 {
+    param(
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
+
 if($chkBoxSeverity.isChecked -or $chkBoxEffectiveRightsColor.isChecked)
 {
     $bolShowCriticalityColor = $true
@@ -3046,13 +3166,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
             {
                 $global:bolCSVLoaded = $false
                 $strCompareFile = $txtCompareTemplate.Text
-                &{#Try
-                    Test-Path -Path "C:\"
-                }
-                Trap [SystemException]
-                {
-                Write-Host "ERROR"
-                }
+
                 &{#Try
                     $global:bolCSVLoaded = $true
                     $global:csvHistACLs = import-Csv $strCompareFile 
@@ -3086,7 +3200,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 	               if ($chkBoxTemplateNodes.IsChecked -eq $false)
                     {
                         $sADobjectName = $txtBoxSelected.Text.ToString()
-                        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
+                        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
                         $LDAPConnection.SessionOptions.ReferralChasing = "None"
                         $request = New-Object System.directoryServices.Protocols.SearchRequest
                         if($global:bolShowDeleted)
@@ -3175,7 +3289,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                         #Verify if the connection can be done
                         if($bolContinue)
                         {
-                            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
+                            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
                             $LDAPConnection.SessionOptions.ReferralChasing = "None"
                             $request = New-Object System.directoryServices.Protocols.SearchRequest
                             if($global:bolShowDeleted)
@@ -3257,22 +3371,22 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
 		                        {
 			                        if($rdbScanFilter.IsChecked -eq $true)
                                     {
-                                        $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "subtree" -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text
+                                        $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "subtree" -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text -CREDS $CREDS
                                     }
                                     else
                                     {
-                                       $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "subtree" -ExcludedDNs $txtBoxExcluded.text
+                                       $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "subtree" -ExcludedDNs $txtBoxExcluded.text -CREDS $CREDS
                                     }
                                 }
                                 else
                                 {
 			                        if($rdbScanFilter.IsChecked -eq $true)
                                     {
-                                        $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "onelevel" -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text
+                                        $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "onelevel" -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text -CREDS $CREDS
                                     }
                                     else
                                     {
-                                       $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "onelevel" -ExcludedDNs $txtBoxExcluded.text
+                                       $allSubOU = GetAllChildNodes -firstnode $txtBoxSelected.Text -scope "onelevel" -ExcludedDNs $txtBoxExcluded.text -CREDS $CREDS
                                     }
                                 }	    
                             }
@@ -3287,7 +3401,7 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                                 $bolToFile = $true
                                 #Used from comand line only
                                 $FilterBuiltin = $false
-                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $Returns $bolToFile $bolShowCriticalityColor $chkBoxSeverity.IsChecked $combServerity.SelectedItem $chkBoxTranslateGUID.isChecked
+                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $Returns $bolToFile $bolShowCriticalityColor $chkBoxSeverity.IsChecked $combServerity.SelectedItem $chkBoxTranslateGUID.isChecked -CREDS $CREDS
                             }	
                             else
                             {
@@ -3332,6 +3446,10 @@ $date= ""
 
 function RunScan
 {
+    param(
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 if($rdbGPO.isChecked)
 {
@@ -3385,7 +3503,7 @@ If ($txtBoxSelected.Text)
         {
         $bolCSV = $true
         }
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest
         if($global:bolShowDeleted)
@@ -3484,11 +3602,11 @@ If ($txtBoxSelected.Text)
       
 			    if($rdbScanFilter.IsChecked -eq $true)
                 {
-                    $allSubOU = @(GetAllChildNodes -firstnode $txtBoxSelected.Text -scope $Scope -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text)
+                    $allSubOU = @(GetAllChildNodes -firstnode $txtBoxSelected.Text -scope $Scope -ExcludedDNs $txtBoxExcluded.text -CustomFilter $txtCustomFilter.Text -CREDS $CREDS )
                 }
                 else
                 {
-                    $allSubOU = @(GetAllChildNodes -firstnode $txtBoxSelected.Text -scope $Scope -ExcludedDNs $txtBoxExcluded.text)
+                    $allSubOU = @(GetAllChildNodes -firstnode $txtBoxSelected.Text -scope $Scope -ExcludedDNs $txtBoxExcluded.text -CREDS $CREDS)
                 }
 
                 #if any objects found read ACLs
@@ -3498,7 +3616,7 @@ If ($txtBoxSelected.Text)
                     #Used from comand line only
                     $FilterBuiltin = $chkBoxFilterBuiltin.IsChecked
 
-                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $combObjectFilter.SelectedItem -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -ACLPermissionFilter $txtPermission.Text
+                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $combObjectFilter.SelectedItem -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -ACLPermissionFilter $txtPermission.Text  -CREDS $CREDS
                 }
                 else
                 {
@@ -3585,7 +3703,7 @@ function Add-RefreshChild
        
                 # Initialize and Build Domain OU Tree 
 
-                ProcessOUTree -node $($Mynodes) -ADSObject $treeNodePath #-nodeCount 0 
+                ProcessOUTree -node $($Mynodes) -ADSObject $treeNodePath -CREDS $CREDS 
                 # Set tag to show this node is already enumerated 
 
             }
@@ -3600,7 +3718,7 @@ function Add-RefreshChild
                 $treeNodePath = $NodeDNPath
        
                 # Initialize and Build Domain OU Tree 
-                ProcessOUTree -node $($Mynodes) -ADSObject $treeNodePath #-nodeCount 0 
+                ProcessOUTree -node $($Mynodes) -ADSObject $treeNodePath -CREDS $CREDS 
                 # Set tag to show this node is already enumerated 
 
             }
@@ -3614,7 +3732,12 @@ function Add-RefreshChild
 function ProcessOUTree
 {
 
-	Param($node, $ADSObject)
+	Param(
+    $node,
+    $ADSObject,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 	# Increment the node count to indicate we are done with the domain level
 
@@ -3626,7 +3749,7 @@ function ProcessOUTree
     
 
 
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest
     [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -3736,7 +3859,7 @@ function ProcessOUTree
                         }
                         AddXMLAttribute -node ([ref]$NewOUNode) -szName "Tag" -value "Enumerated"
                         $child = $node.appendChild($NewOUNode);
-                        ProcessOUTreeStep2OnlyShow -node $NewOUNode -DNName $DNName
+                        ProcessOUTreeStep2OnlyShow -node $NewOUNode -DNName $DNName -CREDS $CREDS
                            }
                     else
                     {
@@ -3760,7 +3883,7 @@ function ProcessOUTree
                             AddXMLAttribute -node ([ref]$NewOUNode) -szName "Img" -value "$env:temp\Container.png"
                             AddXMLAttribute -node ([ref]$NewOUNode) -szName "Tag" -value "Enumerated"
                             $child = $node.appendChild($NewOUNode);
-                            ProcessOUTreeStep2OnlyShow -node $NewOUNode -DNName $DNName
+                            ProcessOUTreeStep2OnlyShow -node $NewOUNode -DNName $DNName -CREDS $CREDS
                         }
 
                         $global:observableCollection.Insert(0,(LogMessage -strMessage "Could not read object $($objResult.distinguishedname). Enough permissions?" -strType "Warning" -DateStamp ))
@@ -3784,14 +3907,22 @@ function ProcessOUTree
 }
 function ProcessOUTreeStep2OnlyShow
 {
-    Param($node, $DNName)
+    Param(
+    $node, 
+
+    [string]
+    $DNName,
+
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 	# Increment the node count to indicate we are done with the domain level
 
     $strFilterOUCont = "(&(|(objectClass=organizationalUnit)(objectClass=container)(objectClass=domainDNS)))"
 	$strFilterAll = "(&(name=*))"
 
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     #$request = New-Object System.directoryServices.Protocols.SearchRequest("$global:SchemaDN", "(objectClass=classSchema)", "Subtree")
     $request = New-Object System.directoryServices.Protocols.SearchRequest
@@ -3907,7 +4038,11 @@ function Get-XMLDomainOUTree
 
     param
     (
-        $szDomainRoot
+        $szDomainRoot,
+        
+        [Parameter(Mandatory=$false)]
+        [pscredential] 
+        $CREDS
     )
 
 
@@ -3917,7 +4052,7 @@ function Get-XMLDomainOUTree
    
     # Initialize and Build Domain OU Tree 
     
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest
     if($global:bolShowDeleted)
@@ -3998,7 +4133,7 @@ function Get-XMLDomainOUTree
     $node = $global:xmlDoc.documentElement;
 
     #Process the OU tree
-    ProcessOUTree -node $node -ADSObject $treeNodePath  #-nodeCount 0
+    ProcessOUTree -node $node -ADSObject $treeNodePath -CREDS $CREDS
 
     return $global:xmlDoc
 }
@@ -4130,7 +4265,11 @@ Param (
     [String] 
     $Output = "*",
     [System.Collections.ArrayList]
-    $MembersExpanded
+    $MembersExpanded,
+
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS
 )
 
 begin
@@ -4146,11 +4285,23 @@ Process
 {
 # Use ADO to search entire domain.
 
-$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$strDC/$GroupDN")
+$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$strDC/$GroupDN",$($CREDS.UserName),  
+    $($CREDS.GetNetworkCredential().password ),   
+    [System.DirectoryServices.AuthenticationTypes]::Secure  )
+
+$ADS_SECURE_AUTHENTICATION = 1
+$ADS_USE_SIGNING = 64
+$ADS_SERVER_BIND = 512
 
 $adoConnection = New-Object -comObject "ADODB.Connection"
+$adoConnection.Provider = "ADsDSOObject"
+$adoConnection.Properties("User ID") = $($CREDS.UserName)
+$adoConnection.Properties("Password") = $($CREDS.GetNetworkCredential().password )
+$adoConnection.Properties("Encrypt Password") = "True"
+$adoConnection.Properties("ADSI Flag") = $ADS_SERVER_BIND -bor $ADS_SECURE_AUTHENTICATION -bor $ADS_USE_SIGNING
 $adoCommand = New-Object -comObject "ADODB.Command"
-$adoConnection.Open("Provider=ADsDSOObject;")
+#$adoConnection.Open("Provider=ADsDSOObject;")
+$adoConnection.Open("Active Directory Provider")
 $adoCommand.ActiveConnection = $adoConnection
 $adoCommand.Properties.Item("Page Size") = 200
 $adoCommand.Properties.Item("Timeout") = 30
@@ -4234,7 +4385,7 @@ Do
                     {
                         if (($global:colOfGroupMembersExpanded -notcontains $Member) -and ($GroupDN -ne $Member))
                         {
-                            $MembersExpanded = @(Get-LargeNestedADGroup $strDC $Member $Output $MembersExpanded)
+                            $MembersExpanded = @(Get-LargeNestedADGroup $strDC $Member $Output $MembersExpanded -CREDS $CREDS)
                             [void]$global:GroupMembersExpanded.insert(0, $Member)
                         }
                     }
@@ -5321,6 +5472,10 @@ $TemplateDownloaderGui.ShowDialog()
 #==========================================================================
 Function GenerateTrustedDomainPicker
 {
+    param(
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 [xml]$TrustedDomainPickerXAML =@"
 <Window x:Class="WpfApplication1.StatusBar"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -5376,7 +5531,7 @@ if ( $global:strDomainPrinDNName -eq $global:strDomainLongName )
 }
 else
 {
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=System,$global:strDomainDNName", "(&(trustPartner=$global:strDomainPrinDNName))", "Onelevel")
     [void]$request.Attributes.Add("trustdirection")
@@ -5399,7 +5554,7 @@ $TrustedDomainPickerGui.Close()
 })
  
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=System,$global:strDomainDNName", "(&(cn=*)(objectClass=trustedDomain))", "Onelevel") 
 [void]$request.Attributes.Add("trustpartner")
@@ -5627,7 +5782,7 @@ if ($strSelectedDomain)
         $global:TempDC = $strSelectedDomain
         $strSelectedDomain  = "DC=" + $strSelectedDomain.Replace(".",",DC=")
     }
-    $global:strDommainSelect = $strSelectedDomain
+    $global:strDomainSelect = $strSelectedDomain
 }
 $DomainPickerGui.Close()
 })
@@ -5742,11 +5897,11 @@ if($objListBoxDomainList.Items.count -gt 0)
 #==========================================================================
 function Get-SchemaData
 {
-Param([System.Management.Automation.PSCredential] $SchemaCREDS)
+Param([System.Management.Automation.PSCredential] $CREDS)
 
 	# Retrieve schema
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $SchemaCREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest("$global:SchemaDN", "(CN=ms-Exch-Schema-Version-Pt)", "onelevel")
 [void]$request.Attributes.Add("rangeupper")
@@ -6045,11 +6200,11 @@ return $strDomainController
 function Get-DirContext
 {
 Param($DomainController,
-[System.Management.Automation.PSCredential] $DIRCREDS)
+[System.Management.Automation.PSCredential] $CREDS)
 
-	if($global:CREDS)
+	if($CREDS)
 		{
-		$Context = new-object DirectoryServices.ActiveDirectory.DirectoryContext("DirectoryServer",$DomainController,$DIRCREDS.UserName,$DIRCREDS.GetNetworkCredential().Password)
+		$Context = new-object DirectoryServices.ActiveDirectory.DirectoryContext("DirectoryServer",$DomainController,$CREDS.UserName,$CREDS.GetNetworkCredential().Password)
 	}
 	else
 	{
@@ -6105,17 +6260,29 @@ return $bolValid
 #==========================================================================
 Function GetTokenGroups
 {
-Param($PrincipalDomDC,$PrincipalDN,
-[bool] $bolCreds,
-[parameter(Mandatory=$false)]
-[System.Management.Automation.PSCredential] $GetTokenCreds)
+Param(
+    $PrincipalDomDC,
+    
+    $PrincipalDN,
+    
+    [bool]
+    $bolCreds,
+
+    [parameter(Mandatory=$false)]
+    [System.Management.Automation.PSCredential] 
+    $GetTokenCreds,
+
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS
+    )
 
 
 $script:bolErr = $false
 $tokenGroups =  New-Object System.Collections.ArrayList
 
 $tokenGroups.Clear()
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$GetTokenCreds)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest
 $request.DistinguishedName = $PrincipalDN
@@ -6140,7 +6307,7 @@ $ownerSIDs = (New-Object System.Security.Principal.SecurityIdentifier $ADobject.
 # Add selected principal SID to tokenGroups
 [void]$tokenGroups.Add($ownerSIDs)
 
-$arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ownerSIDs) $global:CREDS
+$arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ownerSIDs) $CREDS
 
 foreach ($ForeignMemb in $arrForeignSecGroups)
 {
@@ -6154,7 +6321,7 @@ foreach ($ForeignMemb in $arrForeignSecGroups)
 } 
 
 # Populate hash table with security group memberships. 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$GetTokenCreds)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($PrincipalDomDC,$CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest
 $request.DistinguishedName = "CN=ForeignSecurityPrincipals,$global:strDomainDNName"
@@ -6169,7 +6336,7 @@ foreach ($objResult in $colResults)
     [byte[]] $byte = $objResult.Attributes.objectsid.GetValues([byte[]])[0]
     $ForeignDefaultWellKnownSIDs = (New-Object System.Security.Principal.SecurityIdentifier($byte, 0)).value
 
-    $arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ForeignDefaultWellKnownSIDs) $global:CREDS
+    $arrForeignSecGroups = FindForeignSecPrinMemberships $(GenerateSearchAbleSID $ForeignDefaultWellKnownSIDs) $CREDS
 
     foreach ($ForeignMemb in $arrForeignSecGroups)
     {
@@ -6313,22 +6480,18 @@ Param([string] $samAccountName,
 [string] $strDomainDC,
 [bool] $bolCreds,
 [parameter(Mandatory=$false)]
-[System.Management.Automation.PSCredential] $SecPrinDNREDS)
+[System.Management.Automation.PSCredential] $CREDS)
 
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDomainDC,$SecPrinDNREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDomainDC,$CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest
 $request.Filter = "(name=*)"
 $request.Scope = "Base"
 $response = $LDAPConnection.SendRequest($request)
-$strPrinDomDC = $response.Entries[0].Attributes.dnshostname[0]
 $strPrinDomDefNC = $response.Entries[0].Attributes.defaultnamingcontext[0]
-if($strDomainDC -match ":")
-{
-    $strPrinDomDC = $strPrinDomDC + ":" + $strDomainDC.split(":")[1]
-}
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strPrinDomDC,$SecPrinDNREDS)
+
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDomainDC,$CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest
 $request.DistinguishedName = $strPrinDomDefNC
@@ -6365,7 +6528,14 @@ return $global:strPrincipalDN
 #==========================================================================
 Function GetSchemaObjectGUID
 {
-Param([string] $Domain)
+Param(
+    [string]
+    $Domain,
+
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
+
 	[string] $strOut =""
 	[string] $strLDAPname = ""
     
@@ -6378,7 +6548,7 @@ Param([string] $Domain)
 
     
     
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest("$global:SchemaDN", "(&(schemaIDGUID=*))", "Subtree")
     [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -6452,10 +6622,16 @@ function CheckDNExist
 {
 Param (
   $sADobjectName,
-  $strDC
+
+  [string]
+  $strDC,
+  
+  [Parameter(Mandatory=$false)]
+  [pscredential] 
+  $CREDS
   )
 
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDC, $CREDS)
     #$LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest
     if($global:bolShowDeleted)
@@ -6711,7 +6887,11 @@ $CustomFilter="",
             Position=3,
             ParameterSetName='Default')]
 [string]
-$ExcludedDNs=""
+$ExcludedDNs="",
+
+[Parameter(Mandatory=$false)]
+[pscredential] 
+$CREDS
 )
 
 $nodelist = New-Object System.Collections.ArrayList
@@ -6727,7 +6907,7 @@ $strFilterOU = "(|(objectClass=organizationalUnit)(objectClass=domainDNS))"
 $strFilterGPO="(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))"
 $ReqFilter = ""
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest
 [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -6804,7 +6984,7 @@ $request.Scope = $Scope
 if ($Scope -eq "onelevel")
 {
     # Test the filter against the first node
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request2 = New-Object System.directoryServices.Protocols.Searchrequest($firstnode, $ReqFilter, "base")
     if($GPO)
@@ -7076,10 +7256,18 @@ return $nodelist
 #==========================================================================
 function GetDomainShortName
 { 
-Param($strDomain,
-[string]$strConfigDN)
 
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    param(
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS,
+    [string]
+    $strDomain,
+    [string]
+    $strConfigDN)
+    
+
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Partitions,$strConfigDN", "(&(objectClass=crossRef)(nCName=$strDomain))", "Subtree")
     [void]$request.Attributes.Add("netbiosname")
@@ -7142,8 +7330,15 @@ return $sdProtectedDeletion
 #==========================================================================
 Function Get-DefaultPermissions
 {
-Param($strObjectClass,
-[string]$strTrustee)
+Param(
+$strObjectClass,
+
+[string]
+$strTrustee,
+
+[Parameter(Mandatory=$false)]
+[pscredential] 
+$CREDS)
 
 
 $sdOUDef =  New-Object System.Collections.ArrayList
@@ -7151,7 +7346,7 @@ $sdOUDef.clear()
 
 
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest("$global:SchemaDN", "(ldapdisplayname=$strObjectClass)", "Subtree")
 [void]$request.Attributes.Add("defaultsecuritydescriptor")
@@ -7164,7 +7359,22 @@ foreach ($entry  in $response.Entries)
     $defSD = ""
     if($null -ne $entry.Attributes.defaultsecuritydescriptor)
     {
-        $sec.SetSecurityDescriptorSddlForm($entry.Attributes.defaultsecuritydescriptor[0])
+        Try{
+            $sec.SetSecurityDescriptorSddlForm($entry.Attributes.defaultsecuritydescriptor[0])
+        }
+        catch
+        {
+            if($bolCMD)
+            {
+                Write-host "The SDDL string contains an invalid sid or a sid that cannot be translated." -ForegroundColor Red
+                Write-host "Only domain-joined computers can translate some sids." -ForegroundColor Red
+            }
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "The SDDL string contains an invalid sid or a sid that cannot be translated." -strType "Error" -DateStamp ))
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Only domain-joined computers can translate some sids." -strType "Error" -DateStamp ))
+            }  
+        }
     }
     $defSD = $sec.GetAccessRules($true, $false, [System.Security.Principal.NTAccount])   
     $sec = $null
@@ -7253,9 +7463,12 @@ return $sdOUDef
 #==========================================================================
 Function CacheRightsGuids
 {
-	
+	param(
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
         
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $searcher = New-Object System.directoryServices.Protocols.SearchRequest
         $searcher.DistinguishedName = $global:ConfigDN
@@ -7303,7 +7516,17 @@ Function CacheRightsGuids
 #==========================================================================
 Function MapGUIDToMatchingName
 {
-Param([string] $strGUIDAsString,[string] $Domain)
+Param(
+    [string]
+    $strGUIDAsString,
+
+    [string]
+    $Domain,
+    
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
+
 	[string] $strOut = $strGUIDAsString
 	[string] $strLDAPname = ""
 
@@ -7333,7 +7556,7 @@ Param([string] $strGUIDAsString,[string] $Domain)
 		 	
 			$ConvertGUID = ConvertGUID($strGUIDAsString)
 		            
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
             $LDAPConnection.SessionOptions.ReferralChasing = "None"
             $searcher = New-Object System.directoryServices.Protocols.SearchRequest
             $searcher.DistinguishedName = $global:SchemaDN
@@ -7406,7 +7629,10 @@ function fixfilename
 #==========================================================================
 function WritePermCSV
 {
-    Param($sd,[string]$object,[string]$canonical,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string]  $strACLDate,[string] $strInvocationID,[string] $strOrgUSN,[bool] $GetOUProtected,[bool] $OUProtected,[bool] $compare,[bool]$Outfile,[bool]$GPO,[string]$GPOdisplayname,[bool]$TranslateGUID)
+    Param($sd,[string]$object,[string]$canonical,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string]  $strACLDate,[string] $strInvocationID,[string] $strOrgUSN,[bool] $GetOUProtected,[bool] $OUProtected,[bool] $compare,[bool]$Outfile,[bool]$GPO,[string]$GPOdisplayname,[bool]$TranslateGUID, 
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 
 $sd  | foreach {
@@ -7414,7 +7640,7 @@ $sd  | foreach {
         $strPrincipalName = $_.IdentityReference.toString()
 	    If ($strPrincipalName -match "S-1-")
 	    {
-	        $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName
+	        $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName -CREDS $CREDS
 
 	    }
         # Add Translated object GUID information to output
@@ -7423,7 +7649,7 @@ $sd  | foreach {
 	        if($($_.InheritedObjectType.toString()) -ne "00000000-0000-0000-0000-000000000000" )
             {
             
-                $strTranslatedInheritObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.InheritedObjectType.toString() -Domain $global:strDomainDNName) 
+                $strTranslatedInheritObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.InheritedObjectType.toString() -Domain $global:strDomainDNName -CREDS $CREDS) 
             }
             else
             {
@@ -7432,7 +7658,7 @@ $sd  | foreach {
 	        if($($_.ObjectType.toString()) -ne "00000000-0000-0000-0000-000000000000" )
             {
             
-                $strTranslatedObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.ObjectType.toString() -Domain $global:strDomainDNName) 
+                $strTranslatedObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.ObjectType.toString() -Domain $global:strDomainDNName -CREDS $CREDS) 
             }
             else
             {
@@ -7540,14 +7766,16 @@ $sd  | foreach {
 #==========================================================================
 function WriteDefSDPermCSV
 {
-    Param($sd,[string]$object,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string] $strVersion,[string]  $strACLDate,[bool]$Outfile,[bool]$bolShowCriticalityColor,[bool]$TranslateGUID)
+    Param($sd,[string]$object,[string]$objType,[string] $fileout, [bool] $ACLMeta,[string] $strVersion,[string]  $strACLDate,[bool]$Outfile,[bool]$bolShowCriticalityColor,[bool]$TranslateGUID,[Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 $sd  | foreach {
         #Convert SID to Names for lookups
         $strPrincipalName = $_.IdentityReference.toString()
 	    If ($strPrincipalName -match "S-1-")
 	    {
-	        $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName
+	        $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName -CREDS $CREDS
 
 	    }
         # Add Translated object GUID information to output
@@ -7556,7 +7784,7 @@ $sd  | foreach {
 	        if($($_.InheritedObjectType.toString()) -ne "00000000-0000-0000-0000-000000000000" )
             {
             
-                $strTranslatedInheritObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.InheritedObjectType.toString() -Domain $global:strDomainDNName) 
+                $strTranslatedInheritObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.InheritedObjectType.toString() -Domain $global:strDomainDNName -CREDS $CREDS) 
             }
             else
             {
@@ -7565,7 +7793,7 @@ $sd  | foreach {
 	        if($($_.ObjectType.toString()) -ne "00000000-0000-0000-0000-000000000000" )
             {
             
-                $strTranslatedObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.ObjectType.toString() -Domain $global:strDomainDNName) 
+                $strTranslatedObjType = $(MapGUIDToMatchingName -strGUIDAsString $_.ObjectType.toString() -Domain $global:strDomainDNName -CREDS $CREDS) 
             }
             else
             {
@@ -7662,7 +7890,11 @@ $sd  | foreach {
 #==========================================================================
 function ConvertSidToName
 {
-    Param($server,$sid)
+    Param($server,$sid,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
+
 $global:strAccNameTranslation = ""     
 $ID = New-Object System.Security.Principal.SecurityIdentifier($sid)
 
@@ -7690,7 +7922,8 @@ if ($global:strAccNameTranslation -eq "")
     else
     {
 
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
+        
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest
         if($global:bolShowDeleted)
@@ -7708,6 +7941,7 @@ if ($global:strAccNameTranslation -eq "")
         try
         {
 	        $global:strAccNameTranslation =  $global:strDomainShortName + "\" + $result.attributes.samaccountname[0]
+
         }
         catch
         {
@@ -8581,7 +8815,9 @@ else
 #==========================================================================
 function WriteOUT
 {
-    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$Type,[bool]$GPO,[string]$GPODisplayname,[bool]$bolShowCriticalityColor)
+    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$Type,[bool]$GPO,[string]$GPODisplayname,[bool]$bolShowCriticalityColor,[Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 if($Type -eq "HTML")
 {
@@ -8939,7 +9175,7 @@ if ($bolACLExist)
     
     If ($IdentityReference.contains("S-1-"))
 	{
-	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference
+	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference -CREDS $CREDS
 
 	}
     else
@@ -8983,17 +9219,17 @@ if ($bolACLExist)
 		      	"InheritedObjectAceTypePresent"
 		      	{
 		      		$strApplyTo =  "This object and all child objects"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	}    	
 		      	"ObjectAceTypePresent"
 		      	{
 		      		$strApplyTo =  "This object and all child objects"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 	      	
 		      	"None"
 		      	{
@@ -9016,7 +9252,7 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      	    $strApplyTo = "Descendant $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName}) objects"
+		      	    $strApplyTo = "Descendant $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS}) objects"
                     $strPerm = "$objRights"
 		      	}
 		      	"None"
@@ -9027,12 +9263,12 @@ if ($bolACLExist)
 		      	"ObjectAceTypePresent"
 		      	{
 		      		$strApplyTo = "Child Objects Only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo =	"$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm =	"$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+		      		$strApplyTo =	"$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm =	"$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	}
 		      	default
 	 			{
@@ -9049,7 +9285,7 @@ if ($bolACLExist)
 		      	"ObjectAceTypePresent"
 		      	{
 		      		$strApplyTo = "This Object Only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 		      	"None"
 		      	{
@@ -9071,18 +9307,18 @@ if ($bolACLExist)
 		      	"ObjectAceTypePresent"
 	      		{
 		      		$strApplyTo = "This object and all child objects within this container only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	}
 		      	"InheritedObjectAceTypePresent"
 		      	{
 		      		$strApplyTo = "This object and all child objects within this container only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 	      	
 		      	"None"
 		      	{
@@ -9103,7 +9339,7 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo = "Descendant $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName}) objects within this container only"
+		      		$strApplyTo = "Descendant $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS}) objects within this container only"
                     $strPerm = "$objRights"
 		      	} 
 		      	"None"
@@ -9113,13 +9349,13 @@ if ($bolACLExist)
 		      	} 	      	
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 	      		{
-		      		$strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm = "$(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName}) $objRights"
+		      		$strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm = "$(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS}) $objRights"
 		      	} 	
 		      	"ObjectAceTypePresent"
 	      		{
 		      		$strApplyTo = "Children within this container only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 		      	
 		      	default
 	 			{
@@ -9766,7 +10002,7 @@ if ($bolACLExist)
     
     If ($IdentityReference.contains("S-1-"))
 	{
-	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference
+	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference -CREDS $CREDS
 
 	}
     else
@@ -9810,17 +10046,17 @@ if ($bolACLExist)
 		      	"InheritedObjectAceTypePresent"
 		      	{
 		      		$strApplyTo =  "This object and all child objects"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	}    	
 		      	"ObjectAceTypePresent"
 		      	{
 		      		$strApplyTo =  "This object and all child objects"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 	      	
 		      	"None"
 		      	{
@@ -9843,7 +10079,7 @@ if ($bolACLExist)
 	    	{ 
 		      	"InheritedObjectAceTypePresent"
 		      	{
-		      	    $strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+		      	    $strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
                     $strPerm = "$objRights"
 		      	}
 		      	"None"
@@ -9854,12 +10090,12 @@ if ($bolACLExist)
 		      	"ObjectAceTypePresent"
 		      	{
 		      		$strApplyTo = "Child Objects Only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo =	"$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm =	"$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+		      		$strApplyTo =	"$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm =	"$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	}
 		      	default
 	 			{
@@ -9876,7 +10112,7 @@ if ($bolACLExist)
 		      	"ObjectAceTypePresent"
 		      	{
 		      		$strApplyTo = "This Object Only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 		      	"None"
 		      	{
@@ -9898,18 +10134,18 @@ if ($bolACLExist)
 		      	"ObjectAceTypePresent"
 	      		{
 		      		$strApplyTo = "This object and all child objects within this container only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	}
 		      	"InheritedObjectAceTypePresent"
 		      	{
 		      		$strApplyTo = "Children within this container only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 		      	{
-		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+		      		$strApplyTo =  "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm =  "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 	      	
 		      	"None"
 		      	{
@@ -9931,7 +10167,7 @@ if ($bolACLExist)
 		      	"InheritedObjectAceTypePresent"
 		      	{
 		      		$strApplyTo = "Children within this container only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 
 		      	"None"
 		      	{
@@ -9940,13 +10176,13 @@ if ($bolACLExist)
 		      	} 	      	
 		      	"ObjectAceTypePresent, InheritedObjectAceTypePresent"
 	      		{
-		      		$strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName})"
-                    $strPerm = "$(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName}) $objRights"
+		      		$strApplyTo = "$(if($bolTranslateGUID){$objInheritedType}else{MapGUIDToMatchingName -strGUIDAsString $objInheritedType -Domain $global:strDomainDNName -CREDS $CREDS})"
+                    $strPerm = "$(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS}) $objRights"
 		      	} 	
 		      	"ObjectAceTypePresent"
 	      		{
 		      		$strApplyTo = "Children within this container only"
-                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName})"
+                    $strPerm = "$objRights $(if($bolTranslateGUID){$objType}else{MapGUIDToMatchingName -strGUIDAsString $objType -Domain $global:strDomainDNName -CREDS $CREDS})"
 		      	} 		      	
 		      	default
 	 			{
@@ -10663,7 +10899,7 @@ $strHTMLText
 $tokens  | foreach{
 If ($_.contains("S-1-"))
 {
-	$strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $_
+	$strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $_  -CREDS $CREDS
 
 }
 if ($($strNTAccount.toString()) -ne $strSPN)
@@ -11047,7 +11283,10 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm 
 {
-    Param([System.Collections.ArrayList]$AllObjectDn,[string]$DomainNetbiosName,[boolean]$IncludeInherited,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType,[string]$ApplyTo,[bool]$ACLObjectFilter,[string]$FilterTrustee,[bool]$FilterForTrustee,[string]$AccessType,[bool]$AccessFilter,[string]$ACLPermissionFilter)
+    Param([System.Collections.ArrayList]$AllObjectDn,[string]$DomainNetbiosName,[boolean]$IncludeInherited,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType,[string]$ApplyTo,[bool]$ACLObjectFilter,[string]$FilterTrustee,[bool]$FilterForTrustee,[string]$AccessType,[bool]$AccessFilter,[string]$ACLPermissionFilter, 
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 
 $bolCompare = $false
@@ -11113,7 +11352,7 @@ if($GPO)
     $GPOTarget = $AllObjectDn[$count].Split(";")[1]
     if($GPO)
     {
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest
         $request.DistinguishedName = $ADObjDN
@@ -11169,7 +11408,7 @@ else
 $sd =  New-Object System.Collections.ArrayList
 $GetOwnerEna = $bolGetOwnerEna
    
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest("$ADObjDN", "(name=*)", "base")
 if($global:bolShowDeleted)
@@ -11385,7 +11624,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
     if ($bolReplMeta -eq $true)
     {
     
-        $AclChange = $(GetACLMeta  $global:strDC $ADObjDN)
+        $AclChange = $(GetACLMeta  $global:strDC $ADObjDN -CREDS $CREDS)
         $objLastChange = $AclChange.split(";")[0]
         $strOrigInvocationID = $AclChange.split(";")[1]
         $strOrigUSN = $AclChange.split(";")[2]
@@ -11424,7 +11663,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             if ($FilterTrustee.Length -gt 0)
             {
                 $sd = @($sd | Where-Object{if($_.IdentityReference -like "S-1-*"){`
-                $(ConvertSidToName -server $global:strDomainLongName -Sid $_.IdentityReference) -like $FilterTrustee}`
+                $(ConvertSidToName -server $global:strDomainLongName -Sid $_.IdentityReference  -CREDS $CREDS) -like $FilterTrustee}`
                 else{$_.IdentityReference -like $FilterTrustee}})
             
             }
@@ -11451,7 +11690,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             [Void]$RecursiveData.add($ace)
             $SID_DN = ""
 
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
             $LDAPConnection.SessionOptions.ReferralChasing = "None"
             $request = New-Object System.directoryServices.Protocols.SearchRequest
             $request.DistinguishedName = "<SID=$($ace.IdentityReference)>"
@@ -11479,7 +11718,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                     if(($result.Attributes.AttributeNames -contains "member;range=0-1499") -or ($result.Attributes.AttributeNames -contains "member"))
                     {
                         $global:GroupMembersExpanded =  New-Object System.Collections.ArrayList
-                        $NetstedResult = Get-LargeNestedADGroup $global:strDC $SID_DN $RecursiveObjectType
+                        $NetstedResult = Get-LargeNestedADGroup $global:strDC $SID_DN $RecursiveObjectType -CREDS $CREDS
                         if($NetstedResult)
                         {
                             foreach($NestedObject in $NetstedResult)
@@ -11597,14 +11836,14 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                     $strNTAccount = $sd[$index].IdentityReference.ToString()
 	                If ($strNTAccount.contains("S-1-"))
 	                {
-	                    $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	                    $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount -CREDS $CREDS
 	                }  
                     #Remove Default Permissions if SkipDefaultPerm selected
                     if($SkipDefaultPerm)
                     {
                         if($strObjectClass  -ne $strTemoObjectClass)
                         {
-                            $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
+                            $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
                         }
                         $strTemoObjectClass = $strObjectClass
                         $indexDef=0
@@ -11652,12 +11891,12 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 
                             if($OutType -eq "CSVTEMPLATE")
                             {
-				 		        WritePermCSV $sd[$index] $strDistinguishedName $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $false $bolToFile $GPO $GPOdisplayname $TranslateGUID
+				 		        WritePermCSV $sd[$index] $strDistinguishedName $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $false $bolToFile $GPO $GPOdisplayname $TranslateGUID -CREDS $CREDS
                             }
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
+                                WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }
 
 				 	    }# End If
@@ -11674,13 +11913,13 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				 	        if ($permcount -eq 0)
 				 	        {
                                 $bolOUHeader = $true    
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
 
 				 	        }
 				 	        else
 				 	        {
                                     $bolOUHeader = $false 
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
 
 				 	        }# End If
                         }
@@ -11708,7 +11947,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    {
                     $bolOUHeader = $false 
                     $GetOwnerEna = $false
-                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
+                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
                     #$aclcount++
 		 	    }
             }
@@ -11722,7 +11961,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             if (($permcount -eq 0) -and ($index -gt 0))
             {
                 $bolOUHeader = $true 
-	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor
+	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
                 $aclcount++
             }# End If
         }# End if bolCSVOnly
@@ -11940,7 +12179,9 @@ $secd = $null
 #==========================================================================
 Function Get-PermCompare
 {
-    Param([System.Collections.ArrayList]$AllObjectDn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $Returns,[bool]$bolToFile,[bool]$bolShowCriticalityColor,[bool]$bolAssess,[string] $AssessLevel,[bool]$GPO,[bool]$TranslateGUID)
+    Param([System.Collections.ArrayList]$AllObjectDn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $Returns,[bool]$bolToFile,[bool]$bolShowCriticalityColor,[bool]$bolAssess,[string] $AssessLevel,[bool]$GPO,[bool]$TranslateGUID,[Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 &{#Try
 $arrOUList = New-Object System.Collections.ArrayList
@@ -12133,7 +12374,7 @@ while($count -le $AllObjectDn.count -1)
         $GPOTarget = $AllObjectDn[$count].Split(";")[1]
         if($GPO)
         {
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection("")
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
             $LDAPConnection.SessionOptions.ReferralChasing = "None"
             $request = New-Object System.directoryServices.Protocols.SearchRequest
             $request.DistinguishedName = $ADObjDN
@@ -12160,7 +12401,7 @@ while($count -le $AllObjectDn.count -1)
     #Counter used for fitlerout Nodes with only defaultpermissions configured
     $intAclOccurence = 0
 
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest("$ADObjDN", "(name=*)", "base")
     if($global:bolShowDeleted)
@@ -12414,7 +12655,7 @@ while($count -le $AllObjectDn.count -1)
         if ($bolReplMeta -eq $true)
         {
     
-            $AclChange = $(GetACLMeta  $global:strDC $ADObjDN)
+            $AclChange = $(GetACLMeta  $global:strDC $ADObjDN -CREDS $CREDS)
             $objLastChange = $AclChange.split(";")[0]
             $strOrigInvocationID = $AclChange.split(";")[1]
             $strOrigUSN = $AclChange.split(";")[2]
@@ -12487,7 +12728,7 @@ while($count -le $AllObjectDn.count -1)
                                     $strNTAccount = $sdObject.IdentityReference
 	                                If ($strNTAccount.contains("S-1-"))
 	                                {
-	                                    $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	                                    $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount -CREDS $CREDS
 
 	                                }
                                     $newSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
@@ -12503,12 +12744,12 @@ while($count -le $AllObjectDn.count -1)
                                             $intCSV++
                                             if($OutType -eq "CSVTEMPLATE")
                                             {
-                                                WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+                                                WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID -CREDS $CREDS
                                             }
                                             else
                                             {
                                                 $bolOUHeader = $false               
-                                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                                             }
                                         }# End If
                                         Else
@@ -12517,11 +12758,11 @@ while($count -le $AllObjectDn.count -1)
                                             {
                                                 $intAclOccurence++
                                                 $bolOUHeader = $true 
-                                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             
                                             }
                                             $bolOUHeader = $false 
-                                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                                         }#End !$bolCSVOnly
                                     }#End Returns
                                 }
@@ -12552,7 +12793,7 @@ while($count -le $AllObjectDn.count -1)
                 $strIdentityReference= $sdObject.IdentityReference.toString()
 	            If ($strIdentityReference.contains("S-1-"))
 	            {
-	                $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
+	                $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
 
 	            }
                 #Remove Default Permissions if SkipDefaultPerm selected
@@ -12560,7 +12801,7 @@ while($count -le $AllObjectDn.count -1)
                 {
                     if($strObjectClass  -ne $strTemoObjectClass)
                     {
-                        $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
+                        $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
                     }
                     $strTemoObjectClass = $strObjectClass
                     $indexDef=0
@@ -12671,7 +12912,7 @@ while($count -le $AllObjectDn.count -1)
                                 }
 	                            If ($strPrincipalName.contains("S-1-"))
 	                            {
-	                                $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName
+	                                $strPrincipalName = ConvertSidToName -server $global:strDomainLongName -Sid $strPrincipalName -CREDS $CREDS
 
 	                            }
                                 if($txtReplaceNetbios.text.Length -gt 0)
@@ -12706,12 +12947,12 @@ while($count -le $AllObjectDn.count -1)
                             $intCSV++
                             if($OutType -eq "CSVTEMPLATE")
                             {
-				 		        WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+				 		        WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID -CREDS $CREDS
                             }
                             else
                             {
                                 $bolOUHeader = $false               
-                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }
 				 	    }# End If
                         Else
@@ -12720,11 +12961,11 @@ while($count -le $AllObjectDn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                         
                             }
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "4" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                         }#End !$bolCSVOnly
                         
                     }
@@ -12740,12 +12981,12 @@ while($count -le $AllObjectDn.count -1)
                             $intCSV++
                             if($OutType -eq "CSVTEMPLATE")
                             {
-				 		        WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+				 		        WritePermCSV $newSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID -CREDS $CREDS
                             }
                             else
                             {
                                 $bolOUHeader = $false               
-                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }
 				 	    }# End If
                         Else
@@ -12754,10 +12995,10 @@ while($count -le $AllObjectDn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }   
                             $bolOUHeader = $false 
-                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                            WriteOUT $true $newSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                         }#End !$bolCSVO
                         }#End Returns
 
@@ -12825,7 +13066,7 @@ while($count -le $AllObjectDn.count -1)
                     }
 	                If ($strIdentityReference.contains("S-1-"))
 	                {
-	                 $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
+	                 $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
 
 	                }
                     if($txtReplaceNetbios.text.Length -gt 0)
@@ -12852,14 +13093,14 @@ while($count -le $AllObjectDn.count -1)
                         $strIdentityReference = $sdObject.IdentityReference.toString()
 	                    If ($strIdentityReference.contains("S-1-"))
 	                    {
-	                        $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
+	                        $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
 	                    }
                         #Remove Default Permissions if SkipDefaultPerm selected
                         if($SkipDefaultPerm)
                         {
                             if($strObjectClass  -ne $strTemoObjectClass)
                             {
-                                $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
+                                $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
                             }
                             $strTemoObjectClass = $strObjectClass
                             $indexDef=0
@@ -12953,7 +13194,7 @@ while($count -le $AllObjectDn.count -1)
                         }                  
 	                    If ($strIdentityReference.contains("S-1-"))
 	                    {
-	                     $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
+	                     $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
 
 	                    }
                         $histSDObject = New-Object PSObject -Property @{ActiveDirectoryRights=$global:csvHistACLs[$index].ActiveDirectoryRights;InheritanceType=$global:csvHistACLs[$index].InheritanceType;ObjectType=$global:csvHistACLs[$index].ObjectType;`
@@ -12967,12 +13208,12 @@ while($count -le $AllObjectDn.count -1)
                             $intCSV++
                             if($OutType -eq "CSVTEMPLATE")
                             {
-    				            WritePermCSV $histSDObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+    				            WritePermCSV $histSDObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID -CREDS $CREDS
                             }
                             else
                             {
                                 $bolOUHeader = $false               
-                                WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }
 				 	    }# End If
                         Else
@@ -12981,10 +13222,10 @@ while($count -le $AllObjectDn.count -1)
                             {
                                 $intAclOccurence++
                                 $bolOUHeader = $true 
-                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }
                             $bolOUHeader = $false               
-                            WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                            WriteOUT $true $histSDObject $strDistinguishedname $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                         }#End !$bolCSVOnly
                         }#End Returns
                         $histSDObject = ""
@@ -13012,7 +13253,7 @@ while($count -le $AllObjectDn.count -1)
                 }
 	            If ($strNTAccount.contains("S-1-"))
 	            {
-	             $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	             $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount -CREDS $CREDS
 
 	            }
 
@@ -13021,7 +13262,7 @@ while($count -le $AllObjectDn.count -1)
                 {
                     if($strObjectClass  -ne $strTemoObjectClass)
                     {
-                        $sdOUDef = Get-DefaultPermissions $strObjectClass $strNTAccount
+                        $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
                     }
                     $strTemoObjectClass = $strObjectClass
                     $indexDef=0
@@ -13061,12 +13302,12 @@ while($count -le $AllObjectDn.count -1)
 				 		        
                                 if($OutType -eq "CSVTEMPLATE")
                                 {
-    				                WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+    				                WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID -CREDS $CREDS
                                 }
                                 else
                                 {
                                     $bolOUHeader = $false               
-                                    WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                    WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                                 }
 				 	        }# End If
                             Else
@@ -13075,10 +13316,10 @@ while($count -le $AllObjectDn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                                 }
                                 $bolOUHeader = $false 
-                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $true $MissingOUSdObject $OUdn $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }#End !$bolCSVOnly
                         }
                     }
@@ -13100,13 +13341,13 @@ while($count -le $AllObjectDn.count -1)
                                 $intCSV++
                                 if($OutType -eq "CSVTEMPLATE")
                                 {
-    				                WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+    				                WritePermCSV $MissingOUSdObject $strDistinguishedname $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID -CREDS $CREDS
                                 }
                                 else
 
                                 {
                                     $bolOUHeader = $false               
-                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                                 }
 				 	        }# End If
                             Else
@@ -13115,10 +13356,10 @@ while($count -le $AllObjectDn.count -1)
                                 {
                                     $intAclOccurence++
                                     $bolOUHeader = $true 
-                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                    WriteOUT $false $sd $strDistinguishedname $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                                 }
                                 $bolOUHeader = $false                  
-                                WriteOUT $true $MissingOUSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                                WriteOUT $true $MissingOUSdObject $strDistinguishedname $CanonicalName $bolOUHeader "5" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                             }#End !$bolCSVOnly
                         }#End Returns
                         }
@@ -13190,7 +13431,7 @@ while($count -le $AllObjectDn.count -1)
             }    
 	        If ($strIdentityReference.contains("S-1-"))
 	        {
-	         $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference
+	         $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
 
 	        }
             $histSDObject = New-Object PSObject -Property @{ActiveDirectoryRights=$global:csvHistACLs[$index].ActiveDirectoryRights;InheritanceType=$global:csvHistACLs[$index].InheritanceType;ObjectType=$global:csvHistACLs[$index].ObjectType;`
@@ -13201,13 +13442,13 @@ while($count -le $AllObjectDn.count -1)
 			{
                 if($OutType -eq "CSVTEMPLATE")
                 {
-    				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID
+    				WritePermCSV $histSDObject $DSobject.distinguishedname.toString() $CanonicalName $strObjectClass $strFileCSV $bolReplMeta $objLastChange $strOrigInvocationID $strOrigUSN $bolGetOUProtected $bolOUProtected $true $bolToFile $GPO $GPODisplayname $TranslateGUID -CREDS $CREDS
                 }
                 else
 
                 {
                     $bolOUHeader = $false               
-                    WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                    WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                 }
 
 
@@ -13218,10 +13459,10 @@ while($count -le $AllObjectDn.count -1)
                 {
                     $intAclOccurence++
                     $bolOUHeader = $true 
-                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                    WriteOUT $false $histSDObject $strOUcol $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
                 }
                 $bolOUHeader = $false               
-                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                WriteOUT $true $histSDObject $strOUcol $CanonicalName $bolOUHeader "3" $strFileHTA $bolCompare $bolFilter $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
             }#End !$bolCSVOnly
             $histSDObject = ""
         }
@@ -13452,7 +13693,10 @@ Remove-Variable -Name "secd" -Scope Global
 #==========================================================================
 Function ConvertCSVtoHTM
 {
-    Param($CSVInput,[boolean] $bolGUIDtoText)
+    Param($CSVInput,[boolean] $bolGUIDtoText,[Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
+
 $OutType = "HTML"
 $bolReplMeta = $false
 if($chkBoxSeverity.isChecked -or $chkBoxEffectiveRightsColor.isChecked)
@@ -13593,7 +13837,7 @@ If(Test-Path $CSVInput)
             {
   
                 $bolOUHeader = $true   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
    
     
                 $tmpOU = $strOU
@@ -13601,7 +13845,7 @@ If(Test-Path $CSVInput)
             else
             {
                 $bolOUHeader = $false   
-                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor
+                WriteOUT $true $txtSdObject $strOU $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $false $false $bolReplMeta $strTmpACLDate  $false $strACLSize $false $false $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $bolObjType $WriteOut $GPO $GPODisplayname $bolShowCriticalityColor -CREDS $CREDS
 
 
             }
@@ -13667,9 +13911,12 @@ else
 #==========================================================================
 Function GetACLMeta
 {
-    Param($DomainController,$objDN)
+    Param($DomainController,$objDN,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest($objDN, "(name=*)", "base")
 $SecurityMasks = [System.DirectoryServices.Protocols.SecurityMasks]'Owner' -bor [System.DirectoryServices.Protocols.SecurityMasks]'Group'-bor [System.DirectoryServices.Protocols.SecurityMasks]'Dacl' #-bor [System.DirectoryServices.Protocols.SecurityMasks]'Sacl'
@@ -13720,7 +13967,10 @@ $ACLdate = $(get-date $strLastChangeDate -UFormat "%Y-%m-%d %H:%M:%S")
 Function Get-DefaultSD
 {
     Param( [String[]] $strObjectClass,[bool] $bolChangedDefSD,[bool]$bolSDDL,[string]$File,
-[boolean]$Show,[string] $OutType,[bool]$bolShowCriticalityColor,[bool]$Assess,[string]$Criticality,[bool]$FilterBuiltin,[bool]$bolReplMeta)
+    [boolean]$Show,[string] $OutType,[bool]$bolShowCriticalityColor,[bool]$Assess,[string]$Criticality,[bool]$FilterBuiltin,[bool]$bolReplMeta,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 if($OutType -eq "CSV")
 {
@@ -13745,7 +13995,7 @@ $global:ArrayAllACE = New-Object System.Collections.ArrayList
 
 $strColorTemp = 1 
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest($global:SchemaDN, "(&(objectClass=classSchema)(name=$strObjectClass))", "Subtree")
 [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -13817,7 +14067,7 @@ $response = $null
 
 
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest($global:SchemaDN, "(&(objectClass=classSchema)(name=$strObjectClass))", "Subtree")
 [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -13960,7 +14210,7 @@ while ($true)
                 if (($OutType -eq "CSV") -or ($OutType -eq ""))
                 {
 
-                    WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor 
+                    WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor -CREDS $CREDS
                 }
                 else
                 {
@@ -14002,45 +14252,64 @@ while ($true)
                 $sd = ""
                 if($null -ne $entry.Attributes.defaultsecuritydescriptor)
                 {
-                    $sec.SetSecurityDescriptorSddlForm($entry.Attributes.defaultsecuritydescriptor[0])
-                }
-                $sd = $sec.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])   
-
-                if($FilterBuiltin)
-                {
-                    # Filter out default and built-in security principals
-                    $sd = @($sd | Where-Object{`
-                        ($_.IdentityReference -match "S-1-5-21-") -and `
-                        ($_.IdentityReference -notmatch $("^"+$domainsid+"-5\d{2}$")) -and 
-                        ($_.IdentityReference -notmatch $("^"+$domainsid+"-4\d{2}$"))
-                        }) 
-                }
-
-                If ($Assess)
-                {
-                    Switch ($Criticality)
-                    {
-                        "Info" {$CriticalityFilter = 0}
-                        "Low" {$CriticalityFilter = 1}
-                        "Medium" {$CriticalityFilter = 2}
-                        "Warning" {$CriticalityFilter = 3}
-                        "Critical" {$CriticalityFilter = 4}
+                    Try{
+                        $sec.SetSecurityDescriptorSddlForm($entry.Attributes.defaultsecuritydescriptor[0])
                     }
-                    $sd = @($sd | Where-Object{Get-Criticality -Returns "Filter" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() $CriticalityFilter })
+                    catch
+                    {
+                        if($bolCMD)
+                        {
+                            Write-host "The SDDL string contains an invalid sid or a sid that cannot be translated." -ForegroundColor Red
+                            Write-host "Only domain-joined computers can translate some sids." -ForegroundColor Red
+                        }
+                        else
+                        {
+                            $global:observableCollection.Insert(0,(LogMessage -strMessage "The SDDL string contains an invalid sid or a sid that cannot be translated." -strType "Error" -DateStamp ))
+                            $global:observableCollection.Insert(0,(LogMessage -strMessage "Only domain-joined computers can translate some sids." -strType "Error" -DateStamp ))
+                        }  
+                    }
                 }
-
-                #Indicate that a defaultsecuritydescriptor was found
-                $intNumberofDefSDFound++
-
-                if (($OutType -eq "CSV") -or ($OutType -eq ""))
+                #If any access has been added report it
+                if($sec.access.count -gt 0)
                 {
+                    $sd = $sec.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])   
 
-                    WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor 
-                }
-                else
-                {
-                    WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
-                }
+                    if($FilterBuiltin)
+                    {
+                        # Filter out default and built-in security principals
+                        $sd = @($sd | Where-Object{`
+                            ($_.IdentityReference -match "S-1-5-21-") -and `
+                            ($_.IdentityReference -notmatch $("^"+$domainsid+"-5\d{2}$")) -and 
+                            ($_.IdentityReference -notmatch $("^"+$domainsid+"-4\d{2}$"))
+                            }) 
+                    }
+
+                    If ($Assess)
+                    {
+                        Switch ($Criticality)
+                        {
+                            "Info" {$CriticalityFilter = 0}
+                            "Low" {$CriticalityFilter = 1}
+                            "Medium" {$CriticalityFilter = 2}
+                            "Warning" {$CriticalityFilter = 3}
+                            "Critical" {$CriticalityFilter = 4}
+                        }
+                        $sd = @($sd | Where-Object{Get-Criticality -Returns "Filter" $_.IdentityReference.toString() $_.ActiveDirectoryRights.toString() $_.AccessControlType.toString() $_.ObjectFlags.toString() $_.InheritanceType.toString() $_.ObjectType.toString() $_.InheritedObjectType.toString() $CriticalityFilter })
+                    }
+
+                    #Indicate that a defaultsecuritydescriptor was found
+                    $intNumberofDefSDFound++
+
+                    if (($OutType -eq "CSV") -or ($OutType -eq ""))
+                    {
+
+                        WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor -CREDS $CREDS
+                    }
+                    else
+                    {
+                        WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
+                    }
+                }#End if $sec
 
             }
         }
@@ -14172,7 +14441,10 @@ else
 Function Get-DefaultSDCompare
 {
     Param( [String[]] $strObjectClass="*",
-    [string] $strTemplate
+    [string] $strTemplate,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS
     )
 $strFileDefSDHTA = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".hta" 
 $strFileDefSDHTM = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".htm" 
@@ -14193,7 +14465,7 @@ $strColorTemp = 1
 
 
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest($global:SchemaDN, "(&(objectClass=classSchema)(name=$strObjectClass))", "Subtree")
 [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -14264,7 +14536,7 @@ if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
 
 
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest($global:SchemaDN, "(&(objectClass=classSchema)(name=$strObjectClass))", "Subtree")
 [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -14388,7 +14660,7 @@ while ($true)
                         $strNTAccount = $ObjectDefSD.IdentityReference.toString()
 	                    If ($strNTAccount.contains("S-1-"))
 	                    {
-	                     $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	                     $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount -CREDS $CREDS
 
 	                    }
                         $newObjectDefSD = New-Object PSObject -Property @{ActiveDirectoryRights=$ObjectDefSD.ActiveDirectoryRights;InheritanceType=$ObjectDefSD.InheritanceType;ObjectType=$ObjectDefSD.ObjectType;`
@@ -14438,7 +14710,7 @@ while ($true)
                         $strNTAccount = $ObjectDefSD.IdentityReference.toString()
 	                    If ($strNTAccount.contains("S-1-"))
 	                    {
-	                     $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount
+	                     $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strNTAccount -CREDS $CREDS
 
 	                    }
 
@@ -14644,8 +14916,15 @@ else
 #==========================================================================
 Function Write-DefaultSDCSV
 {
-    Param( [string] $fileout,
-    $strObjectClass="*")
+    Param(
+    [string]
+    $fileout,
+    
+    $strObjectClass="*",
+    
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
 #Number of columns in CSV import
 $strCSVHeaderDefsd = @"
@@ -14663,7 +14942,7 @@ $strCSVHeaderDefsd | Out-File -FilePath $fileout -Encoding UTF8
 
 
 
-$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+$LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
 $LDAPConnection.SessionOptions.ReferralChasing = "None"
 $request = New-Object System.directoryServices.Protocols.SearchRequest($global:SchemaDN, "(&(objectClass=classSchema)(name=$strObjectClass))", "Subtree")
 [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
@@ -14765,9 +15044,13 @@ $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $
 #==========================================================================
 Function GetEffectiveRightSP
 {
-    param([string] $strPrincipal,
-[string] $strDomainDistinguishedName
-)
+    param(
+    [string] $strPrincipal,
+    [string] $strDomainDistinguishedName,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS
+    )
 $global:strEffectiveRightSP = ""
 $global:strEffectiveRightAccount = ""
 $global:strSPNobjectClass = ""
@@ -14793,7 +15076,7 @@ if ($global:strPrinDomDir -eq 2)
         if (TestCreds $CredsExt)
         {    
             $global:strPinDomDC = $(GetDomainController $global:strDomainPrinDNName $true $Script:CredsExt)
-            $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $true $Script:CredsExt)
+            $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $true -CREDS $Script:CredsExt)
          }
          else
          {
@@ -14813,12 +15096,12 @@ else
     {
         $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
         $global:strPinDomDC = $global:strDC
-        $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $false)
+        $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $false -CREDS $CREDS)
     }
     else
     {
         $global:strPinDomDC = $global:strDC
-        $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $false)
+        $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $false -CREDS $CREDS)
     }
 }
 if ($global:strPrincipalDN -eq "")
@@ -14848,7 +15131,7 @@ else
     
     if ($global:strPrinDomDir -eq 2)
     {
-        [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups $global:strPinDomDC $global:strPrincipalDN $true $Script:CredsExt)
+        [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strPinDomDC -PrincipalDN $global:strPrincipalDN -bolCreds $true -GetTokenCreds $Script:CredsExt -CREDS $CREDS)
         
         $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$Script:CredsExt.UserName,$Script:CredsExt.GetNetworkCredential().Password)
 
@@ -14865,10 +15148,10 @@ else
     }
     else
     {
-        [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups $global:strPinDomDC $global:strPrincipalDN $false)
+        [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strPinDomDC -PrincipalDN $global:strPrincipalDN -bolCreds $false -CREDS $CREDS)
         
 
-        $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN")
+        $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$CREDS.UserName,$CREDS.GetNetworkCredential().Password)
 
                     
         $objADPrinipal.psbase.RefreshCache("msDS-PrincipalName")
@@ -14986,7 +15269,11 @@ Function Find-RiskyTemplates
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $ConfigurationDN="")
+    $ConfigurationDN="",
+
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
 
     #array Published templates names
     $arrPublishedPKITemplates = New-Object System.Collections.ArrayList
@@ -14995,7 +15282,7 @@ Function Find-RiskyTemplates
     $arrPublishedTemplatesDN = New-Object System.Collections.ArrayList
 
     # Search published for PKI templates
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $SearchFilter = "(objectClass=pKIEnrollmentService)"
     $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Enrollment Services,CN=Public Key Services,CN=Services,$ConfigurationDN", $SearchFilter, "OneLevel")
@@ -15057,7 +15344,7 @@ Function Find-RiskyTemplates
         Foreach($PublishedTemplate in $arrPublishedPKITemplates)
         {
             # Search for PKI templates objects
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
             $LDAPConnection.SessionOptions.ReferralChasing = "None"
             $SearchFilter = "(&(objectClass=pKICertificateTemplate)(cn=$PublishedTemplate)(msPKI-Certificate-Name-Flag=1)(msPKI-Certificate-Application-Policy=1.3.6.1.5.5.7.3.2))"
             $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigurationDN", $SearchFilter, "OneLevel")
@@ -15208,7 +15495,12 @@ $global:intObjeComputer = 0
 $null = Add-Type -AssemblyName System.DirectoryServices.Protocols
 if($base -or $GPO) 
 {
-    
+    $CREDS = $null
+    if($credentials)
+    {
+        $CREDS = $Credentials
+    }
+
     if($Criticality)
     {
         $ShowCriticalityColor = $true
@@ -15246,7 +15538,7 @@ if($base -or $GPO)
         $FilterForTrustee = $false
     }
 
-    if($FilterForTrustee -or $ACLObjectFilter -or $AccessFilter)
+    if($FilterForTrustee -or $ACLObjectFilter -or $AccessFilter -or $Permission)
     {
         $ACLFilter = $True
     }
@@ -15289,7 +15581,7 @@ if($base -or $GPO)
             }
         }
         $global:bolLDAPConnection = $false
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest("", "(objectClass=*)", "base")
         if($global:bolShowDeleted)
@@ -15315,7 +15607,7 @@ if($base -or $GPO)
 	    catch
 	    {
 		    $global:bolLDAPConnection = $false
-            Write-host "Failed! Domain does not exist or can not be connected" -ForegroundColor red
+            Write-host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
 	    }
         if($global:bolLDAPConnection -eq $true)
         {
@@ -15371,8 +15663,8 @@ if($base -or $GPO)
                                     
                     }
                     $global:strDomainPrinDNName = $global:strDomainDNName
-                    $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                    $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                    $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                     $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
                 }
                 default
@@ -15397,7 +15689,7 @@ if($base -or $GPO)
             {
                 $strNamingContextDN = $global:strDomainDNName
             }
-            If(CheckDNExist $strNamingContextDN $global:strDC)
+            If(CheckDNExist -sADobjectName $strNamingContextDN -strDC $global:strDC -CREDS $CREDS)
             {
                 $NCSelect = $true
             }
@@ -15417,7 +15709,7 @@ if($base -or $GPO)
     $bolEffective = $false
     if($EffectiveRightsPrincipal.Length -gt 0)
     {
-        if($(GetEffectiveRightSP $EffectiveRightsPrincipal $global:strDomainDNName))
+        if($(GetEffectiveRightSP $EffectiveRightsPrincipal $global:strDomainDNName -CREDS $CREDS))
          {
             $bolEffective = $true
             $IncludeInherited = $true
@@ -15432,7 +15724,7 @@ if($base -or $GPO)
 	    If (!($strLastCacheGuidsDom -eq $global:strDomainDNName))
 	    {
 	        $global:dicRightsGuids = @{"Seed" = "xxx"}
-	        CacheRightsGuids 
+	        CacheRightsGuids -CREDS $CREDS
 	        $strLastCacheGuidsDom = $global:strDomainDNName
         
         
@@ -15440,7 +15732,7 @@ if($base -or $GPO)
         #Get Forest Root Domain ObjectSID
         if ($global:bolADDSType)
         {
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
             $LDAPConnection.SessionOptions.ReferralChasing = "None"
             $request = New-Object System.directoryServices.Protocols.SearchRequest($global:strDomainDNName, "(objectClass=*)", "base")
             [void]$request.Attributes.Add("objectsid")
@@ -15465,9 +15757,9 @@ if($base -or $GPO)
             {
                 $global:strForestDomainLongName = $global:ForestRootDomainDN.Replace("DC=","")
                 $global:strForestDomainLongName = $global:strForestDomainLongName.Replace(",",".")
-                if($global:CREDS.UserName)
+                if($CREDS.UserName)
                 {
-                    $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strForestDomainLongName,$global:CREDS.UserName,$global:CREDS.GetNetworkCredential().Password) 
+                    $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strForestDomainLongName,$CREDS.UserName,$CREDS.GetNetworkCredential().Password) 
                 }
                 else
                 {
@@ -15476,7 +15768,7 @@ if($base -or $GPO)
                 $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
                 $global:strForestDC = $($ojbDomain.FindDomainController()).name
 
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $global:CREDS)
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $CREDS)
                 $LDAPConnection.SessionOptions.ReferralChasing = "None"
                 $request = New-Object System.directoryServices.Protocols.SearchRequest($global:ForestRootDomainDN, "(objectClass=*)", "base")
                 [void]$request.Attributes.Add("objectsid")
@@ -15515,7 +15807,7 @@ if($base -or $GPO)
         }
 
 
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
         $LDAPConnection.SessionOptions.ReferralChasing = "None"
         $request = New-Object System.directoryServices.Protocols.SearchRequest($base, "(objectClass=*)", "base")
         [void]$request.Attributes.Add("name")               
@@ -15623,7 +15915,7 @@ if($base -or $GPO)
                         #Verify if the connection can be done
                         if($bolContinue)
                         {
-                            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$global:CREDS)
+                            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
                             $LDAPConnection.SessionOptions.ReferralChasing = "None"
                             $request = New-Object System.directoryServices.Protocols.SearchRequest
                             if($global:bolShowDeleted)
@@ -15669,14 +15961,14 @@ if($base -or $GPO)
         
         if($ACLObjectFilter)
         {
-            GetSchemaObjectGUID  -Domain $global:strDomainDNName
+            GetSchemaObjectGUID  -Domain $global:strDomainDNName -CREDS $CREDS
         }
 
         if($Targets)
         {
             if($Targets -eq "RiskyTemplates")
             {
-                $allSubOU = Find-RiskyTemplates -ConfigurationDN $global:ConfigDN
+                $allSubOU = Find-RiskyTemplates -ConfigurationDN $global:ConfigDN -CREDS $CREDS
             }
         }
         else
@@ -15684,12 +15976,12 @@ if($base -or $GPO)
             if(-not($GPO))
             {
                 #Get all LDAP objects to read ACL's on
-                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter $Filter)
+                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter $Filter -CREDS $CREDS)
             }
             else
             {
                 #Get all LDAP objects to read ACL's on
-                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter "(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))")
+                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter "(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))" -CREDS $CREDS)
             }
         }
 
@@ -15747,7 +16039,7 @@ if($base -or $GPO)
                             {
                                 Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
                                 $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
-                            }
+                            }D
                         }
                         else
                         {
@@ -15769,11 +16061,11 @@ if($base -or $GPO)
 
                     if($Template)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "HTML" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO 
+                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "HTML" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                     }
                     else
                     {
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -Access $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
                     }
 
                     Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
@@ -15828,11 +16120,11 @@ if($base -or $GPO)
 
                             if($Template)
                             {
-                                Get-PermCompare $allSubOU $SkipDefaults $false $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                                Get-PermCompare $allSubOU $SkipDefaults $false $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                             }
                             else
                             {
-                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "EXCEL" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "EXCEL" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
                             }
                         }
                     }
@@ -15841,11 +16133,11 @@ if($base -or $GPO)
                         $bolCSV = $true
                         if($Template)
                         {
-                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
                            
                         }
                         
@@ -15856,11 +16148,11 @@ if($base -or $GPO)
                         $bolCSV = $true
                         if($Template)
                         {
-                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
                             
                         }
                         
@@ -15877,12 +16169,12 @@ if($base -or $GPO)
                     $file = $false
                     if($Template)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                     }
                     else
                     {
                         
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
                     }
                 }
                 else
@@ -15891,11 +16183,11 @@ if($base -or $GPO)
                     $file = $false
                     if($Template)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO
+                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                     }
                     else
                     {
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
                     }
                 }
 
@@ -16018,8 +16310,8 @@ else
                                     
                         }
                         $global:strDomainPrinDNName = $global:strDomainDNName
-                        $global:strDomainShortName = GetDomainShortName $global:strDomainDNName $global:ConfigDN
-                        $global:strRootDomainShortName = GetDomainShortName $global:ForestRootDomainDN $global:ConfigDN
+                        $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                        $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                         $lblSelectPrincipalDom.Content = $global:strDomainShortName+":"
                     }
                     default
@@ -16044,7 +16336,7 @@ else
             {
                 $strNamingContextDN = $global:strDomainDNName
             }
-            If(CheckDNExist $strNamingContextDN $global:strDC)
+            If(CheckDNExist -sADobjectName $strNamingContextDN -strDC $global:strDC -CREDS $CREDS)
             {
                 $NCSelect = $true
             }
@@ -16063,7 +16355,7 @@ else
 	        If (!($strLastCacheGuidsDom -eq $global:strDomainDNName))
 	        {
 	            $global:dicRightsGuids = @{"Seed" = "xxx"}
-	            CacheRightsGuids 
+	            CacheRightsGuids -CREDS $CREDS
 	            $strLastCacheGuidsDom = $global:strDomainDNName
         
         
@@ -16071,7 +16363,7 @@ else
             #Get Forest Root Domain ObjectSID
             if ($global:bolADDSType)
             {
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $global:CREDS)
+                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
                 $LDAPConnection.SessionOptions.ReferralChasing = "None"
                 $request = New-Object System.directoryServices.Protocols.SearchRequest($global:strDomainDNName, "(objectClass=*)", "base")
                 [void]$request.Attributes.Add("objectsid")
@@ -16096,9 +16388,9 @@ else
                 {
                     $global:strForestDomainLongName = $global:ForestRootDomainDN.Replace("DC=","")
                     $global:strForestDomainLongName = $global:strForestDomainLongName.Replace(",",".")
-                    if($global:CREDS.UserName)
+                    if($CREDS.UserName)
                     {
-                        $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strForestDomainLongName,$global:CREDS.UserName,$global:CREDS.GetNetworkCredential().Password) 
+                        $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext("Domain",$global:strForestDomainLongName,$CREDS.UserName,$CREDS.GetNetworkCredential().Password) 
                     }
                     else
                     {
@@ -16107,7 +16399,7 @@ else
                     $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
                     $global:strForestDC = $($ojbDomain.FindDomainController()).name
 
-                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $global:CREDS)
+                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $CREDS)
                     $LDAPConnection.SessionOptions.ReferralChasing = "None"
                     $request = New-Object System.directoryServices.Protocols.SearchRequest($global:ForestRootDomainDN, "(objectClass=*)", "base")
                     [void]$request.Attributes.Add("objectsid")
@@ -16146,9 +16438,9 @@ else
 
             #Set search base as the name of the output file
             $strNode = fixfilename $response.Entries[0].Attributes.name[0]
-            if($ObjectName -ne "*")                
+            if($SchemaObjectName -ne "*")                
             {
-                $strNode = $ObjectName
+                $strNode = $SchemaObjectName
             }
             #Get current date
             $date= get-date -uformat %Y%m%d_%H%M%S
@@ -16192,7 +16484,7 @@ else
                         InitiateDefSDAccessHTM $strFileDefSDHTM $strObjectClass $bolReplMeta $false "" $ShowCriticalityColor
                     }
 
-                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+                    Get-DefaultSD -strObjectClass $SchemaObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta -CREDS $CREDS
 
                 }
                 "EXCEL"
@@ -16242,7 +16534,7 @@ else
                             $strFileEXCEL = $ExcelFile
                         }
                         #$rslt = Get-DefaultSD -strObjectClass "*" -bolChangedDefSD $true  -bolSDDL $false -Show $Show -OutType "EXCEL"
-                        Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+                        Get-DefaultSD -strObjectClass $SchemaObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -Show $Show -File $strFileDefSDHTM  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta -CREDS $CREDS
                     }
                 }
                 default
@@ -16269,7 +16561,7 @@ else
                     }
 
 
-                    Get-DefaultSD -strObjectClass $ObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -File $strFileCSV -Show $Show  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta
+                    Get-DefaultSD -strObjectClass $SchemaObjectName -bolChangedDefSD $OnlyModified -bolSDDL $false -File $strFileCSV -Show $Show  -OutType $Output -bolShowCriticalityColor $ShowCriticalityColor -Assess $CriticalitySelected -Criticality $Criticality -FilterBuiltin $SkipBuiltIn -bolReplMeta $bolReplMeta -CREDS $CREDS
 
                 }
             }
