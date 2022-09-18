@@ -99,15 +99,16 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.1**
+    **Version: 7.2**
 
-    **28 August, 2022**
-
-   *New Features*
-   * Connect using credentials from CLI
+    **19 September, 2022**
+   
+    *New Features*
+   * Filter on ApplyTO like "user" or multiple values like "user | computer"
 
    **Fixed issues**
-   * Get-Perm function, argument's name "Access" is not correct.
+   * Missing command line parameter -SkipProtected
+   * Comparing function was missing filtering functions
 
 #>
 Param
@@ -228,7 +229,7 @@ Param
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $Returns="ALL",
+    $TemplateFilter="ALL",
 
     # User ExcelFile to defined your own path for the excel output
     # This parameter will allow you to type the excel file path.
@@ -271,6 +272,16 @@ Param
     [switch] 
     $SkipDefaults,
 
+    # Skip protected permissions
+    # This parameter will skip permissions that match the permissions set when selecting "protect object from accidental deletaion"
+    [Alias("sp")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $SkipProtected,
+
     # Skip Built-in security principals
     # This parameter will skip permissions that match the built in groups
     [Alias("sb")]
@@ -280,6 +291,17 @@ Param
     [ValidateNotNullOrEmpty()]
     [switch] 
     $SkipBuiltIn,
+
+    # Filter the trustees on object type.
+    # This parameter will filter the result on an object type.
+    [Alias("rt")]
+    [Parameter(Mandatory=$false, 
+                ParameterSetName='Default')]
+    [ValidateSet("user", "computer", "group","msds-groupmanagedserviceaccount","*")]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [String] 
+    $ReturnObjectType="*",
 
     # Expand groups
     # This parameter will search any nested groups to show all security prinicpals that have access.
@@ -427,8 +449,8 @@ Param
     $AccessType,
 
     # Filter ACL for a specific permission
-    # Example 1. -Permissions "WriteProperty"
-    # Example 2. -Permissions "GenericAll"
+    # Example 1. -Permissions "GenericAll"
+    # Example 2. -Permissions "WriteProperty|ExtendedRight"
     [Alias("perm")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
@@ -437,8 +459,8 @@ Param
     $Permission,
 
     # Filter ACL ObjectName
-    # Example 1. -ApplyTo computer
-    # Example 2. -ApplyTo user
+    # Example 1. -ApplyTo user
+    # Example 2. -ApplyTo "user|computer"
     [Alias("at")]
     [Parameter(Mandatory=$false)]
     [ValidateNotNull()]
@@ -746,7 +768,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.1" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.2" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -785,117 +807,230 @@ $xamlBase = @"
                                 </Style>
                             </ListBox.ItemContainerStyle>
                         </ListBox>
-                        <TabControl x:Name="tabScanTop"   HorizontalAlignment="Left" Height="315"  VerticalAlignment="Top" Width="630" Margin="5,5,0,0">
+                        <TabControl x:Name="tabScanTop"   HorizontalAlignment="Left" Height="405"  VerticalAlignment="Top" Width="630" Margin="5,5,0,0">
                             <TabItem x:Name="tabScan" Header="Scan Options" Width="85">
                                 <Grid >
-                                    <StackPanel Orientation="Horizontal" Margin="0,0">
-                                        <StackPanel Orientation="Vertical" Margin="0,0">
-                                            <GroupBox x:Name="gBoxScanType" Header="Scan Type" HorizontalAlignment="Left" Height="71" Margin="2,1,0,0" VerticalAlignment="Top" Width="290" >
-                                                <StackPanel Orientation="Vertical" Margin="0,0">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <RadioButton x:Name="rdbDACL" Content="DACL (Access)" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="95" IsChecked="True"/>
-                                                        <RadioButton x:Name="rdbSACL" Content="SACL (Audit)" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="90"/>
+                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,0">
+                                            <StackPanel Orientation="Vertical" Margin="0,0">
+                                                <GroupBox x:Name="gBoxScanType" Header="Scan Type" HorizontalAlignment="Left" Height="71" Margin="2,1,0,0" VerticalAlignment="Top" Width="290" >
+                                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <RadioButton x:Name="rdbDACL" Content="DACL (Access)" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="95" IsChecked="True"/>
+                                                            <RadioButton x:Name="rdbSACL" Content="SACL (Audit)" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="90"/>
 
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
+                                                            <CheckBox x:Name="chkBoxRAWSDDL" Content="RAW SDDL" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                        </StackPanel>
                                                     </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
-                                                        <CheckBox x:Name="chkBoxRAWSDDL" Content="RAW SDDL" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                </GroupBox>
+                                                <GroupBox x:Name="gBoxScanDepth" Header="Scan Depth" HorizontalAlignment="Left" Height="51" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
+                                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <RadioButton x:Name="rdbBase" Content="Base" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True"/>
+                                                            <RadioButton x:Name="rdbOneLevel" Content="One Level" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
+                                                            <RadioButton x:Name="rdbSubtree" Content="Subtree" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
+                                                        </StackPanel>
                                                     </StackPanel>
+                                                </GroupBox>
+                                                <GroupBox x:Name="gBoxRdbFile" Header="Output Options" HorizontalAlignment="Left" Height="158" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
+                                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <RadioButton x:Name="rdbOnlyHTA" Content="HTML" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput" IsChecked="True"/>
+                                                            <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
+                                                            <RadioButton x:Name="rdbOnlyCSVTEMPLATE" Content="CSV Template" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="91" GroupName="rdbGroupOutput"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
+                                                        </StackPanel>
+                                                        <CheckBox x:Name="chkBoxTranslateGUID" Content="Translate GUID's in CSV output" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="200"/>
+                                                        <Label x:Name="lblTempFolder" Content="CSV file destination" />
+                                                        <TextBox x:Name="txtTempFolder" Margin="0,0,02,0"/>
+                                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" >
+                                                            <Button x:Name="btnGetTemplateFolder" Content="Change Folder" Width="90" Margin="-100,00,0,0"  />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Vertical" Margin="0,0">
+                                                <GroupBox x:Name="gBoxRdbScan" Header="Objects to scan" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="310">
+                                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <RadioButton x:Name="rdbScanOU" Content="OUs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True" GroupName="rdbGroupFilter"/>
+                                                            <RadioButton x:Name="rdbScanContainer" Content="Containers" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
+                                                            <RadioButton x:Name="rdbScanAll" Content="All Objects" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
+                                                            <RadioButton x:Name="rdbGPO" Content="GPOs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <RadioButton x:Name="rdbScanFilter" Content="" HorizontalAlignment="Left" Height="18" Margin="5,5,0,0" VerticalAlignment="Top" Width="15" GroupName="rdbGroupFilter"/>
+                                                            <TextBox x:Name="txtCustomFilter" Text="(objectClass=*)" HorizontalAlignment="Left" Height="18" Width="250" Margin="0,0,0.0,0" IsEnabled="False"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                                <GroupBox x:Name="gBoxReportOpt" Header="View in report" HorizontalAlignment="Left" Height="220" Margin="2,0,0,0" VerticalAlignment="Top" Width="310">
+                                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <CheckBox x:Name="chkBoxGetOwner" Content="View Owner" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                            <CheckBox x:Name="chkBoxACLSize" Content="DACL Size" HorizontalAlignment="Left" Height="18" Margin="30,05,0,0" VerticalAlignment="Top" Width="80"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Margin="0,0,0.2,0" Height="35">
+                                                            <CheckBox x:Name="chkInheritedPerm" Content="Inherited&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                            <CheckBox x:Name="chkBoxGetOUProtected" Content="Inheritance&#10;Disabled" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
+                                                            <CheckBox x:Name="chkBoxDefaultPerm" Content="Skip Default&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                            <CheckBox x:Name="chkBoxReplMeta" Content="SD Modified date" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
+                                                            <CheckBox x:Name="chkBoxSkipProtectedPerm" Content="Skip Protected&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                            <CheckBox x:Name="chkBoxObjType" Content="ObjectClass" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="90"/>
+                                                        </StackPanel>
+                                                        <StackPanel Orientation="Vertical"  Margin="0,0,0,0">
+                                                            <CheckBox x:Name="chkBoxUseCanonicalName" Content="Canonical Name" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120"/>
+                                                            <Label x:Name="lblReturnObjectType" Content="Filter report on security principal type:"  Margin="5,0,0,0"/>
+                                                            <ComboBox x:Name="combReturnObjectType" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="True"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </GroupBox>
+                                            </StackPanel>
+                                        </StackPanel>
+                                        <GroupBox  x:Name="gBoxExclude" Header="Excluded Path (matching string in distinguishedName):" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="605">
+                                            <StackPanel Orientation="Vertical">
+                                                <StackPanel Orientation="Vertical">
+                                                    <TextBox x:Name="txtBoxExcluded" HorizontalAlignment="Left" Height="20" Margin="5,10,0,0" TextWrapping="NoWrap" VerticalAlignment="Top" Width="585" />
+                                                    <Button x:Name="btnClearExcludedBox" Content="Clear"  Height="21" Margin="10,0,0,0" IsEnabled="true" Width="100"/>
                                                 </StackPanel>
-                                            </GroupBox>
-                                            <GroupBox x:Name="gBoxScanDepth" Header="Scan Depth" HorizontalAlignment="Left" Height="51" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
-                                                <StackPanel Orientation="Vertical" Margin="0,0">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <RadioButton x:Name="rdbBase" Content="Base" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True"/>
-                                                        <RadioButton x:Name="rdbOneLevel" Content="One Level" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
-                                                        <RadioButton x:Name="rdbSubtree" Content="Subtree" HorizontalAlignment="Left" Height="18" Margin="20,10,0,0" VerticalAlignment="Top" Width="80"/>
+                                            </StackPanel>
+                                        </GroupBox>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabFilter" Header="Filter">
+                                <Grid>
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <CheckBox x:Name="chkBoxFilter" Content="Enable Filter" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
+                                            <Label x:Name="lblAccessCtrl" Content="Filter by Access Type:(example: Allow)" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxType" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <ComboBox x:Name="combAccessCtrl" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
+                                            </StackPanel>
+                                            <Label x:Name="lblFilterExpl" Content="Filter by Object:&#10;Examples:&#10;* &#10;User|Computer" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxObject" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <TextBox x:Name="txtBoxObjectFilter" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="160" IsEnabled="False"/>
+                                            </StackPanel>
+
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Margin="5,5,0,0" Width="320">
+                                            <Label x:Name="lblPermission" Content="Filter by permissions:&#10;Examples:&#10;GenericAll &#10;WriteProperty|ExtendedRight" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxPermission" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <TextBox x:Name="txtPermission" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="160" IsEnabled="False"/>
+                                            </StackPanel>
+                                            <Label x:Name="lblFilterTrusteeExpl" Content="Filter by Trustee:&#10;Examples:&#10;CONTOSO\User&#10;CONTOSO\JohnDoe*&#10;*Smith&#10;*Doe*" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxTrustee" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <TextBox x:Name="txtFilterTrustee" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="160" IsEnabled="False"/>
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxFilterBuiltin" Content="" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top" IsEnabled="False"/>
+                                                <Label x:Name="lblFilterBuiltin" Content="Exclude all built-in security principals" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabAssess" Header="Assessment">
+                                <Grid >
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <GroupBox x:Name="gBoxdCriticals" Header="Assessment Options" HorizontalAlignment="Left" Height="200" Margin="0,5,0,0" VerticalAlignment="Top" Width="290">
+                                                <StackPanel>
+                                                    <Label x:Name="lblFilterServerity" Content="Filter by Severity" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                        <CheckBox x:Name="chkBoxSeverity" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="True"/>
+                                                        <ComboBox x:Name="combServerity" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="false"/>
                                                     </StackPanel>
-                                                </StackPanel>
-                                            </GroupBox>
-                                            <GroupBox x:Name="gBoxRdbFile" Header="Output Options" HorizontalAlignment="Left" Height="158" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                                <StackPanel Orientation="Vertical" Margin="0,0">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <RadioButton x:Name="rdbOnlyHTA" Content="HTML" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput" IsChecked="True"/>
-                                                        <RadioButton x:Name="rdbOnlyCSV" Content="CSV file" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="61" GroupName="rdbGroupOutput"/>
-                                                        <RadioButton x:Name="rdbOnlyCSVTEMPLATE" Content="CSV Template" HorizontalAlignment="Left" Height="18" Margin="20,05,0,0" VerticalAlignment="Top" Width="91" GroupName="rdbGroupOutput"/>
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <RadioButton x:Name="rdbEXcel" Content="Excel file" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="155" GroupName="rdbGroupOutput"/>
-                                                    </StackPanel>
-                                                    <CheckBox x:Name="chkBoxTranslateGUID" Content="Translate GUID's in CSV output" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="200"/>
-                                                    <Label x:Name="lblTempFolder" Content="CSV file destination" />
-                                                    <TextBox x:Name="txtTempFolder" Margin="0,0,02,0"/>
-                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" >
-                                                        <Button x:Name="btnGetTemplateFolder" Content="Change Folder" Width="90" Margin="-100,00,0,0"  />
+                                                  <Label x:Name="lblRecursiveFind" Content="Perform a recursive search and return these objects:" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0">
+                                                        <CheckBox x:Name="chkBoxRecursiveFind" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="True"/>
+                                                        <ComboBox x:Name="combRecursiveFind" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="false"/>
                                                     </StackPanel>
                                                 </StackPanel>
                                             </GroupBox>
                                         </StackPanel>
-                                        <StackPanel Orientation="Vertical" Margin="0,0">
-                                            <GroupBox x:Name="gBoxRdbScan" Header="Objects to scan" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="310">
+                                        <StackPanel Orientation="Vertical" Margin="5,5">
+                                            <GroupBox x:Name="gBoxCriticality" Header="Access Rights Criticality" HorizontalAlignment="Left" Height="150" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
                                                 <StackPanel Orientation="Vertical" Margin="0,0">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <RadioButton x:Name="rdbScanOU" Content="OUs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True" GroupName="rdbGroupFilter"/>
-                                                        <RadioButton x:Name="rdbScanContainer" Content="Containers" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
-                                                        <RadioButton x:Name="rdbScanAll" Content="All Objects" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
-                                                        <RadioButton x:Name="rdbGPO" Content="GPOs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="80" GroupName="rdbGroupFilter"/>
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <RadioButton x:Name="rdbScanFilter" Content="" HorizontalAlignment="Left" Height="18" Margin="5,5,0,0" VerticalAlignment="Top" Width="15" GroupName="rdbGroupFilter"/>
-                                                        <TextBox x:Name="txtCustomFilter" Text="(objectClass=*)" HorizontalAlignment="Left" Height="18" Width="250" Margin="0,0,0.0,0" IsEnabled="False"/>
-                                                    </StackPanel>
+                                                    <CheckBox x:Name="chkBoxEffectiveRightsColor" Content="Show color coded criticality" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True"/>
+                                                    <Label x:Name="lblEffectiveRightsColor" Content="Use colors in report to identify criticality level of &#10;permissions.This might help you in implementing &#10;Least-Privilege Administrative Models" />
+                                                    <Button x:Name="btnViewLegend" Content="View Color Legend" HorizontalAlignment="Left" Margin="5,0,0,0" IsEnabled="True" Width="110"/>
                                                 </StackPanel>
-                                            </GroupBox>
-                                            <GroupBox x:Name="gBoxReportOpt" Header="View in report" HorizontalAlignment="Left" Height="165" Margin="2,0,0,0" VerticalAlignment="Top" Width="310">
-                                                <StackPanel Orientation="Vertical" Margin="0,0">
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <CheckBox x:Name="chkBoxGetOwner" Content="View Owner" HorizontalAlignment="Left" Height="18" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                        <CheckBox x:Name="chkBoxACLSize" Content="DACL Size" HorizontalAlignment="Left" Height="18" Margin="30,05,0,0" VerticalAlignment="Top" Width="80"/>
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0.2,0" Height="35">
-                                                        <CheckBox x:Name="chkInheritedPerm" Content="Inherited&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                        <CheckBox x:Name="chkBoxGetOUProtected" Content="Inheritance&#10;Disabled" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
-                                                        <CheckBox x:Name="chkBoxDefaultPerm" Content="Skip Default&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                        <CheckBox x:Name="chkBoxReplMeta" Content="SD Modified date" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="120"/>
 
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Height="35" Margin="0,0,0.2,0">
-                                                        <CheckBox x:Name="chkBoxSkipProtectedPerm" Content="Skip Protected&#10;Permissions" HorizontalAlignment="Left" Height="30" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
-                                                        <CheckBox x:Name="chkBoxObjType" Content="ObjectClass" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="90"/>
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Height="34" Margin="0,0,0,0">
-                                                        <CheckBox x:Name="chkBoxUseCanonicalName" Content="Canonical Name" HorizontalAlignment="Left" Height="30" Margin="155,00,0,0" VerticalAlignment="Top" Width="120"/>
-                                                    </StackPanel>
-
-                                                </StackPanel>
                                             </GroupBox>
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </TabItem>
-                            <TabItem x:Name="tabOfflineScan" Header="Additional Options">
+                            <TabItem x:Name="tabEffectiveR" Header="Effective Rights">
+                                <Grid >
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0">
+                                            <CheckBox x:Name="chkBoxEffectiveRights" Content="Enable Effective Rights" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
+                                            <Label x:Name="lblEffectiveDescText" Content="Effective Access allows you to view the effective &#10;permissions for a user, group, or device account." />
+                                            <Label x:Name="lblEffectiveText" Content="Type the account name (samAccountName) for a &#10;user, group or computer" />
+                                            <Label x:Name="lblSelectPrincipalDom" Content=":" />
+                                            <TextBox x:Name="txtBoxSelectPrincipal" IsEnabled="False"  />
+                                            <StackPanel  Orientation="Horizontal" Margin="0,0">
+                                                <Button x:Name="btnGetSPAccount" Content="Get Account" Margin="5,0,0,0" IsEnabled="False"/>
+                                                <Button x:Name="btnListLocations" Content="Locations..." Margin="50,0,0,0" IsEnabled="False"/>
+                                            </StackPanel>
+
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Margin="5,5,0,0" Width="320">
+                                            <StackPanel  Orientation="Vertical" Margin="0,0"   >
+                                                <GroupBox x:Name="gBoxEffectiveSelUser" Header="Selected Security Principal:" HorizontalAlignment="Left" Height="50" Margin="2,2,0,0" VerticalAlignment="Top" Width="290">
+                                                    <StackPanel Orientation="Vertical" Margin="0,0">
+                                                        <Label x:Name="lblEffectiveSelUser" Content="" />
+                                                    </StackPanel>
+                                                </GroupBox>
+                                                <Button x:Name="btnGETSPNReport" HorizontalAlignment="Left" Content="View Account" Margin="5,2,0,0" IsEnabled="False" Width="110"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
+                            </TabItem>
+                            <TabItem x:Name="tabCompare" Header="Compare">
                                 <Grid>
-                                    <StackPanel>
-                                        <GroupBox x:Name="gBoxImportCSV" Header="CSV to HTML" HorizontalAlignment="Left" Height="136" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
-                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                <Label x:Name="lblCSVImport" Content="This file will be converted HTML:" />
-                                                <TextBox x:Name="txtCSVImport"/>
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                    <Button x:Name="btnGetCSVFile" Content="Select CSV" />
-                                                </StackPanel>
-                                                <CheckBox x:Name="chkBoxTranslateGUIDinCSV" Content="CSV file do not contain object GUIDs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="290"/>
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                    <Button x:Name="btnCreateHTML" Content="Create HTML View" />
-                                                </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Vertical" Margin="0,0" HorizontalAlignment="Left">
+                                            <CheckBox x:Name="chkBoxCompare" Content="Enable Compare" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
+                                            <Label x:Name="lblCompareDescText" Content="You can compare the current state with  &#10;a previously created CSV file." />
+                                            <Label x:Name="lblCompareTemplate" Content="CSV Template File" />
+                                            <TextBox x:Name="txtCompareTemplate" Margin="2,0,0,0" Width="275" IsEnabled="False"/>
+                                            <Button x:Name="btnGetCompareInput" Content="Select Template" HorizontalAlignment="Right" Height="19" Margin="65,00,00,00" IsEnabled="False"/>
+                                            <StackPanel Orientation="Horizontal" Margin="5,5,0,0">
+                                                <Label x:Name="lblReturn" Content="Return:" />
+                                                <ComboBox x:Name="combReturns" HorizontalAlignment="Left" Margin="05,02,00,00" VerticalAlignment="Top" Width="80" IsEnabled="False" SelectedValue="ALL"/>
                                             </StackPanel>
-                                        </GroupBox>
-                                        <GroupBox x:Name="gBoxProgress" Header="Progress Bar" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                            <StackPanel Orientation="Vertical" Margin="0,0">
-                                                <CheckBox x:Name="chkBoxSkipProgressBar" Content="Use Progress Bar" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True" IsChecked="True"/>
-                                                <Label x:Name="lblSkipProgressBar" Content="For speed you could disable the progress bar." />
+                                            <StackPanel Orientation="Vertical">
+                                                <CheckBox x:Name="chkBoxTemplateNodes" Content="Use nodes from template." HorizontalAlignment="Left" Width="160" Margin="2,5,00,00" IsEnabled="False" />
+                                                <CheckBox x:Name="chkBoxScanUsingUSN" Content="Faster compare using USNs of the&#10;NTSecurityDescriptor. This requires that your &#10;template to contain USNs.Requires SD Modified&#10;date selected when creating the template." HorizontalAlignment="Left"  Width="280" Margin="2,5,00,00" IsEnabled="False" />
                                             </StackPanel>
-                                        </GroupBox>
+
+                                        </StackPanel>
+                                        <StackPanel Orientation="Vertical" Width="300">
+
+                                            <Label x:Name="lblReplaceDN" Content="Replace DN in file with current domain DN.&#10;E.g. DC=contoso,DC=com&#10;Type the old DN to be replaced:" />
+                                            <TextBox x:Name="txtReplaceDN" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
+                                            <Label x:Name="lblReplaceNetbios" Content="Replace principals prefixed domain name with&#10;current domain. E.g. CONTOSO&#10;Type the old NETBIOS name to be replaced:" />
+                                            <TextBox x:Name="txtReplaceNetbios" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
+                                            <Label x:Name="lblDownloadCSVDefACLs" Content="Download CSV templates for comparing with&#10;your environment:" Margin="05,20,00,00" />
+                                            <Button x:Name="btnDownloadCSVDefACLs" Content="Download CSV Templates" HorizontalAlignment="Left" Width="140" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </TabItem>
@@ -934,149 +1069,28 @@ $xamlBase = @"
                                     </StackPanel>
                                 </Grid>
                             </TabItem>
-
-                            <TabItem x:Name="Exclude" Header="Exclude">
+                            <TabItem x:Name="tabOfflineScan" Header="Additional Options">
                                 <Grid>
-                                    <StackPanel Orientation="Vertical">
-                                        <Label x:Name="lblExcludeddNode" Content="Excluded Path (matching string in distinguishedName):" HorizontalAlignment="Left" Height="26" Margin="0,0,0,0" VerticalAlignment="Top" Width="300"/>
-                                        <StackPanel Orientation="Vertical">
-                                            <TextBox x:Name="txtBoxExcluded" HorizontalAlignment="Left" Height="20" Margin="5,0,0,0" TextWrapping="NoWrap" VerticalAlignment="Top" Width="600" />
-                                            <Button x:Name="btnClearExcludedBox" Content="Clear"  Height="21" Margin="10,0,0,0" IsEnabled="true" Width="100"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                            </TabItem>
-                            <TabItem x:Name="tabCompare" Header="Compare">
-                                <Grid>
-                                    <StackPanel Orientation="Horizontal">
-                                        <StackPanel Orientation="Vertical" Margin="0,0" HorizontalAlignment="Left">
-                                            <CheckBox x:Name="chkBoxCompare" Content="Enable Compare" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
-                                            <Label x:Name="lblCompareDescText" Content="You can compare the current state with  &#10;a previously created CSV file." />
-                                            <Label x:Name="lblCompareTemplate" Content="CSV Template File" />
-                                            <TextBox x:Name="txtCompareTemplate" Margin="2,0,0,0" Width="275" IsEnabled="False"/>
-                                            <Button x:Name="btnGetCompareInput" Content="Select Template" HorizontalAlignment="Right" Height="19" Margin="65,00,00,00" IsEnabled="False"/>
-                                            <StackPanel Orientation="Horizontal" Margin="5,5,0,0">
-                                                <Label x:Name="lblReturn" Content="Return:" />
-                                                <ComboBox x:Name="combReturns" HorizontalAlignment="Left" Margin="05,02,00,00" VerticalAlignment="Top" Width="80" IsEnabled="False" SelectedValue="ALL"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Vertical">
-                                                <CheckBox x:Name="chkBoxTemplateNodes" Content="Use nodes from template." HorizontalAlignment="Left" Width="160" Margin="2,5,00,00" IsEnabled="False" />
-                                                <CheckBox x:Name="chkBoxScanUsingUSN" Content="Faster compare using USNs of the&#10;NTSecurityDescriptor. This requires that your &#10;template to contain USNs.Requires SD Modified&#10;date selected when creating the template." HorizontalAlignment="Left"  Width="280" Margin="2,5,00,00" IsEnabled="False" />
-                                            </StackPanel>
-
-                                        </StackPanel>
-                                        <StackPanel Orientation="Vertical" Width="300">
-
-                                            <Label x:Name="lblReplaceDN" Content="Replace DN in file with current domain DN.&#10;E.g. DC=contoso,DC=com&#10;Type the old DN to be replaced:" />
-                                            <TextBox x:Name="txtReplaceDN" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
-                                            <Label x:Name="lblReplaceNetbios" Content="Replace principals prefixed domain name with&#10;current domain. E.g. CONTOSO&#10;Type the old NETBIOS name to be replaced:" />
-                                            <TextBox x:Name="txtReplaceNetbios" Margin="2,0,0,0" Width="250" IsEnabled="False"/>
-                                            <Label x:Name="lblDownloadCSVDefACLs" Content="Download CSV templates for comparing with&#10;your environment:" Margin="05,20,00,00" />
-                                            <Button x:Name="btnDownloadCSVDefACLs" Content="Download CSV Templates" HorizontalAlignment="Left" Width="140" Height="19" Margin="05,05,00,00" IsEnabled="True"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                            </TabItem>
-                            <TabItem x:Name="tabFilter" Header="Filter">
-                                <Grid>
-                                    <StackPanel Orientation="Horizontal">
-                                        <StackPanel Orientation="Vertical" Margin="0,0">
-                                            <CheckBox x:Name="chkBoxFilter" Content="Enable Filter" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
-                                            <Label x:Name="lblAccessCtrl" Content="Filter by Access Type:(example: Allow)" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                <CheckBox x:Name="chkBoxType" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                <ComboBox x:Name="combAccessCtrl" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
-                                            </StackPanel>
-                                            <Label x:Name="lblFilterExpl" Content="Filter by Object:(example: user)" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                <CheckBox x:Name="chkBoxObject" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                <ComboBox x:Name="combObjectFilter" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="False"/>
-                                            </StackPanel>
-                                            <Label x:Name="lblGetObj" Content="The list box contains a few  number of standard &#10;objects. To load all objects from schema &#10;press Load." />
-                                            <StackPanel  Orientation="Horizontal" Margin="0,0">
-
-                                                <Label x:Name="lblGetObjExtend" Content="This may take a while!" />
-                                                <Button x:Name="btnGetObjFullFilter" Content="Load" IsEnabled="False" Width="50" />
-                                            </StackPanel>
-
-                                        </StackPanel>
-                                        <StackPanel Orientation="Vertical" Margin="5,5,0,0" Width="320">
-                                            <Label x:Name="lblPermission" Content="Filter by permissions:&#10;Examples:&#10;GenericALL &#10;WriteProperty|ExtendedRight" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                <CheckBox x:Name="chkBoxPermission" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                <TextBox x:Name="txtPermission" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="160" IsEnabled="False"/>
-                                            </StackPanel>
-                                            <Label x:Name="lblFilterTrusteeExpl" Content="Filter by Trustee:&#10;Examples:&#10;CONTOSO\User&#10;CONTOSO\JohnDoe*&#10;*Smith&#10;*Doe*" />
-                                            <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                <CheckBox x:Name="chkBoxTrustee" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                <TextBox x:Name="txtFilterTrustee" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="160" IsEnabled="False"/>
-                                            </StackPanel>
-
-                                            <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                <CheckBox x:Name="chkBoxFilterBuiltin" Content="" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top" IsEnabled="False"/>
-                                                <Label x:Name="lblFilterBuiltin" Content="Exclude all built-in security principals" />
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                            </TabItem>
-                            <TabItem x:Name="tabEffectiveR" Header="Effective Rights">
-                                <Grid >
-                                    <StackPanel Orientation="Horizontal">
-                                        <StackPanel Orientation="Vertical" Margin="0,0">
-                                            <CheckBox x:Name="chkBoxEffectiveRights" Content="Enable Effective Rights" HorizontalAlignment="Left" Margin="5,5,0,0" VerticalAlignment="Top"/>
-                                            <Label x:Name="lblEffectiveDescText" Content="Effective Access allows you to view the effective &#10;permissions for a user, group, or device account." />
-                                            <Label x:Name="lblEffectiveText" Content="Type the account name (samAccountName) for a &#10;user, group or computer" />
-                                            <Label x:Name="lblSelectPrincipalDom" Content=":" />
-                                            <TextBox x:Name="txtBoxSelectPrincipal" IsEnabled="False"  />
-                                            <StackPanel  Orientation="Horizontal" Margin="0,0">
-                                                <Button x:Name="btnGetSPAccount" Content="Get Account" Margin="5,0,0,0" IsEnabled="False"/>
-                                                <Button x:Name="btnListLocations" Content="Locations..." Margin="50,0,0,0" IsEnabled="False"/>
-                                            </StackPanel>
-
-                                        </StackPanel>
-                                        <StackPanel Orientation="Vertical" Margin="5,5,0,0" Width="320">
-                                            <StackPanel  Orientation="Vertical" Margin="0,0"   >
-                                                <GroupBox x:Name="gBoxEffectiveSelUser" Header="Selected Security Principal:" HorizontalAlignment="Left" Height="50" Margin="2,2,0,0" VerticalAlignment="Top" Width="290">
-                                                    <StackPanel Orientation="Vertical" Margin="0,0">
-                                                        <Label x:Name="lblEffectiveSelUser" Content="" />
-                                                    </StackPanel>
-                                                </GroupBox>
-                                                <Button x:Name="btnGETSPNReport" HorizontalAlignment="Left" Content="View Account" Margin="5,2,0,0" IsEnabled="False" Width="110"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                            </TabItem>
-                            <TabItem x:Name="tabAssess" Header="Assessment">
-                                <Grid >
-                                    <StackPanel Orientation="Horizontal">
-                                        <StackPanel Orientation="Vertical" Margin="0,0">
-                                            <GroupBox x:Name="gBoxdCriticals" Header="Assessment Options" HorizontalAlignment="Left" Height="200" Margin="0,5,0,0" VerticalAlignment="Top" Width="290">
-                                                <StackPanel>
-                                                    <Label x:Name="lblFilterServerity" Content="Filter by Severity" />
-                                                    <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                        <CheckBox x:Name="chkBoxSeverity" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="True"/>
-                                                        <ComboBox x:Name="combServerity" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="false"/>
-                                                    </StackPanel>
-                                                  <Label x:Name="lblRecursiveFind" Content="Perform a recursive search and return these objects:" />
-                                                    <StackPanel Orientation="Horizontal" Margin="0,0">
-                                                        <CheckBox x:Name="chkBoxRecursiveFind" Content="" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" IsEnabled="True"/>
-                                                        <ComboBox x:Name="combRecursiveFind" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="false"/>
-                                                    </StackPanel>
+                                    <StackPanel>
+                                        <GroupBox x:Name="gBoxImportCSV" Header="CSV to HTML" HorizontalAlignment="Left" Height="136" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
+                                            <StackPanel Orientation="Vertical" Margin="0,0">
+                                                <Label x:Name="lblCSVImport" Content="This file will be converted HTML:" />
+                                                <TextBox x:Name="txtCSVImport"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <Button x:Name="btnGetCSVFile" Content="Select CSV" />
                                                 </StackPanel>
-                                            </GroupBox>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Vertical" Margin="5,5">
-                                            <GroupBox x:Name="gBoxCriticality" Header="Access Rights Criticality" HorizontalAlignment="Left" Height="150" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
-                                                <StackPanel Orientation="Vertical" Margin="0,0">
-                                                    <CheckBox x:Name="chkBoxEffectiveRightsColor" Content="Show color coded criticality" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True"/>
-                                                    <Label x:Name="lblEffectiveRightsColor" Content="Use colors in report to identify criticality level of &#10;permissions.This might help you in implementing &#10;Least-Privilege Administrative Models" />
-                                                    <Button x:Name="btnViewLegend" Content="View Color Legend" HorizontalAlignment="Left" Margin="5,0,0,0" IsEnabled="True" Width="110"/>
+                                                <CheckBox x:Name="chkBoxTranslateGUIDinCSV" Content="CSV file do not contain object GUIDs" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="290"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <Button x:Name="btnCreateHTML" Content="Create HTML View" />
                                                 </StackPanel>
-
-                                            </GroupBox>
-                                        </StackPanel>
+                                            </StackPanel>
+                                        </GroupBox>
+                                        <GroupBox x:Name="gBoxProgress" Header="Progress Bar" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
+                                            <StackPanel Orientation="Vertical" Margin="0,0">
+                                                <CheckBox x:Name="chkBoxSkipProgressBar" Content="Use Progress Bar" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True" IsChecked="True"/>
+                                                <Label x:Name="lblSkipProgressBar" Content="For speed you could disable the progress bar." />
+                                            </StackPanel>
+                                        </GroupBox>
                                     </StackPanel>
                                 </Grid>
                             </TabItem>
@@ -1257,6 +1271,13 @@ $global:bolTempValue_InhertiedChkBox = $false
 [void]$combRecursiveFind.Items.Add("Group")
 [void]$combRecursiveFind.Items.Add("Computer")
 $combRecursiveFind.SelectedValue="*"
+
+[void]$combReturnObjectType.Items.Add("*")
+[void]$combReturnObjectType.Items.Add("user")
+[void]$combReturnObjectType.Items.Add("group")
+[void]$combReturnObjectType.Items.Add("computer")
+[void]$combReturnObjectType.Items.Add("msds-groupmanagedserviceaccount")
+$combReturnObjectType.SelectedValue="*"
 
 [void]$combAccessCtrl.Items.Add("Allow")
 [void]$combAccessCtrl.Items.Add("Deny")
@@ -1764,10 +1785,9 @@ $chkBoxCompare.add_Click(
         $chkBoxFilterBuiltin.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
-        $combObjectFilter.IsEnabled = $false
+        $txtBoxObjectFilter.IsEnabled = $false
         $txtFilterTrustee.IsEnabled = $false
         $combAccessCtrl.IsEnabled = $false
-        $btnGetObjFullFilter.IsEnabled = $false
         
     }
     else
@@ -1820,10 +1840,9 @@ $chkBoxEffectiveRights.add_Click(
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
         $chkBoxFilterBuiltin.IsChecked =  $false
-        $combObjectFilter.IsEnabled = $false
+        $txtBoxObjectFilter.IsEnabled = $false
         $txtFilterTrustee.IsEnabled = $false
         $combAccessCtrl.IsEnabled = $false
-        $btnGetObjFullFilter.IsEnabled = $false
         
     }
     else
@@ -1890,10 +1909,9 @@ $chkBoxFilter.add_Click(
         $chkBoxPermission.IsEnabled =  $true
         $txtPermission.IsEnabled =  $true
         $chkBoxFilterBuiltin.IsEnabled =  $true
-        $combObjectFilter.IsEnabled = $true
+        $txtBoxObjectFilter.IsEnabled = $true
         $txtFilterTrustee.IsEnabled = $true
         $combAccessCtrl.IsEnabled = $true
-        $btnGetObjFullFilter.IsEnabled = $true
         $txtBoxSelectPrincipal.IsEnabled = $false
         $btnGetSPAccount.IsEnabled = $false
         $btnListLocations.IsEnabled = $false
@@ -1918,10 +1936,9 @@ $chkBoxFilter.add_Click(
         $chkBoxFilterBuiltin.IsEnabled =  $false
         $chkBoxType.IsChecked = $false
         $chkBoxObject.IsChecked = $false
-        $combObjectFilter.IsEnabled = $false
+        $txtBoxObjectFilter.IsEnabled = $false
         $txtFilterTrustee.IsEnabled = $false
         $combAccessCtrl.IsEnabled = $false
-        $btnGetObjFullFilter.IsEnabled = $false
 }
 })
 
@@ -3061,28 +3078,6 @@ $Window.close()
 })
 
 
-$btnGetObjFullFilter.add_Click( 
-{
-    if ($global:bolConnected -eq $true)
-    {
-        GetSchemaObjectGUID  -Domain $global:strDomainDNName -CREDS $CREDS
-        $global:observableCollection.Insert(0,(LogMessage -strMessage "All schema objects and attributes listed!" -strType "Info" -DateStamp ))
-    }
-    else
-    {
-    $global:observableCollection.Insert(0,(LogMessage -strMessage "Connect to your naming context first!" -strType "Error" -DateStamp ))
-    }
-})
-
-
-
-foreach ($ldapDisplayName in $global:dicSchemaIDGUIDs.values)
-{
-
-
-   [void]$combObjectFilter.Items.Add($ldapDisplayName)
-   
-}
 
 $treeView1.add_SelectedItemChanged({
 
@@ -3397,11 +3392,11 @@ If ($txtBoxSelected.Text -or $chkBoxTemplateNodes.IsChecked )
                             #if any objects found compare ACLs
                             if($allSubOU.count -gt 0)
                             {			        
-                                $Returns = $combReturns.SelectedItem
+                                $TemplateFilter = $combReturns.SelectedItem
                                 $bolToFile = $true
                                 #Used from comand line only
                                 $FilterBuiltin = $false
-                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $Returns $bolToFile $bolShowCriticalityColor $chkBoxSeverity.IsChecked $combServerity.SelectedItem $chkBoxTranslateGUID.isChecked -CREDS $CREDS
+                                Get-PermCompare $allSubOU $BolSkipDefPerm $BolSkipProtectedPerm $chkBoxReplMeta.IsChecked $chkBoxGetOwner.IsChecked $bolCSV $Protected $chkBoxACLsize.IsChecked $bolTranslateGUIDStoObject $Show $Format $TemplateFilter $bolToFile $bolShowCriticalityColor $chkBoxSeverity.IsChecked $combServerity.SelectedItem $chkBoxTranslateGUID.isChecked -CREDS $CREDS
                             }	
                             else
                             {
@@ -3475,7 +3470,7 @@ If ($txtBoxSelected.Text)
     }
     else
     {
-        If(($chkBoxFilter.IsChecked -eq $true) -and  (($combAccessCtrl.SelectedIndex -eq -1) -and ($combObjectFilter.SelectedIndex -eq -1) -and ($txtFilterTrustee.Text -eq  "") -and ($txtPermission.Text -eq  "") -and ($chkBoxFilterBuiltin.IsChecked -eq  $false)))
+        If(($chkBoxFilter.IsChecked -eq $true) -and  (($combAccessCtrl.SelectedIndex -eq -1) -and ($txtBoxObjectFilter.Text -eq  "") -and ($txtFilterTrustee.Text -eq  "") -and ($txtPermission.Text -eq  "") -and ($chkBoxFilterBuiltin.IsChecked -eq  $false)))
         {
                        
                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Filter Enabled , but no filter is specified!" -strType "Error" -DateStamp ))
@@ -3616,7 +3611,7 @@ If ($txtBoxSelected.Text)
                     #Used from comand line only
                     $FilterBuiltin = $chkBoxFilterBuiltin.IsChecked
 
-                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $combObjectFilter.SelectedItem -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -ACLPermissionFilter $txtPermission.Text  -CREDS $CREDS
+                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $txtBoxObjectFilter.Text -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -ACLPermissionFilter $txtPermission.Text  -CREDS $CREDS -ReturnObjectType $combReturnObjectType.SelectedItem
                 }
                 else
                 {
@@ -4146,6 +4141,7 @@ function Get-XMLDomainOUTree
 
 $global:dicRightsGuids = @{"Seed" = "xxx"}
 $global:dicSidToName = @{"Seed" = "xxx"} 
+$global:dicSidToObject = @{"Seed" = "xxx"} 
 $global:dicDCSpecialSids =@{"BUILTIN\Incoming Forest Trust Builders"="S-1-5-32-557";`
 "BUILTIN\Account Operators"="S-1-5-32-548";`
 "BUILTIN\Server Operators"="S-1-5-32-549";`
@@ -6539,12 +6535,8 @@ Param(
 	[string] $strOut =""
 	[string] $strLDAPname = ""
     
-    [void]$combObjectFilter.Items.Clear()
+
     BuildSchemaDic
-    foreach ($ldapDisplayName in $global:dicSchemaIDGUIDs.values)
-    {
-        [void]$combObjectFilter.Items.Add($ldapDisplayName)
-    }
 
     
     
@@ -6589,7 +6581,6 @@ Param(
             {
                 $global:dicSchemaIDGUIDs.Add($strGUID,$strLDAPname)
                 $global:dicNameToSchemaIDGUIDs.Add($strLDAPname,$strGUID)
-                [void]$combObjectFilter.Items.Add($strLDAPname)
             }
 				
 	    }
@@ -7300,18 +7291,18 @@ $sdProtectedDeletion =  New-Object System.Collections.ArrayList
 $sdProtectedDeletion.clear()
 
 $protectedDeletionsACE1 = New-Object PSObject -Property @{ActiveDirectoryRights="DeleteChild";InheritanceType="None";ObjectType ="00000000-0000-0000-0000-000000000000";`
-InheritedObjectType="00000000-0000-0000-0000-000000000000";ObjectFlags="None";AccessControlType="Deny";IdentityReference="Everyone";IsInherited="False";`
+InheritedObjectType="00000000-0000-0000-0000-000000000000";ObjectFlags="None";AccessControlType="Deny";IdentityReference="S-1-1-0";IsInherited="False";`
 InheritanceFlags="None";PropagationFlags="None"}
 
 [void]$sdProtectedDeletion.insert(0,$protectedDeletionsACE)
 
 
 $protectedDeletionsACE2 = New-Object PSObject -Property @{ActiveDirectoryRights="DeleteChild, DeleteTree, Delete";InheritanceType="None";ObjectType ="00000000-0000-0000-0000-000000000000";`
-InheritedObjectType="00000000-0000-0000-0000-000000000000";ObjectFlags="ObjectAceTypePresent";AccessControlType="Deny";IdentityReference="Everyone";IsInherited="False";`
+InheritedObjectType="00000000-0000-0000-0000-000000000000";ObjectFlags="ObjectAceTypePresent";AccessControlType="Deny";IdentityReference="S-1-1-0";IsInherited="False";`
 InheritanceFlags="None";PropagationFlags="None"}
 
 $protectedDeletionsACE3 = New-Object PSObject -Property @{ActiveDirectoryRights="DeleteTree, Delete";InheritanceType="None";ObjectType ="00000000-0000-0000-0000-000000000000";`
-InheritedObjectType="00000000-0000-0000-0000-000000000000";ObjectFlags="None";AccessControlType="Deny";IdentityReference="Everyone";IsInherited="False";`
+InheritedObjectType="00000000-0000-0000-0000-000000000000";ObjectFlags="None";AccessControlType="Deny";IdentityReference="S-1-1-0";IsInherited="False";`
 InheritanceFlags="None";PropagationFlags="None"}
 
 [void]$sdProtectedDeletion.insert(0,@($protectedDeletionsACE1,$protectedDeletionsACE2,$protectedDeletionsACE3))
@@ -7332,9 +7323,6 @@ Function Get-DefaultPermissions
 {
 Param(
 $strObjectClass,
-
-[string]
-$strTrustee,
 
 [Parameter(Mandatory=$false)]
 [pscredential] 
@@ -7376,7 +7364,7 @@ foreach ($entry  in $response.Entries)
             }  
         }
     }
-    $defSD = $sec.GetAccessRules($true, $false, [System.Security.Principal.NTAccount])   
+    $defSD = $sec.GetAccessRules($true, $false, [System.Security.Principal.SecurityIdentifier])   
     $sec = $null
 }
 
@@ -7883,6 +7871,64 @@ $sd  | foreach {
     } 
 }
 #==========================================================================
+# Function		: GetObjectTypeFromSid
+# Arguments     : SID string
+# Returns   	: Object type of Security Object
+# Description   : Try to get the object of a SID
+#==========================================================================
+function GetObjectTypeFromSid
+{
+    Param($server,$sid,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS)
+
+$strObjectType = $null
+$ID = New-Object System.Security.Principal.SecurityIdentifier($sid)
+
+
+If ($global:dicSidToObject.ContainsKey($sid))
+{
+	$strObjectType =$global:dicSidToObject.Item($sid)
+}
+else
+{
+
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
+        
+    $LDAPConnection.SessionOptions.ReferralChasing = "None"
+    $request = New-Object System.directoryServices.Protocols.SearchRequest
+    if($global:bolShowDeleted)
+    {
+        [string] $LDAP_SERVER_SHOW_DELETED_OID = "1.2.840.113556.1.4.417"
+        [void]$request.Controls.Add((New-Object "System.DirectoryServices.Protocols.DirectoryControl" -ArgumentList "$LDAP_SERVER_SHOW_DELETED_OID",$null,$false,$true ))
+    }
+    $request.DistinguishedName = "<SID=$sid>"
+    $request.Filter = "(name=*)"
+    $request.Scope = "Base"
+    [void]$request.Attributes.Add("objectclass")
+    try
+    {        
+        $response = $LDAPConnection.SendRequest($request)
+        $result = $response.Entries[0]
+	    $strObjectType =  $result.attributes.objectclass[-1]
+
+    }
+    catch
+    {
+             
+    }
+    if($null -ne $strObjectType )
+    {
+        $global:dicSidToObject.Add($sid,$strObjectType)
+    }
+}
+
+
+
+return $strObjectType
+}
+#==========================================================================
 # Function		: ConvertSidToName
 # Arguments     : SID string
 # Returns   	: Friendly Name of Security Object
@@ -7938,6 +7984,7 @@ if ($global:strAccNameTranslation -eq "")
         
         $response = $LDAPConnection.SendRequest($request)
         $result = $response.Entries[0]
+
         try
         {
 	        $global:strAccNameTranslation =  $global:strDomainShortName + "\" + $result.attributes.samaccountname[0]
@@ -9175,7 +9222,7 @@ if ($bolACLExist)
     
     If ($IdentityReference.contains("S-1-"))
 	{
-	 $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference -CREDS $CREDS
+        $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $IdentityReference -CREDS $CREDS
 
 	}
     else
@@ -11286,7 +11333,8 @@ Function Get-Perm
     Param([System.Collections.ArrayList]$AllObjectDn,[string]$DomainNetbiosName,[boolean]$IncludeInherited,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType,[string]$ApplyTo,[bool]$ACLObjectFilter,[string]$FilterTrustee,[bool]$FilterForTrustee,[string]$AccessType,[bool]$AccessFilter,[string]$ACLPermissionFilter, 
     [Parameter(Mandatory=$false)]
     [pscredential] 
-    $CREDS)
+    $CREDS,
+    [string]$ReturnObjectType)
 
 
 $bolCompare = $false
@@ -11645,8 +11693,48 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
         {
             if ($ApplyTo.Length -gt 0)
             {
+                if($ApplyTo.Split("|").Count -gt 1 )
+                {
+                    [System.Collections.ArrayList]$arryApplyTo = $ApplyTo.Split("|")  
+                    if($arryApplyTo -contains "*") 
+                    {
+                        $arryApplyTo.Remove("*")
+                    }
+                    $ApplyToString = ""
+                    $ApplyToAllString = ""
+                    For($i = 0 ; $i -lt $arryApplyTo.count ; $i++)
+                    {
+                            if($i -eq $arryApplyTo.count -1)
+                            {
+                                $ApplyToString += $global:dicNameToSchemaIDGUIDs.Item($arryApplyTo[$i]) 
+                            }
+                            else
+                            {
+                                $ApplyToString += $global:dicNameToSchemaIDGUIDs.Item($arryApplyTo[$i]) + "|"
+                            }
+                        
+                    }
+                    if($ApplyTo.Split("|") -contains "*")
+                    {
+                        $sd = @($sd | Where-Object{(($_.ObjectType -match $ApplyToString) -or ($_.InheritedObjectType -match $ApplyToString)) -or (($_.ObjectType -eq "00000000-0000-0000-0000-000000000000") -and ($_.InheritedObjectType -eq "00000000-0000-0000-0000-000000000000"))})
+                    }
+                    else
+                    {
+                        $sd = @($sd | Where-Object{($_.ObjectType -match $ApplyToString) -or ($_.InheritedObjectType -match $ApplyToString)})
+                    }
 
-                $sd = @($sd | Where-Object{($_.ObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($ApplyTo)) -or ($_.InheritedObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($ApplyTo))})
+                }
+                else
+                {
+                    if($ApplyTo -contains "*")
+                    {
+                        $sd = @($sd | Where-Object{(($_.ObjectType -eq "00000000-0000-0000-0000-000000000000") -and ($_.InheritedObjectType -eq "00000000-0000-0000-0000-000000000000"))})
+                    }
+                    else
+                    {
+                        $sd = @($sd | Where-Object{($_.ObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($ApplyTo)) -or ($_.InheritedObjectType -eq $global:dicNameToSchemaIDGUIDs.Item($ApplyTo))})
+                    }
+                }
             }
         }
 
@@ -11761,6 +11849,16 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
         $RecursiveData = $null
     }    
 
+    ##REM
+    if($ReturnObjectType)
+    {
+        if($ReturnObjectType -ne "*")
+        {
+            $sd = @($sd | Where-Object{(GetObjectTypeFromSid -server $global:strDC -Sid $_.IdentityReference.toString() -CREDS $CREDS) -eq $ReturnObjectType})
+        }
+    }
+
+
     If ($bolAssess)
     {
         Switch ($AssessLevel)
@@ -11843,13 +11941,13 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                     {
                         if($strObjectClass  -ne $strTemoObjectClass)
                         {
-                            $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
+                            $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -CREDS $CREDS
                         }
                         $strTemoObjectClass = $strObjectClass
                         $indexDef=0
                         while($indexDef -le $sdOUDef.count -1)
                         {
-			                if (($sdOUDef[$indexDef].IdentityReference -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sd[$index].ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sd[$index].AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sd[$index].ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sd[$index].InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sd[$index].InheritedObjectType))
+			                if (($sdOUDef[$indexDef].IdentityReference -eq $sd[$index].IdentityReference) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sd[$index].ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sd[$index].AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sd[$index].ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sd[$index].InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sd[$index].InheritedObjectType))
 			                {
 			                    $bolMatchDef = $true
 			                } #End If
@@ -11872,7 +11970,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                             $indexProtected=0
                             while($indexProtected -le $sdOUProtect.count -1)
                             {
-			                    if (($sdOUProtect[$indexProtected].IdentityReference -eq $strNTAccount) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sd[$index].ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sd[$index].AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sd[$index].ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sd[$index].InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sd[$index].InheritedObjectType))
+			                    if (($sdOUProtect[$indexProtected].IdentityReference -eq $sd[$index].IdentityReference) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sd[$index].ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sd[$index].AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sd[$index].ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sd[$index].InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sd[$index].InheritedObjectType))
 			                    {
 			                        $bolMatchprotected = $true
 			                    }#End If
@@ -12179,7 +12277,7 @@ $secd = $null
 #==========================================================================
 Function Get-PermCompare
 {
-    Param([System.Collections.ArrayList]$AllObjectDn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $Returns,[bool]$bolToFile,[bool]$bolShowCriticalityColor,[bool]$bolAssess,[string] $AssessLevel,[bool]$GPO,[bool]$TranslateGUID,[Parameter(Mandatory=$false)]
+    Param([System.Collections.ArrayList]$AllObjectDn,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$bolReplMeta,[boolean]$bolGetOwnerEna,[boolean]$bolCSV,[boolean]$bolGetOUProtected,[boolean]$bolACLsize,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[string] $TemplateFilter,[bool]$bolToFile,[bool]$bolShowCriticalityColor,[bool]$bolAssess,[string] $AssessLevel,[bool]$GPO,[bool]$TranslateGUID,[Parameter(Mandatory=$false)]
     [pscredential] 
     $CREDS)
 
@@ -12663,7 +12761,7 @@ while($count -le $AllObjectDn.count -1)
 
   
     
-        $rar = @($($sd | select-Object -Property *))
+        #$rar = @($($sd | select-Object -Property *))
 
 
         $index = 0
@@ -12713,7 +12811,7 @@ while($count -le $AllObjectDn.count -1)
                             if($strOrigUSN -eq $arrUSNCheckList[$index].OrgUSN)
                             {
                                 $aclcount++
-                                foreach($sdObject in $rar)
+                                foreach($sdObject in $sd)
             	                {
 
                 
@@ -12735,7 +12833,7 @@ while($count -le $AllObjectDn.count -1)
                                     InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$ACEType;IdentityReference=$sdObject.IdentityReference;PrincipalName=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                                     InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State="Match"}
                                     
-                                    if(($Returns -eq "MATCH") -or ($Returns -eq "ALL"))
+                                    if(($TemplateFilter -eq "MATCH") -or ($TemplateFilter -eq "ALL"))
                                     {
                                         $OUMatchResultOverall = $true
                                         $intReturned++
@@ -12786,7 +12884,7 @@ while($count -le $AllObjectDn.count -1)
 
         If (($SDUsnCheck -eq $false) -or ($SDUsnNew -eq $true))
         { 
-	        foreach($sdObject in $rar)
+	        foreach($sdObject in $sd)
 	        {
                 $bolMatchDef = $false
                 $bolMatchprotected = $false
@@ -12794,19 +12892,18 @@ while($count -le $AllObjectDn.count -1)
 	            If ($strIdentityReference.contains("S-1-"))
 	            {
 	                $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
-
 	            }
                 #Remove Default Permissions if SkipDefaultPerm selected
                 if($SkipDefaultPerm)
                 {
                     if($strObjectClass  -ne $strTemoObjectClass)
                     {
-                        $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
+                        $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -CREDS $CREDS
                     }
                     $strTemoObjectClass = $strObjectClass
                     $indexDef=0
                     while($indexDef -le $sdOUDef.count -1) {
-			                    if (($sdOUDef[$indexDef].PrincipalName -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
+			                    if (($sdOUDef[$indexDef].IdentityReference -eq $sdObject.IdentityReference) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                    {
 			                        $bolMatchDef = $true
 			                    } #End If
@@ -12829,7 +12926,7 @@ while($count -le $AllObjectDn.count -1)
                         $indexProtected=0
                         while($indexProtected -le $sdOUProtect.count -1)
                         {
-			                if (($sdOUProtect[$indexProtected].PrincipalName -eq $strNTAccount) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sdObject.ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sdObject.InheritedObjectType))
+			                if (($sdOUProtect[$indexProtected].IdentityReference -eq $sdObject.IdentityReference) -and ($sdOUProtect[$indexProtected].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUProtect[$indexProtected].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUProtect[$indexProtected].ObjectType -eq $sdObject.ObjectType) -and ($sdOUProtect[$indexProtected].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUProtect[$indexProtected].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                {
 			                    $bolMatchprotected = $true
 			                }#End If
@@ -12937,7 +13034,7 @@ while($count -le $AllObjectDn.count -1)
  		 	                }
 			                $index++
 		                }# End While
-                        if(($Returns -eq "MATCH") -or ($Returns -eq "ALL"))
+                        if(($TemplateFilter -eq "MATCH") -or ($TemplateFilter -eq "ALL"))
                         {
                             if ($SDResult)
                             {
@@ -12972,7 +13069,7 @@ while($count -le $AllObjectDn.count -1)
                     }#End Retrunrs
 		            If ($OUMatchResult -And !($SDResult))
 		            {
-                        if(($Returns -eq "NEW") -or ($Returns -eq "ALL"))
+                        if(($TemplateFilter -eq "NEW") -or ($TemplateFilter -eq "ALL"))
                         {
                             $newSdObject.State = "New"
                             $intReturned++
@@ -13064,11 +13161,7 @@ while($count -le $AllObjectDn.count -1)
 		                $strIdentityReference = ($strIdentityReference -Replace "<ROOTDOMAINSID>",$global:ForestRootDomainSID)
 
                     }
-	                If ($strIdentityReference.contains("S-1-"))
-	                {
-	                 $strIdentityReference = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
 
-	                }
                     if($txtReplaceNetbios.text.Length -gt 0)
                     {
 		                $strIdentityReference = ($strIdentityReference -Replace $txtReplaceNetbios.text,$global:strDomainShortName)
@@ -13085,27 +13178,27 @@ while($count -le $AllObjectDn.count -1)
                     }
 
                 
-                    $rarHistCheck = @($($sd | select-object -Property *))
+                    #$rarHistCheck = @($($sd | select-object -Property *))
 
-	                foreach($sdObject in $rarHistCheck)
+	                foreach($sdObject in $sd)
 	                {
                         $bolMatchDef = $false
-                        $strIdentityReference = $sdObject.IdentityReference.toString()
-	                    If ($strIdentityReference.contains("S-1-"))
-	                    {
-	                        $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
-	                    }
+                        #$strIdentityReference = $sdObject.IdentityReference.toString()
+	                    #If ($strIdentityReference.contains("S-1-"))
+	                    #{
+	                    #    $strNTAccount = ConvertSidToName -server $global:strDomainLongName -Sid $strIdentityReference -CREDS $CREDS
+	                    #}
                         #Remove Default Permissions if SkipDefaultPerm selected
                         if($SkipDefaultPerm)
                         {
                             if($strObjectClass  -ne $strTemoObjectClass)
                             {
-                                $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
+                                $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -CREDS $CREDS
                             }
                             $strTemoObjectClass = $strObjectClass
                             $indexDef=0
                             while($indexDef -le $sdOUDef.count -1) {
-			                            if (($sdOUDef[$indexDef].IdentityReference -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
+			                            if (($sdOUDef[$indexDef].IdentityReference -eq $sdObject.IdentityReference) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                            {
 			                                $bolMatchDef = $true
 			                            }#} #End If
@@ -13200,7 +13293,7 @@ while($count -le $AllObjectDn.count -1)
                         $histSDObject = New-Object PSObject -Property @{ActiveDirectoryRights=$global:csvHistACLs[$index].ActiveDirectoryRights;InheritanceType=$global:csvHistACLs[$index].InheritanceType;ObjectType=$global:csvHistACLs[$index].ObjectType;`
                         InheritedObjectType=$global:csvHistACLs[$index].InheritedObjectType;ObjectFlags=$global:csvHistACLs[$index].ObjectFlags;AccessControlType=$global:csvHistACLs[$index].AccessControlType;IdentityReference=$strIdentityReference;PrincipalName=$strNTAccount;IsInherited=$global:csvHistACLs[$index].IsInherited;`
                         InheritanceFlags=$global:csvHistACLs[$index].InheritanceFlags;PropagationFlags=$global:csvHistACLs[$index].PropagationFlags;State="Missing"}
-                        if(($Returns -eq "MISSING") -or ($Returns -eq "ALL"))
+                        if(($TemplateFilter -eq "MISSING") -or ($TemplateFilter -eq "ALL"))
                         {
 					        $intReturned++
 					    If ($bolCSV)
@@ -13240,7 +13333,7 @@ while($count -le $AllObjectDn.count -1)
         If (!$OUMatchResultOverall)        
         {
 
-	        foreach($sdObject in $rar)
+	        foreach($sdObject in $sd)
             {
                 $bolMatchDef = $false
                 if($sdObject.IdentityReference.value)
@@ -13262,12 +13355,12 @@ while($count -le $AllObjectDn.count -1)
                 {
                     if($strObjectClass  -ne $strTemoObjectClass)
                     {
-                        $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -strTrustee $strNTAccount -CREDS $CREDS
+                        $sdOUDef = Get-DefaultPermissions -strObjectClass $strObjectClass -CREDS $CREDS
                     }
                     $strTemoObjectClass = $strObjectClass
                     $indexDef=0
                     while($indexDef -le $sdOUDef.count -1) {
-			                    if (($sdOUDef[$indexDef].IdentityReference -eq $strNTAccount) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sd[$index].ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sd[$index].AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sd[$index].ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sd[$index].InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sd[$index].InheritedObjectType))
+			                    if (($sdOUDef[$indexDef].IdentityReference -eq $sdObject.IdentityReference) -and ($sdOUDef[$indexDef].ActiveDirectoryRights -eq $sdObject.ActiveDirectoryRights) -and ($sdOUDef[$indexDef].AccessControlType -eq $sdObject.AccessControlType) -and ($sdOUDef[$indexDef].ObjectType -eq $sdObject.ObjectType) -and ($sdOUDef[$indexDef].InheritanceType -eq $sdObject.InheritanceType) -and ($sdOUDef[$indexDef].InheritedObjectType -eq $sdObject.InheritedObjectType))
 			                    {
 			                        $bolMatchDef = $true
 			                    }#} #End If
@@ -13333,7 +13426,7 @@ while($count -le $AllObjectDn.count -1)
                             $MissingOUSdObject = New-Object PSObject -Property @{ActiveDirectoryRights=$sdObject.ActiveDirectoryRights;InheritanceType=$sdObject.InheritanceType;ObjectType=$sdObject.ObjectType;`
                             InheritedObjectType=$sdObject.InheritedObjectType;ObjectFlags=$sdObject.ObjectFlags;AccessControlType=$sdObject.AccessControlType;IdentityReference=$sdObject.IdentityReference;PrincipalName=$strNTAccount;IsInherited=$sdObject.IsInherited;`
                             InheritanceFlags=$sdObject.InheritanceFlags;PropagationFlags=$sdObject.PropagationFlags;State=$strDelegationNotation}
-                            if(($Returns -eq "MISSING") -or ($Returns -eq "ALL"))
+                            if(($TemplateFilter -eq "MISSING") -or ($TemplateFilter -eq "ALL"))
                             {
  				                $intReturned++
  				            If ($bolCSV)
@@ -13365,7 +13458,7 @@ while($count -le $AllObjectDn.count -1)
                         }
                     }
                 }#Skip Default or bolComparedelegation
-            }#End Forech $rar
+            }#End Forech $sd
         } #End If not OUMatchResultOverall
       }#End Global:GetSecErr
   }#else if adobject missing name
@@ -16061,11 +16154,11 @@ if($base -or $GPO)
 
                     if($Template)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "HTML" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                        Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "HTML" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                     }
                     else
                     {
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                     }
 
                     Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
@@ -16120,11 +16213,11 @@ if($base -or $GPO)
 
                             if($Template)
                             {
-                                Get-PermCompare $allSubOU $SkipDefaults $false $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                                Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                             }
                             else
                             {
-                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "EXCEL" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
+                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "EXCEL" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                             }
                         }
                     }
@@ -16133,11 +16226,11 @@ if($base -or $GPO)
                         $bolCSV = $true
                         if($Template)
                         {
-                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                            Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                            
                         }
                         
@@ -16148,11 +16241,11 @@ if($base -or $GPO)
                         $bolCSV = $true
                         if($Template)
                         {
-                            Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                            Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSV" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                             
                         }
                         
@@ -16169,12 +16262,12 @@ if($base -or $GPO)
                     $file = $false
                     if($Template)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                        Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                     }
                     else
                     {
                         
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                     }
                 }
                 else
@@ -16183,11 +16276,11 @@ if($base -or $GPO)
                     $file = $false
                     if($Template)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $false $false $Owner $bolCSV $Protected $false $false $Show "CSV" $Returns $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                        Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSV" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                     }
                     else
                     {
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $false -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS
+                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                     }
                 }
 
