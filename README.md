@@ -1,17 +1,18 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 7.1**
+**Version: 7.2**
 
-**28 Augst, 2022**
+**19 September, 2022**
 
-**SHA256:** 6BF82CF9845C649557FC02D1E3D0B6A9FB4F827CC7815BF477DD0CB51246DA45
+**SHA256:** 4E0CA74F5E074DFF389263D15E3913750EB437C1C3CD3B212C2998352023B980
 
 *New Features*
-* Connect using credentials from CLI
+* Filter on ApplyTO like "user" or multiple values like "user | computer"
 
 **Fixed issues**
-* Get-Perm function, argument's name "Access" is not correct.
+* Missing command line parameter -SkipProtected
+* Comparing function was missing filtering functions
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
