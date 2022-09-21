@@ -3,16 +3,12 @@
 ## Current version
 **Version: 7.2**
 
-**19 September, 2022**
+**21 September, 2022**
 
-**SHA256:** 4E0CA74F5E074DFF389263D15E3913750EB437C1C3CD3B212C2998352023B980
-
-*New Features*
-* Filter on ApplyTO like "user" or multiple values like "user | computer"
+**SHA256:** 3ECA4B56CE358B13E1128A1E6149ED07CA0A8C55997B50A1E2C4EA46BD586B84
 
 **Fixed issues**
-* Missing command line parameter -SkipProtected
-* Comparing function was missing filtering functions
+* Tried to pass credentials even when no credentials were applied for a recursive search 
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
