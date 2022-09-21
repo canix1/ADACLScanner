@@ -1,7 +1,7 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 7.2**
+**Version: 7.3**
 
 **21 September, 2022**
 
