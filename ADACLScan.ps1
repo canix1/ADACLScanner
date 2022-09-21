@@ -99,16 +99,12 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.2**
+    **Version: 7.3**
 
-    **19 September, 2022**
+    **21 September, 2022**
    
-    *New Features*
-   * Filter on ApplyTO like "user" or multiple values like "user | computer"
-
    **Fixed issues**
-   * Missing command line parameter -SkipProtected
-   * Comparing function was missing filtering functions
+   * Tried to pass credentials even when no credentials were applied for a recursive search 
 
 #>
 Param
@@ -768,7 +764,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.2" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.3" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -4280,20 +4276,28 @@ if(-not($MembersExpanded))
 Process
 {
 # Use ADO to search entire domain.
-
-$Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$strDC/$GroupDN",$($CREDS.UserName),  
-    $($CREDS.GetNetworkCredential().password ),   
-    [System.DirectoryServices.AuthenticationTypes]::Secure  )
-
+if($CREDS)
+{
+    $Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$strDC/$GroupDN",$($CREDS.UserName),  
+        $($CREDS.GetNetworkCredential().password ),   
+        [System.DirectoryServices.AuthenticationTypes]::Secure  )
+}
+else
+{
+    $Root = New-Object System.DirectoryServices.DirectoryEntry("LDAP://$strDC/$GroupDN")
+}
 $ADS_SECURE_AUTHENTICATION = 1
 $ADS_USE_SIGNING = 64
 $ADS_SERVER_BIND = 512
 
 $adoConnection = New-Object -comObject "ADODB.Connection"
 $adoConnection.Provider = "ADsDSOObject"
-$adoConnection.Properties("User ID") = $($CREDS.UserName)
-$adoConnection.Properties("Password") = $($CREDS.GetNetworkCredential().password )
-$adoConnection.Properties("Encrypt Password") = "True"
+if($CREDS)
+{
+    $adoConnection.Properties("User ID") = $($CREDS.UserName)
+    $adoConnection.Properties("Password") = $($CREDS.GetNetworkCredential().password )
+    $adoConnection.Properties("Encrypt Password") = "True"
+}
 $adoConnection.Properties("ADSI Flag") = $ADS_SERVER_BIND -bor $ADS_SECURE_AUTHENTICATION -bor $ADS_USE_SIGNING
 $adoCommand = New-Object -comObject "ADODB.Command"
 #$adoConnection.Open("Provider=ADsDSOObject;")
