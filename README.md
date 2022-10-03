@@ -1,14 +1,16 @@
 ﻿# AD ACL Scanner
 
 ## Current version
-**Version: 7.3**
 
-**21 September, 2022**
+**Version: 7.4**
 
-**SHA256:** 3ECA4B56CE358B13E1128A1E6149ED07CA0A8C55997B50A1E2C4EA46BD586B84
+**3 October, 2022**
+
+**SHA256:** 9AC25A8825407CCB6089BC7A2DF530D1830795B7E71A981ECEE4C5F48387B37A
 
 **Fixed issues**
-* Tried to pass credentials even when no credentials were applied for a recursive search 
+* Typo
+* FilterTrustee parameter gets evaluated before the -RecursiveFind
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"

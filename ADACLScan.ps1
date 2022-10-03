@@ -99,12 +99,13 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.3**
+    **Version: 7.4**
 
-    **21 September, 2022**
-   
+    **3 October, 2022**
+
    **Fixed issues**
-   * Tried to pass credentials even when no credentials were applied for a recursive search 
+   * Typo
+   * FilterTrustee parameter gets evaluated before the -RecursiveFind
 
 #>
 Param
@@ -764,7 +765,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.3" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.4" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -11750,18 +11751,6 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             }
         }
 
-        If ($FilterForTrustee)
-        {
-            if ($FilterTrustee.Length -gt 0)
-            {
-                $sd = @($sd | Where-Object{if($_.IdentityReference -like "S-1-*"){`
-                $(ConvertSidToName -server $global:strDomainLongName -Sid $_.IdentityReference  -CREDS $CREDS) -like $FilterTrustee}`
-                else{$_.IdentityReference -like $FilterTrustee}})
-            
-            }
-
-        }
-
     }
 
     if($FilterBuiltin)
@@ -11853,7 +11842,21 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
         $RecursiveData = $null
     }    
 
-    ##REM
+    If (($FilterEna -eq $true) -and ($bolEffectiveR -eq $false))
+    {
+        If ($FilterForTrustee)
+        {
+            if ($FilterTrustee.Length -gt 0)
+            {
+                $sd = @($sd | Where-Object{if($_.IdentityReference -like "S-1-*"){`
+                $(ConvertSidToName -server $global:strDomainLongName -Sid $_.IdentityReference  -CREDS $CREDS) -like $FilterTrustee}`
+                else{$_.IdentityReference -like $FilterTrustee}})
+            
+            }
+
+        }
+    }
+
     if($ReturnObjectType)
     {
         if($ReturnObjectType -ne "*")
@@ -16136,7 +16139,7 @@ if($base -or $GPO)
                             {
                                 Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
                                 $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
-                            }D
+                            }
                         }
                         else
                         {
