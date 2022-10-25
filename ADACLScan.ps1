@@ -99,13 +99,14 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.4**
+    **Version: 7.5**
 
-    **3 October, 2022**
+    **25 October, 2022**
 
    **Fixed issues**
-   * Typo
-   * FilterTrustee parameter gets evaluated before the -RecursiveFind
+   * Connection errors
+   * When the object is missing a canonicalName a function create one
+   * Checkbox for permissions filter in GUI did not trigger or turn of the filter
 
 #>
 Param
@@ -137,7 +138,7 @@ Param
     $Targets,
 
     # Filter. Specify your custom filter. Default is OrganizationalUnit.
-    [Alias("f")]
+    [Alias("filter")]
     [Parameter(Mandatory=$false, 
                 Position=1,
                 ParameterSetName='Default')]
@@ -145,7 +146,7 @@ Param
     [ValidateNotNull()]
     [ValidateNotNullOrEmpty()]
     [String] 
-    $Filter,
+    $LDAPFilter,
 
     # Scope. Set your scope. Default is base.
     [Parameter(Mandatory=$false, 
@@ -765,7 +766,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.4" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.5" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -3608,7 +3609,7 @@ If ($txtBoxSelected.Text)
                     #Used from comand line only
                     $FilterBuiltin = $chkBoxFilterBuiltin.IsChecked
 
-                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $txtBoxObjectFilter.Text -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -ACLPermissionFilter $txtPermission.Text  -CREDS $CREDS -ReturnObjectType $combReturnObjectType.SelectedItem
+                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $txtBoxObjectFilter.Text -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -BolACLPermissionFilter $chkBoxPermission.IsChecked  -ACLPermissionFilter $txtPermission.Text  -CREDS $CREDS -ReturnObjectType $combReturnObjectType.SelectedItem
                 }
                 else
                 {
@@ -4228,6 +4229,64 @@ $global:dicWellKnownSids = @{"S-1-0"="Null Authority";`
 "S-1-16-28672"="Secure Process Mandatory Level";`
 "S-1-18-1"="Authentication Authority Asserted Identityl";`
 "S-1-18-2"="Service Asserted Identity"}
+# Function		: Create-CanonicalName
+# Arguments     : [string] distinguishedName
+# Returns   	: [string] CanonicalName
+# Description   : This function will create a canonical name of a distinguishedName string
+# 
+#==========================================================================
+Function Create-CanonicalName
+{
+    param (
+        [Parameter(Mandatory=$True)]
+        [System.Array]$distinguishedname
+    )
+
+$stringlistReversed = @()
+
+
+$stringSplitted = $distinguishedname.Split(',')
+$Counter = $stringSplitted.Count
+
+$domainstring = ''
+$intC = 0
+for($i = 0; $i -le $stringSplitted.count; $i++)
+{
+    if($stringSplitted[$i] -match "dc=")
+    {
+        if($intC -gt 0)
+        {
+            $domainstring += "." + $stringSplitted[$i].tostring().remove(0,3)
+        }
+        else
+        {
+            $domainstring += $stringSplitted[$i].tostring().remove(0,3)
+
+        }
+        $intC++
+    }
+    
+}
+
+$stringReversed = ''
+while ($Counter -gt 0) {
+    if($stringSplitted[$Counter-1] -match "dc=")
+    {
+        $Counter = $Counter-1
+    }
+    else
+    {
+        $stringReversed += $stringSplitted[$Counter-1].tostring().remove(0,3)
+        $Counter = $Counter-1
+        if ($Counter -gt 0) {
+            $stringReversed += '/'
+        }
+    }
+}
+$stringlistReversed = $domainstring + "/" + $stringReversed
+
+return $stringlistReversed
+}
 #==========================================================================
 # Function		: Get-LargeNestedADGroup
 # Arguments     : DC name, DN of Group, Object type, Array of Members
@@ -7267,8 +7326,14 @@ function GetDomainShortName
     $LDAPConnection.SessionOptions.ReferralChasing = "None"
     $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Partitions,$strConfigDN", "(&(objectClass=crossRef)(nCName=$strDomain))", "Subtree")
     [void]$request.Attributes.Add("netbiosname")
-    $response = $LDAPConnection.SendRequest($request)
-    $adObject = $response.Entries[0]
+    try
+    {
+        $response = $LDAPConnection.SendRequest($request)
+        $adObject = $response.Entries[0]
+    }
+    catch
+    {
+    }
 
     if($null -ne $adObject)
     {
@@ -7473,8 +7538,14 @@ Function CacheRightsGuids
         [void]$searcher.Attributes.Add("displayname")
 		$searcher.filter = "(&(objectClass=controlAccessRight))"
 
-        $searcherSent = $LDAPConnection.SendRequest($searcher)
-        $colResults = $searcherSent.Entries        
+        try
+        {
+            $searcherSent = $LDAPConnection.SendRequest($searcher)
+            $colResults = $searcherSent.Entries   
+        }
+        catch
+        {
+        }        
  		$intCounter = 0
 	
 	foreach ($objResult in $colResults)
@@ -10251,7 +10322,7 @@ if ($bolACLExist)
 		} 	 
 	}# End Switch
 
-##
+
 
 If($Excel)
 {
@@ -11335,11 +11406,109 @@ function Select-Folder
 #==========================================================================
 Function Get-Perm 
 {
-    Param([System.Collections.ArrayList]$AllObjectDn,[string]$DomainNetbiosName,[boolean]$IncludeInherited,[boolean]$SkipDefaultPerm,[boolean]$SkipProtectedPerm,[boolean]$FilterEna,[boolean]$bolGetOwnerEna,[boolean]$bolReplMeta, [boolean]$bolACLsize,[boolean]$bolEffectiveR,[boolean] $bolGetOUProtected,[boolean] $bolGUIDtoText,[boolean]$Show,[string] $OutType,[bool]$bolToFile,[bool]$bolAssess,[string] $AssessLevel,[bool]$bolShowCriticalityColor,[bool]$GPO,[bool]$FilterBuiltin,[bool]$TranslateGUID,[bool]$RecursiveFind,[string]$RecursiveObjectType,[string]$ApplyTo,[bool]$ACLObjectFilter,[string]$FilterTrustee,[bool]$FilterForTrustee,[string]$AccessType,[bool]$AccessFilter,[string]$ACLPermissionFilter, 
-    [Parameter(Mandatory=$false)]
-    [pscredential] 
-    $CREDS,
-    [string]$ReturnObjectType)
+    Param(
+        #Array of distinguishedNames
+        [System.Collections.ArrayList]
+        $AllObjectDn,
+        #Domain NetBiosName
+        [string]
+        $DomainNetbiosName,
+        #If inherited permissions should be included
+        $IncludeInherited,
+        [boolean]
+        #If default permissions should be ignored
+        $SkipDefaultPerm,
+        [boolean]
+        #If protected object permissions should be ignored
+        $SkipProtectedPerm,
+        [boolean]
+        #if any filter is used
+        $FilterEna,
+        [boolean]
+        #Retrieve the Owner 
+        $bolGetOwnerEna,
+        [boolean]
+        #Get replication meta data
+        [boolean]
+        $bolReplMeta,
+        #Get the size of the DACL
+        [boolean]
+        $bolACLsize,
+        #Perform a effictive permissions check
+        [boolean]
+        $bolEffectiveR,
+        #Show if the OU is protected from inheritance
+        [boolean]
+        $bolGetOUProtected,
+        #Convert GUIDs to names
+        [boolean]
+         $bolGUIDtoText,
+        #Show the result
+        [boolean]
+        $Show,
+        #The ouput type of the result
+        [string]
+        $OutType,
+        #If the result should be written to a file
+        [boolean]
+        $bolToFile,
+        #if criticality level have been selected
+        [boolean]
+        $bolAssess,
+        #the criticality level selected
+        [string]
+        $AssessLevel,
+        #Display the colors of the criticality level
+        [boolean]
+        $bolShowCriticalityColor,
+        #Scan GPO
+        [boolean]
+        $GPO,
+        #Skipt built-in groups
+        [boolean]
+        $FilterBuiltin,
+        #Translate the GUID
+        [boolean]
+        $TranslateGUID,
+        #Search every nested group
+        [boolean]
+        $RecursiveFind,
+        #Return this type of objects when searching nested groups
+        [string]
+        $RecursiveObjectType,
+        #Permissiosn that apply to this type of object
+        [string]
+        $ApplyTo,
+        #If a object type have been selected
+        [boolean]
+        $ACLObjectFilter,
+        #Filter a trustee string
+        [string]
+        $FilterTrustee,
+        #If filtering of trustee is selected
+        [boolean]
+        $FilterForTrustee,
+        #Filter for Allow of Deny
+        [string]
+        $AccessType,
+        #If filter for allow or deny is selected
+        [boolean]
+        $AccessFilter,
+        #Filter using permissions
+        [boolean]
+        $BolACLPermissionFilter,        
+        #Permissions to filter
+        [string]
+        $ACLPermissionFilter,
+        #Added credentials
+        [Parameter(Mandatory=$false)]
+        [pscredential] 
+        $CREDS,
+        #Retrun only objects of a this type
+        [string]
+        $ReturnObjectType
+            
+    )
 
 
 $bolCompare = $false
@@ -11743,11 +11912,14 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             }
         }
 
-        If ($ACLPermissionFilter)
+        If ($BolACLPermissionFilter)
         {
-            if ($ACLPermissionFilter.Length -gt 0)
+            If ($ACLPermissionFilter)
             {
-                $sd = @($sd | Where-Object{$_.ActiveDirectoryRights -match $ACLPermissionFilter})
+                if ($ACLPermissionFilter.Length -gt 0)
+                {
+                    $sd = @($sd | Where-Object{$_.ActiveDirectoryRights -match $ACLPermissionFilter})
+                }
             }
         }
 
@@ -11936,7 +12108,14 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                     $bolMatchprotected = $false
                     if($UseCanonicalName)
                     {
-                        $CanonicalName = $DSobject.attributes.canonicalname[0]
+                        if($DSobject.attributes.canonicalname)
+                        {
+                            $CanonicalName = $DSobject.attributes.canonicalname[0]
+                        }
+                        else
+                        {
+                            $CanonicalName = Create-CanonicalName  $DSobject.distinguishedname.toString()
+                        }
                     }
                     $strNTAccount = $sd[$index].IdentityReference.ToString()
 	                If ($strNTAccount.contains("S-1-"))
@@ -12523,7 +12702,7 @@ while($count -le $AllObjectDn.count -1)
     
     $response = $null
      $DSobject = $null
-    ##
+    
     if ($rdbDACL.IsChecked)
     {
         $SecurityMasks = [System.DirectoryServices.Protocols.SecurityMasks]'Owner' -bor [System.DirectoryServices.Protocols.SecurityMasks]'Group'-bor [System.DirectoryServices.Protocols.SecurityMasks]'Dacl' #-bor [System.DirectoryServices.Protocols.SecurityMasks]'Sacl'
@@ -12571,13 +12750,20 @@ while($count -le $AllObjectDn.count -1)
 
             if($UseCanonicalName)
             {
-                $CanonicalName = $DSobject.attributes.canonicalname[0]
+                if($DSobject.attributes.canonicalname)
+                {
+                    $CanonicalName = $DSobject.attributes.canonicalname[0]
+                }
+                else
+                {
+                    $CanonicalName = Create-CanonicalName  $DSobject.distinguishedname.toString()
+                }
             }
             $sec = New-Object System.DirectoryServices.ActiveDirectorySecurity
 
             if($chkBoxRAWSDDL.IsChecked)
             {
-            #### Behind the curtain ###
+            
                 $secSDDL = New-Object System.DirectoryServices.ActiveDirectorySecurity
                 $objSd =  $DSobject.Attributes.ntsecuritydescriptor[0]
                 if ($objSD -is [Byte[]]) {
@@ -12616,7 +12802,7 @@ while($count -le $AllObjectDn.count -1)
                     }
                     $intI++
                 }
-                #### Behind the curtain ###
+
             }
             else
             {
@@ -15637,6 +15823,15 @@ if($base -or $GPO)
     {
         $FilterForTrustee = $false
     }
+    
+    if($Permission.Length -gt 0)
+    {
+        $BolACLPermissionFilter = $true
+    }
+    else
+    {
+        $BolACLPermissionFilter = $false
+    }
 
     if($FilterForTrustee -or $ACLObjectFilter -or $AccessFilter -or $Permission)
     {
@@ -15702,11 +15897,13 @@ if($base -or $GPO)
 	    {
             $response = $LDAPConnection.SendRequest($request)
             $global:bolLDAPConnection = $true
+            $global:bolConnected = $true  
 
 	    }
 	    catch
 	    {
 		    $global:bolLDAPConnection = $false
+            $global:bolConnected = $false  
             Write-host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
 	    }
         if($global:bolLDAPConnection -eq $true)
@@ -15819,6 +16016,7 @@ if($base -or $GPO)
             break;
         }
     }
+    #Check if a naming context is selected
     If ($NCSelect -eq $true)  
     {
 	    If (!($strLastCacheGuidsDom -eq $global:strDomainDNName))
@@ -15845,7 +16043,7 @@ if($base -or $GPO)
 	        catch
 	        {
 		        $global:bolLDAPConnection = $false
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+                Write-host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
 	        }
             if($global:bolLDAPConnection -eq $true)
             {
@@ -15881,7 +16079,7 @@ if($base -or $GPO)
 	            catch
 	            {
 		            $global:bolLDAPConnection = $false
-                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+                    Write-host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
 	            }
                 if($global:bolLDAPConnection -eq $true)
                 {
@@ -15898,407 +16096,412 @@ if($base -or $GPO)
     
         }
 
-        if($GPO -or ($base -eq "RootDSE"))
+        #Verify that you could connect to the naming context
+        if($Global:bolLDAPConnection)
         {
-            if(($base -eq "") -or ($base -eq "RootDSE"))
+            if($GPO -or ($base -eq "RootDSE"))
             {
-                $base = $global:strDomainDNName
-            }
-        }
-
-
-        $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
-        $LDAPConnection.SessionOptions.ReferralChasing = "None"
-        $request = New-Object System.directoryServices.Protocols.SearchRequest($base, "(objectClass=*)", "base")
-        [void]$request.Attributes.Add("name")               
-        $response = $LDAPConnection.SendRequest($request)
-
-        try
-        {
-        #Set search base as the name of the output file
-        $strNode = fixfilename $response.Entries[0].Attributes.name[0]
-        }
-        catch
-        {
-        }
-        
-	    if($GPO)
-        {
-            $strNode = $strNode + "_GPOs"
-        }
-        ############### COMPARE THINGS ##########
-        if($Template)
-        {
-            if ($(Test-Path $Template) -eq $true)
-            {
-                $global:bolCSVLoaded = $false
-                $strCompareFile = $Template
-                &{#Try
-                    $global:bolCSVLoaded = $true
-                    $global:csvHistACLs = import-Csv $strCompareFile 
+                if(($base -eq "") -or ($base -eq "RootDSE"))
+                {
+                    $base = $global:strDomainDNName
                 }
-                Trap [SystemException]
-                {
-                    $strCSVErr = $_.Exception.Message
-                    Write-Host "Failed to load CSV. $strCSVErr" -ForegroundColor Red
-                    $global:bolCSVLoaded = $false
-                    continue
-                }   
-                #Verify that a successful CSV import is performed before continue            
-                if($global:bolCSVLoaded)
-                {
-                    #Test CSV file format
-                    if(TestCSVColumns $global:csvHistACLs)
-                    {                                                                                                                                                                                                                                                                      
+            }
+
+
+            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
+            $LDAPConnection.SessionOptions.ReferralChasing = "None"
+            $request = New-Object System.directoryServices.Protocols.SearchRequest($base, "(objectClass=*)", "base")
+            [void]$request.Attributes.Add("name")               
+
+            try
+            {
+                $response = $LDAPConnection.SendRequest($request)            
+                #Set search base as the name of the output file
+                $strNode = fixfilename $response.Entries[0].Attributes.name[0]
+            }
+            catch
+            {
+            }
             
-                        $bolContinue = $true
+            if($GPO)
+            {
+                $strNode = $strNode + "_GPOs"
+            }
+            ############### COMPARE THINGS ##########
+            if($Template)
+            {
+                if ($(Test-Path $Template) -eq $true)
+                {
+                    $global:bolCSVLoaded = $false
+                    $strCompareFile = $Template
+                    &{#Try
+                        $global:bolCSVLoaded = $true
+                        $global:csvHistACLs = import-Csv $strCompareFile 
+                    }
+                    Trap [SystemException]
+                    {
+                        $strCSVErr = $_.Exception.Message
+                        Write-Host "Failed to load CSV. $strCSVErr" -ForegroundColor Red
+                        $global:bolCSVLoaded = $false
+                        continue
+                    }   
+                    #Verify that a successful CSV import is performed before continue            
+                    if($global:bolCSVLoaded)
+                    {
+                        #Test CSV file format
+                        if(TestCSVColumns $global:csvHistACLs)
+                        {                                                                                                                                                                                                                                                                      
+                
+                            $bolContinue = $true
 
-                        if($global:csvHistACLs[0].Object)
-                        {
-                            $strOUcol = $global:csvHistACLs[0].Object
-                        }
-                        else
-                        {
-                            $strOUcol = $global:csvHistACLs[0].OU
-                        }
-                        if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
-                        {
-                            $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
-
-                        }
-
-                        if($strOUcol.Contains("<ROOT-DN>") -gt 0)
-                        {
-                            $strOUcol = ($strOUcol -Replace "<ROOT-DN>",$global:ForestRootDomainDN)
-
-                            if($global:strDomainDNName -ne $global:ForestRootDomainDN)
+                            if($global:csvHistACLs[0].Object)
                             {
-                                if($global:IS_GC -eq "TRUE")
+                                $strOUcol = $global:csvHistACLs[0].Object
+                            }
+                            else
+                            {
+                                $strOUcol = $global:csvHistACLs[0].OU
+                            }
+                            if($strOUcol.Contains("<DOMAIN-DN>") -gt 0)
+                            {
+                                $strOUcol = ($strOUcol -Replace "<DOMAIN-DN>",$global:strDomainDNName)
+
+                            }
+
+                            if($strOUcol.Contains("<ROOT-DN>") -gt 0)
+                            {
+                                $strOUcol = ($strOUcol -Replace "<ROOT-DN>",$global:ForestRootDomainDN)
+
+                                if($global:strDomainDNName -ne $global:ForestRootDomainDN)
                                 {
-                                    Write-Host "You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?"
-                                    $a = Read-Host "Do you want to continue? Press Y[Yes] or N[NO]:"
-                                    if($a -eq "Y")
+                                    if($global:IS_GC -eq "TRUE")
                                     {
-                                        if($global:strDC.contains(":"))
+                                        Write-Host "You are not connected to the forest root domain: $global:ForestRootDomainDN.`n`nYour DC is a Global Catalog.`nDo you want to use Global Catalog and  continue?"
+                                        $a = Read-Host "Do you want to continue? Press Y[Yes] or N[NO]:"
+                                        if($a -eq "Y")
                                         {
-                                            $global:strDC = $global:strDC.split(":")[0] + ":3268"
+                                            if($global:strDC.contains(":"))
+                                            {
+                                                $global:strDC = $global:strDC.split(":")[0] + ":3268"
+                                            }
+                                            else
+                                            {
+                                                $global:strDC = $global:strDC + ":3268"
+                                            }
+                                
                                         }
                                         else
                                         {
-                                            $global:strDC = $global:strDC + ":3268"
+                                            $bolContinue = $false
                                         }
-                            
+
                                     }
                                     else
                                     {
+                                        Write-host "You are not connected to the forest root domain: $global:ForestRootDomainDN." -ForegroundColor Yellow
                                         $bolContinue = $false
                                     }
-
                                 }
-                                else
-                                {
-                                    #$MsgBox = [System.Windows.Forms.MessageBox]::Show("You are not connected to the forest root domain: $global:ForestRootDomainDN.",”Information”,0,"Warning")
-                                    Write-host "You are not connected to the forest root domain: $global:ForestRootDomainDN." -ForegroundColor Yellow
-                                    $bolContinue = $false
-                                }
+
                             }
-
-                        }
-            
-
-                        if($txtReplaceDN.text.Length -gt 0)
-                        {
-                            $strOUcol = ($strOUcol -Replace $txtReplaceDN.text,$global:strDomainDNName)
-
-                        }
-                        $sADobjectName = $strOUcol
-                        #Verify if the connection can be done
-                        if($bolContinue)
-                        {
-                            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
-                            $LDAPConnection.SessionOptions.ReferralChasing = "None"
-                            $request = New-Object System.directoryServices.Protocols.SearchRequest
-                            if($global:bolShowDeleted)
-                            {
-                                [string] $LDAP_SERVER_SHOW_DELETED_OID = "1.2.840.113556.1.4.417"
-                                [void]$request.Controls.Add((New-Object "System.DirectoryServices.Protocols.DirectoryControl" -ArgumentList "$LDAP_SERVER_SHOW_DELETED_OID",$null,$false,$true ))
-                            }
-                            $request.DistinguishedName = $sADobjectName
-                            $request.Filter = "(name=*)"
-                            $request.Scope = "Base"
-                            [void]$request.Attributes.Add("name")
                 
-                            $response = $LDAPConnection.SendRequest($request)
 
-                            $ADobject = $response.Entries[0]
-                            $strNode = fixfilename $ADobject.attributes.name[0]
+                            if($txtReplaceDN.text.Length -gt 0)
+                            {
+                                $strOUcol = ($strOUcol -Replace $txtReplaceDN.text,$global:strDomainDNName)
+
+                            }
+                            $sADobjectName = $strOUcol
+                            #Verify if the connection can be done
+                            if($bolContinue)
+                            {
+                                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC,$CREDS)
+                                $LDAPConnection.SessionOptions.ReferralChasing = "None"
+                                $request = New-Object System.directoryServices.Protocols.SearchRequest
+                                if($global:bolShowDeleted)
+                                {
+                                    [string] $LDAP_SERVER_SHOW_DELETED_OID = "1.2.840.113556.1.4.417"
+                                    [void]$request.Controls.Add((New-Object "System.DirectoryServices.Protocols.DirectoryControl" -ArgumentList "$LDAP_SERVER_SHOW_DELETED_OID",$null,$false,$true ))
+                                }
+                                $request.DistinguishedName = $sADobjectName
+                                $request.Filter = "(name=*)"
+                                $request.Scope = "Base"
+                                [void]$request.Attributes.Add("name")
+                    
+                                $response = $LDAPConnection.SendRequest($request)
+
+                                $ADobject = $response.Entries[0]
+                                $strNode = fixfilename $ADobject.attributes.name[0]
+                            }
+                            else
+                            {
+                                #Set the node to empty , no connection will be done
+                                $strNode = ""
+                            }
+            
                         }
                         else
                         {
-                            #Set the node to empty , no connection will be done
-                            $strNode = ""
+                            Write-host "Wrong format in: $Template" -ForegroundColor Red
+                            exit
                         }
-        
                     }
-                    else
-                    {
-                        Write-host "Wrong format in: $Template" -ForegroundColor Red
-                        exit
-                    }
-                }
-            }
-            else
-            {
-                Write-host "File not found $Template" -ForegroundColor Red
-                exit
-            }
-        }
-
-        ############### COMPARE THINGS ##########
-        
-        #Get current date
-        $date= get-date -uformat %Y%m%d_%H%M%S
-        
-        if($ACLObjectFilter)
-        {
-            GetSchemaObjectGUID  -Domain $global:strDomainDNName -CREDS $CREDS
-        }
-
-        if($Targets)
-        {
-            if($Targets -eq "RiskyTemplates")
-            {
-                $allSubOU = Find-RiskyTemplates -ConfigurationDN $global:ConfigDN -CREDS $CREDS
-            }
-        }
-        else
-        {
-            if(-not($GPO))
-            {
-                #Get all LDAP objects to read ACL's on
-                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter $Filter -CREDS $CREDS)
-            }
-            else
-            {
-                #Get all LDAP objects to read ACL's on
-                $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter "(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))" -CREDS $CREDS)
-            }
-        }
-
-        if($CanonicalNames)
-        {
-            $UseCanonicalName = $true
-        }
-        else
-        {
-            $UseCanonicalName = $false
-        }
-
-
-        #If more than 0 objects returned send it to Get-Perm to read ACL's
-        if($allSubOU.count -gt 0)
-        {
-            #Set the path for the CSV file name
-            if($OutputFolder -gt "")
-            {
-                #Check if foler exist if not use current folder
-                if(Test-Path $OutputFolder)
-                {
-                    $strFileCSV = $OutputFolder + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
                 }
                 else
                 {
-                    Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                    $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv"
+                    Write-host "File not found $Template" -ForegroundColor Red
+                    exit
+                }
+            }
+
+            ############### COMPARE THINGS ##########
+            
+            #Get current date
+            $date= get-date -uformat %Y%m%d_%H%M%S
+            
+            if($ACLObjectFilter)
+            {
+                GetSchemaObjectGUID  -Domain $global:strDomainDNName -CREDS $CREDS
+            }
+
+            if($Targets)
+            {
+                if($Targets -eq "RiskyTemplates")
+                {
+                    $allSubOU = Find-RiskyTemplates -ConfigurationDN $global:ConfigDN -CREDS $CREDS
                 }
             }
             else
             {
-                $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
-            }
-            $bolAssess = if($Criticality){$true}else{$false} 
-            if(($Output -eq "CSV") -or ($Output -eq "CSVTEMPLATE")  -or ($Output -eq "HTML") -or ($Output -eq "EXCEL"))
-            {
-                $file = $true
-                # Check if HTML switch is selected , creates a HTML file
-                Switch ($Output)
+                if(-not($GPO))
                 {
-                "HTML"
-                    {			
-                        $bolCSV = $false
-                        $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
-                        #Set the path for the HTM file name
-                        if($OutputFolder -gt "")
-                        {
-                            #Check if foler exist if not use current folder
-                            if(Test-Path $OutputFolder)
-                            {
-                                $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
-                            }
-                            else
-                            {
-                                Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
-                                $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
-                            }
-                        }
-                        else
-                        {
-                            $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm"  
-                        }
-                        CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
-                        CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
-                        if($Template)
-                        {
-                            InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
-                            InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
-                        }
-                        else
-                        {
+                    #Get all LDAP objects to read ACL's on
+                    $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter $LDAPFilter -CREDS $CREDS)
+                }
+                else
+                {
+                    #Get all LDAP objects to read ACL's on
+                    $allSubOU = @(GetAllChildNodes -firstnode $base -Scope $Scope -CustomFilter "(&(|(objectClass=organizationalUnit)(objectClass=domainDNS))(gplink=*LDAP*))" -CREDS $CREDS)
+                }
+            }
 
-                        InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
-                        InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
-                        }
+            if($CanonicalNames)
+            {
+                $UseCanonicalName = $true
+            }
+            else
+            {
+                $UseCanonicalName = $false
+            }
 
-                    if($Template)
+
+            #If more than 0 objects returned send it to Get-Perm to read ACL's
+            if($allSubOU.count -gt 0)
+            {
+                #Set the path for the CSV file name
+                if($OutputFolder -gt "")
+                {
+                    #Check if foler exist if not use current folder
+                    if(Test-Path $OutputFolder)
                     {
-                        Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "HTML" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                        $strFileCSV = $OutputFolder + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
                     }
                     else
                     {
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                        Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                        $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv"
                     }
-
-                    Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
-                    Write-output $strFileHTM
                 }
-                "EXCEL"
-                    {	
-                        $bolCSV = $false
-                        $ExcelModuleExist = $true
-                        if(!$(get-module ImportExcel))
-                        { 
-                            Write-Host "Checking for ImportExcel PowerShell Module..." 
-                            if(!$(get-module -ListAvailable | Where-Object name -eq "ImportExcel"))
+                else
+                {
+                    $strFileCSV = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date + ".csv" 
+                }
+                $bolAssess = if($Criticality){$true}else{$false} 
+                if(($Output -eq "CSV") -or ($Output -eq "CSVTEMPLATE")  -or ($Output -eq "HTML") -or ($Output -eq "EXCEL"))
+                {
+                    $file = $true
+                    # Check if HTML switch is selected , creates a HTML file
+                    Switch ($Output)
+                    {
+                    "HTML"
+                        {			
+                            $bolCSV = $false
+                            $strFileHTA = $env:temp + "\"+$global:ACLHTMLFileName+".hta" 
+                            #Set the path for the HTM file name
+                            if($OutputFolder -gt "")
                             {
-                                write-host "You need to install the PowerShell module ImportExcel found in the PSGallery" -ForegroundColor red    
-                                $ExcelModuleExist = $false 
+                                #Check if foler exist if not use current folder
+                                if(Test-Path $OutputFolder)
+                                {
+                                    $strFileHTM = $OutputFolder + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                                }
+                                else
+                                {
+                                    Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                                    $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm" 
+                                }
                             }
                             else
                             {
-                                Import-Module ImportExcel
-                                $ExcelModuleExist = $true
+                                $strFileHTM = $CurrentFSPath + "\"+"$global:strDomainShortName-$strNode-$global:SessionID"+".htm"  
+                            }
+                            CreateHTA "$global:strDomainShortName-$strNode" $strFileHTA $strFileHTM $CurrentFSPath $global:strDomainDNName $global:strDC
+                            CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
+                            if($Template)
+                            {
+                                InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                                InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $true $false $false $Template $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                            }
+                            else
+                            {
+
+                            InitiateHTM $strFileHTA $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
+                            InitiateHTM $strFileHTM $strNode $Base $SDDate $false $Protected $ShowCriticalityColor $false $false $false "" $false $bolEffective $false -bolCanonical:$UseCanonicalName $GPO
                             }
 
+                        if($Template)
+                        {
+                            Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "HTML" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                         }
-                        if($ExcelModuleExist)
-                        {                
-                            if($ExcelFile -eq "")
-                            {
-                                #Set the path for the Excel file name		
-                                if($OutputFolder -gt "")
+                        else
+                        {
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                        }
+
+                        Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
+                        Write-output $strFileHTM
+                    }
+                    "EXCEL"
+                        {	
+                            $bolCSV = $false
+                            $ExcelModuleExist = $true
+                            if(!$(get-module ImportExcel))
+                            { 
+                                Write-Host "Checking for ImportExcel PowerShell Module..." 
+                                if(!$(get-module -ListAvailable | Where-Object name -eq "ImportExcel"))
                                 {
-                                    #Check if foler exist if not use current folder
-                                    if(Test-Path $OutputFolder)
+                                    write-host "You need to install the PowerShell module ImportExcel found in the PSGallery" -ForegroundColor red    
+                                    $ExcelModuleExist = $false 
+                                }
+                                else
+                                {
+                                    Import-Module ImportExcel
+                                    $ExcelModuleExist = $true
+                                }
+
+                            }
+                            if($ExcelModuleExist)
+                            {                
+                                if($ExcelFile -eq "")
+                                {
+                                    #Set the path for the Excel file name		
+                                    if($OutputFolder -gt "")
                                     {
-                                        $strFileEXCEL = $OutputFolder + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                        #Check if foler exist if not use current folder
+                                        if(Test-Path $OutputFolder)
+                                        {
+                                            $strFileEXCEL = $OutputFolder + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                        }
+                                        else
+                                        {
+                                            Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
+                                            $strFileEXCEL = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                        }
                                     }
                                     else
                                     {
-                                        Write-host "Path:$OutputFolder was not found! Writting to current folder." -ForegroundColor red
                                         $strFileEXCEL = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
                                     }
                                 }
                                 else
                                 {
-                                    $strFileEXCEL = $CurrentFSPath + "\" +$strNode + "_" + $global:strDomainShortName + "_adAclOutput" + $date +".xlsx" 
+                                    $strFileEXCEL = $ExcelFile
+                                }
+
+                                if($Template)
+                                {
+                                    Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                                }
+                                else
+                                {
+                                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "EXCEL" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                                 }
                             }
-                            else
-                            {
-                                $strFileEXCEL = $ExcelFile
-                            }
-
+                        }
+                    "CSVTEMPLATE"
+                        {
+                            $bolCSV = $true
                             if($Template)
                             {
-                                Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $SDDate $Owner $bolCSV $Protected $false $false $Show "EXCEL" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                                Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                             }
                             else
                             {
-                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "EXCEL" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                            
                             }
+                            
+
                         }
+                    default
+                        {
+                            $bolCSV = $true
+                            if($Template)
+                            {
+                                Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSV" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
+                            }
+                            else
+                            {
+                                Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                                
+                            }
+                            
+
+                        }
+
                     }
-                "CSVTEMPLATE"
+                }
+                else
+                {
+                    if($RAW)
                     {
                         $bolCSV = $true
+                        $file = $false
                         if($Template)
                         {
                             Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
-                           
+                            
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                         }
-                        
-
                     }
-                default
+                    else
                     {
                         $bolCSV = $true
+                        $file = $false
                         if($Template)
                         {
                             Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSV" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
-                            
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
                         }
-                        
-
                     }
 
                 }
             }
             else
             {
-                if($RAW)
-                {
-                    $bolCSV = $true
-                    $file = $false
-                    if($Template)
-                    {
-                        Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSVTEMPLATE" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
-                    }
-                    else
-                    {
-                        
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
-                    }
-                }
-                else
-                {
-                    $bolCSV = $true
-                    $file = $false
-                    if($Template)
-                    {
-                        Get-PermCompare $allSubOU $SkipDefaults $SkipProtected $false $Owner $bolCSV $Protected $false $false $Show "CSV" $TemplateFilter $file $ShowCriticalityColor $bolAssess $Criticality $GPO -CREDS $CREDS
-                    }
-                    else
-                    {
-                        Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
-                    }
-                }
-
+                    Write-host "No objects returned! Does your filter relfect the objects you are searching for?" -ForegroundColor red
             }
-        }
-        else
-        {
-                Write-host "No objects returned! Does your filter relfect the objects you are searching for?" -ForegroundColor red
-        }
+        }#end if $Global:bolLDAPConnection
+        else {
+            Write-Verbose "Could not connect! Check your credentials" 
+        }     
     }#End if $NCSelect
-
 }# End if D
 else
 {
@@ -16354,7 +16557,7 @@ else
 	    catch
 	    {
 		    $global:bolLDAPConnection = $false
-            Write-host "Failed! Domain does not exist or can not be connected" -ForegroundColor red
+            Write-host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
 	    }
         if($global:bolLDAPConnection -eq $true)
         {
@@ -16476,7 +16679,7 @@ else
 	            catch
 	            {
 		            $global:bolLDAPConnection = $false
-                    $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+                    Write-host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
 	            }
                 if($global:bolLDAPConnection -eq $true)
                 {
@@ -16512,7 +16715,7 @@ else
 	                catch
 	                {
 		                $global:bolLDAPConnection = $false
-                        $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed! Domain does not exist or can not be connected" -strType "Error" -DateStamp ))
+                        Write-host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
 	                }
                     if($global:bolLDAPConnection -eq $true)
                     {
