@@ -2,15 +2,16 @@
 
 ## Current version
 
-**Version: 7.4**
+**Version: 7.5**
 
-**3 October, 2022**
+**25 October, 2022**
 
-**SHA256:** 9AC25A8825407CCB6089BC7A2DF530D1830795B7E71A981ECEE4C5F48387B37A
+**SHA256:** B5A3FA5B3DA95F6AA7556EE2BC62E5D290F72453105EF88E170174994DDA2650
 
 **Fixed issues**
-* Typo
-* FilterTrustee parameter gets evaluated before the -RecursiveFind
+* Connection errors
+* When the object is missing a canonicalName a function create one
+* Checkbox for permissions filter in GUI did not trigger or turn of the filter
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
