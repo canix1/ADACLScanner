@@ -10,8 +10,8 @@
 
 **Fixed issues**
 * Connection errors
-* When the object is missing a canonicalName a function create one
-* Checkbox for permissions filter in GUI did not trigger or turn of the filter
+* When the object is missing a canonicalName, a function will create one
+* Checkbox for the permissions filter in GUI did not trigger or turn off the filter
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
