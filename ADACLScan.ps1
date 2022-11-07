@@ -99,14 +99,12 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.5**
+    **Version: 7.6**
 
-    **25 October, 2022**
+    **7 November, 2022**
 
    **Fixed issues**
-   * Connection errors
-   * When the object is missing a canonicalName a function create one
-   * Checkbox for permissions filter in GUI did not trigger or turn of the filter
+   * Authentication errors while using effective rights scan
 
 #>
 Param
@@ -766,7 +764,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.5" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.6" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -15419,8 +15417,14 @@ else
     {
         [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strPinDomDC -PrincipalDN $global:strPrincipalDN -bolCreds $true -GetTokenCreds $Script:CredsExt -CREDS $CREDS)
         
-        $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$Script:CredsExt.UserName,$Script:CredsExt.GetNetworkCredential().Password)
-
+        if($CREDS)
+        {
+            $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$Script:CredsExt.UserName,$Script:CredsExt.GetNetworkCredential().Password)
+        }
+        else
+        {
+            $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN")
+        }
         
         $objADPrinipal.psbase.RefreshCache("msDS-PrincipalName")
         $strPrinName = $($objADPrinipal.psbase.Properties.Item("msDS-PrincipalName"))
@@ -15436,9 +15440,14 @@ else
     {
         [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strPinDomDC -PrincipalDN $global:strPrincipalDN -bolCreds $false -CREDS $CREDS)
         
-
-        $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$CREDS.UserName,$CREDS.GetNetworkCredential().Password)
-
+        if($CREDS)
+        {
+            $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN",$CREDS.UserName,$CREDS.GetNetworkCredential().Password)
+        }
+        else
+        {
+            $objADPrinipal = new-object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN")
+        }
                     
         $objADPrinipal.psbase.RefreshCache("msDS-PrincipalName")
         $strPrinName = $($objADPrinipal.psbase.Properties.Item("msDS-PrincipalName"))
