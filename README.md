@@ -2,16 +2,14 @@
 
 ## Current version
 
-**Version: 7.5**
+**Version: 7.6**
 
-**25 October, 2022**
+**7 November, 2022**
 
-**SHA256:** B5A3FA5B3DA95F6AA7556EE2BC62E5D290F72453105EF88E170174994DDA2650
+**SHA256:** 6973A4710FD88D32D47F4523E7EC098EF407F8ECED4B34AF6D3759CE1696EF19
 
 **Fixed issues**
-* Connection errors
-* When the object is missing a canonicalName, a function will create one
-* Checkbox for the permissions filter in GUI did not trigger or turn off the filter
+* Authentication errors while using effective rights scan
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
