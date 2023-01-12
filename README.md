@@ -2,14 +2,17 @@
 
 ## Current version
 
-**Version: 7.6**
+**Version: 7.7**
 
-**7 November, 2022**
+**12 January, 2023**
 
-**SHA256:** 6973A4710FD88D32D47F4523E7EC098EF407F8ECED4B34AF6D3759CE1696EF19
+**SHA256:** F8E0A09D99FF46019C0C3F2B725E9887D9AE53CB7FAD0BB233BC8612C2CA51F2
+
+**New Features**
+* Progress bar is disabled by default in CLI and is optional turned on by using "-ShowProgressBar"
 
 **Fixed issues**
-* Authentication errors while using effective rights scan
+* Misspelling of the word "Inherited" in CLI output
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"

@@ -1,4 +1,4 @@
-﻿ <#
+﻿<#
 .Synopsis
     ADACLScan.ps1
      
@@ -99,12 +99,15 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.6**
+    **Version: 7.7**
 
-    **7 November, 2022**
+    **12 January, 2023**
 
-   **Fixed issues**
-   * Authentication errors while using effective rights scan
+    **New Features**
+    * Progress bar is disabled by default in CLI and is optional turned on by using "-ShowProgressBar"
+
+    **Fixed issues**
+    * Misspelling of the word "Inherited" in CLI output
 
 #>
 Param
@@ -474,6 +477,13 @@ Param
     [String] 
     $FilterTrustee="",
 
+    # Show the progressbar in the CLI
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $ShowProgressBar,
+
     # Add Credentials to the command by first creating a pscredential object like for example $CREDS = get-credential
     [Parameter(Mandatory=$false)]
     [PSCredential] 
@@ -764,7 +774,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.6" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.7" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -1084,7 +1094,7 @@ $xamlBase = @"
                                         <GroupBox x:Name="gBoxProgress" Header="Progress Bar" HorizontalAlignment="Left" Height="75" Margin="2,0,0,0" VerticalAlignment="Top" Width="290">
                                             <StackPanel Orientation="Vertical" Margin="0,0">
                                                 <CheckBox x:Name="chkBoxSkipProgressBar" Content="Use Progress Bar" HorizontalAlignment="Left" Margin="5,10,0,0" VerticalAlignment="Top" IsEnabled="True" IsChecked="True"/>
-                                                <Label x:Name="lblSkipProgressBar" Content="For speed you could disable the progress bar." />
+                                                <Label x:Name="lblSkipProgressBar" Content="For increased speed, turn off the progress bar." />
                                             </StackPanel>
                                         </GroupBox>
                                     </StackPanel>
@@ -9510,7 +9520,7 @@ if($Type -eq "Object")
             IdentityReference = $IdentityReference ;`
             Trustee = $strNTAccount ;`
             Access = $objAccess ;`
-            Inhereted = $objIsInheried ;`
+            Inherited = $objIsInheried ;`
             'Apply To' = $strApplyTo ;`
             Permission = $strPerm}
         }
@@ -9523,7 +9533,7 @@ if($Type -eq "Object")
             IdentityReference = $IdentityReference ;`
             Trustee = $strNTAccount ;`
             Access = $objAccess ;`
-            Inhereted = $objIsInheried ;`
+            Inherited = $objIsInheried ;`
             'Apply To' = $strApplyTo ;`
             Permission = $strPerm}
         }
@@ -9540,7 +9550,7 @@ if($Type -eq "Object")
             IdentityReference = $IdentityReference ;`
             Trustee = $strNTAccount ;`
             Access = $objAccess ;`
-            Inhereted = $objIsInheried ;`
+            Inherited = $objIsInheried ;`
             'Apply To' = $strApplyTo ;`
             Permission = $strPerm}
         }
@@ -9552,7 +9562,7 @@ if($Type -eq "Object")
             IdentityReference = $IdentityReference ;`
             Trustee = $strNTAccount ;`
             Access = $objAccess ;`
-            Inhereted = $objIsInheried ;`
+            Inherited = $objIsInheried ;`
             'Apply To' = $strApplyTo ;`
             Permission = $strPerm}
         }
@@ -10337,7 +10347,7 @@ If($Excel)
     $objhashtableACE | Add-Member NoteProperty "IdentityReference" $IdentityReference.toString() 
     $objhashtableACE | Add-Member NoteProperty "Trustee" $strNTAccount.toString() 
     $objhashtableACE | Add-Member NoteProperty "Access" $objAccess.toString() 
-    $objhashtableACE | Add-Member NoteProperty "Inhereted" $objIsInheried.toString() 
+    $objhashtableACE | Add-Member NoteProperty "Inherited" $objIsInheried.toString() 
     $objhashtableACE | Add-Member NoteProperty "Apply To" $strApplyTo.toString() 
     $objhashtableACE | Add-Member NoteProperty "Permission" $strPerm.toString() 
 
@@ -11597,7 +11607,7 @@ else
 $global:secd = ""
 $bolACLExist = $true
 $global:GetSecErr = $false
-if($global:bolCMD)
+if(($global:bolCMD) -and ($global:bolProgressBar))
 {
 
     $i++
@@ -12274,13 +12284,14 @@ if ($aclcount -eq 0)
 }  
 else
 {
-
-    if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
+    if(-not $bolCMD)
     {
+        if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
+        {
         
-            $global:ProgressBarWindow.Window.Dispatcher.invoke([action]{$global:ProgressBarWindow.Window.Close()},"Normal")
-            #Remove-Variable -Name "ProgressBarWindow" -Scope Global
-    } 
+                $global:ProgressBarWindow.Window.Dispatcher.invoke([action]{$global:ProgressBarWindow.Window.Close()},"Normal")
+        } 
+    }
 
     if($bolCSV)
     {
@@ -12628,21 +12639,32 @@ while($count -le $AllObjectDn.count -1)
 {
     $global:GetSecErr = $false
     $global:secd = ""
-    if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
+
+    if(($global:bolCMD) -and ($global:bolProgressBar))
     {
+
         $i++
         [int]$pct = ($i/$intTot)*100
-        #Update the progress bar
-        while(($null -eq $global:ProgressBarWindow.Window.IsInitialized) -and ($intLoop -lt 20))
+        Write-Progress -Activity "Collecting objects" -Status "Currently scanning $i of $intTot objects" -Id 0 -CurrentOperation "Reading ACL on: $ADObjDN" -PercentComplete $pct 
+    }
+    else
+    {
+        if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
         {
-                    Start-Sleep -Milliseconds 1
-                    $cc++
-        }
-        if ($global:ProgressBarWindow.Window.IsInitialized -eq $true)
-        {
-            Update-ProgressBar "Currently scanning $i of $intTot objects" $pct 
-        }  
+            $i++
+            [int]$pct = ($i/$intTot)*100
+            #Update the progress bar
+            while(($null -eq $global:ProgressBarWindow.Window.IsInitialized) -and ($intLoop -lt 20))
+            {
+                        Start-Sleep -Milliseconds 1
+                        $cc++
+            }
+            if ($global:ProgressBarWindow.Window.IsInitialized -eq $true)
+            {
+                Update-ProgressBar "Currently scanning $i of $intTot objects" $pct 
+            }  
         
+        }
     }
 
 
@@ -13758,12 +13780,14 @@ while($count -le $AllObjectDn.count -1)
 
 if (($count -gt 0))
 {
-    if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
+    if(-not $bolCMD)
     {
+        if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
+        {
                 
-            $global:ProgressBarWindow.Window.Dispatcher.invoke([action]{$global:ProgressBarWindow.Window.Close()},"Normal")
-    } 
-       
+                $global:ProgressBarWindow.Window.Dispatcher.invoke([action]{$global:ProgressBarWindow.Window.Close()},"Normal")
+        } 
+    }  
     if ($aclcount -eq 0)
     {
     [System.Windows.Forms.MessageBox]::Show("No Permissions found!" , "Status") 
@@ -15497,6 +15521,7 @@ $psCmd = [PowerShell]::Create().AddScript({
                     </LinearGradientBrush>
                 </ProgressBar.Foreground>
             </ProgressBar>
+            <Label x:Name="lblSkipProgressBar" Content="For increased speed, turn off the progress bar.&#10;Additional Options -> Use Progress Bar" Foreground="white" Margin="10,5,0,0"/>
         </StackPanel>
 
     </Grid>
@@ -15851,7 +15876,15 @@ if($base -or $GPO)
         $ACLFilter= $False
     }
 
-    $global:bolProgressBar = $false
+    if($ShowProgressBar)
+    {
+        $global:bolProgressBar = $true
+    }
+    else
+    {
+        $global:bolProgressBar = $false
+    }
+
     #Connect to Custom Naming Context
     $global:bolCMD = $true
  
