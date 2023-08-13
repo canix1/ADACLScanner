@@ -99,15 +99,20 @@
     https://github.com/canix1/ADACLScanner
 
 .NOTES
-    **Version: 7.7**
 
-    **12 January, 2023**
+**Version: 7.8**
 
-    **New Features**
-    * Progress bar is disabled by default in CLI and is optional turned on by using "-ShowProgressBar"
+**13 August, 2023**
 
-    **Fixed issues**
-    * Misspelling of the word "Inherited" in CLI output
+**Fixed issues**
+* Display script information when running from CLI
+
+**Fixed issues**
+* DeleteChild was reported as "Delete"
+* Updated RiskyTemplate search to include certificate tempaltes with all type of EKUs that permit authentication to AD.
+* Updated assessment
+
+
 
 #>
 Param
@@ -491,6 +496,7 @@ Param
 
 )
 
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 7.8 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -774,7 +780,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.7" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.8" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -1358,7 +1364,7 @@ Add-Type @"
 }
 
 
-
+try{
 Add-Type @"
   using System;
   using System.Runtime.InteropServices;
@@ -1367,7 +1373,10 @@ Add-Type @"
      [return: MarshalAs(UnmanagedType.Bool)]
      public static extern bool SetForegroundWindow(IntPtr hWnd);
   }
-"@
+"@ 
+}
+catch
+{}
 
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 
@@ -8626,6 +8635,12 @@ Switch ($objRights)
                         {
                             Switch ($objObjectType)
                             {
+                            
+                                # msDS-KeyCredentialLink = 4
+                                "5b47d60f-6090-40b2-9f37-2a4de88f3063"
+                                {
+                                    $intCriticalityLevel = 4
+                                }
                                 # Domain Password & Lockout Policies = 4
                                 "c7407360-20bf-11d0-a768-00aa006e0529"
                                 {
@@ -8710,7 +8725,319 @@ Switch ($objRights)
                 }
                 "Children"
     	        {
+                        Switch ($objFlags)
+                    { 
+                        "ObjectAceTypePresent"
+                        {
+                            Switch ($objObjectType)
+                            {
+                                # Domain Password & Lockout Policies = 4
+                                "c7407360-20bf-11d0-a768-00aa006e0529"
+                                {
+                                    $intCriticalityLevel = 4
+                                }
+                                # Account Restrictions = 4
+                                "4c164200-20c0-11d0-a768-00aa006e0529"
+                                {
+                                    $intCriticalityLevel = 4
+                                }
+                                # Group Membership = 4
+                                "bc0ac240-79a9-11d0-9020-00c04fc2d4cf"
+                                {
+                                    $intCriticalityLevel = 4
+                                }
+                                # Email-Information = 0
+                                "E45795B2-9455-11d1-AEBD-0000F80367C1"
+                                {
+                                    $intCriticalityLevel = 0
+                                }
+                                # Web-Information = 2
+                                "E45795B3-9455-11d1-AEBD-0000F80367C1"
+                                {
+                                    #If it SELF then = 1
+                                    if($objIdentity -eq "NT AUTHORITY\SELF")
+                                    {
+                                        $intCriticalityLevel = 1
+                                    }
+                                    else
+                                    {
+                                        $intCriticalityLevel = 2
+                                    }
+                                }
+                                # Personal-Information = 2
+                                "77B5B886-944A-11d1-AEBD-0000F80367C1"
+                                {
+                                    #If it SELF then = 1
+                                    if($objIdentity -eq "NT AUTHORITY\SELF")
+                                    {
+                                        $intCriticalityLevel = 1
+                                    }
+                                    else
+                                    {
+                                        $intCriticalityLevel = 2
+                                    }
+                                }
+                                # User-Account-Control = 4
+                                "bf967a68-0de6-11d0-a285-00aa003049e2"
+                                {
+                                    $intCriticalityLevel = 4
+                                }
+                                # Service-Principal-Name = 4
+                                "f3a64788-5306-11d1-a9c5-0000f80367c1"
+                                {
+                                    $intCriticalityLevel = 4
+                                }
+                                #  Is-Member-Of-DL = 4
+                                "bf967991-0de6-11d0-a285-00aa003049e2"
+                                {
+                                    $intCriticalityLevel = 4
+                                }
+                                default
+                                {
+                                    $intCriticalityLevel = 2
+                                }
+                            }
+                        }
+                        "ObjectAceTypePresent, InheritedObjectAceTypePresent"
+                        {
+                            Switch ($objInheritedObjectType)
+                            {
+                                # User = 4 ,Group = 4,Computer = 4
+                                {($_ -eq "bf967aba-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "bf967a9c-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "bf967a86-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "ce206244-5827-4a86-ba1c-1c0c386c1b64") -or ($_ -eq "7b8b558a-93a5-4af7-adca-c017e67f1057")}
+                                {
 
+                                    Switch ($objObjectType)
+                                    {
+                                        # Account Restrictions = 4
+                                        "4c164200-20c0-11d0-a768-00aa006e0529"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Group Membership = 4
+                                        "bc0ac240-79a9-11d0-9020-00c04fc2d4cf"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Email-Information = 0
+                                        "E45795B2-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            $intCriticalityLevel = 0
+                                        }
+                                        # Web-Information = 2
+                                        "E45795B3-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # Personal-Information = 2
+                                        "77B5B886-944A-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # User-Account-Control = 4
+                                        "bf967a68-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Service-Principal-Name = 4
+                                        "f3a64788-5306-11d1-a9c5-0000f80367c1"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        #  Is-Member-Of-DL = 4
+                                        "bf967991-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        default
+                                        {
+                                            $intCriticalityLevel = 2
+                                        }
+                                    }
+                                }
+                                default
+                                {
+                                    $intCriticalityLevel = 3
+                                }
+                            }
+                               
+                        }
+                        "InheritedObjectAceTypePresent"
+                        {
+                            Switch ($objInheritedObjectType)
+                            {
+                                # User = 4 ,Group = 4,Computer = 4
+                                {($_ -eq "bf967aba-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "bf967a9c-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "bf967a86-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "ce206244-5827-4a86-ba1c-1c0c386c1b64") -or ($_ -eq "7b8b558a-93a5-4af7-adca-c017e67f1057")}
+                                {
+
+                                    Switch ($objObjectType)
+                                    {
+                                        # All
+                                        "00000000-0000-0000-0000-000000000000"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Account Restrictions = 4
+                                        "4c164200-20c0-11d0-a768-00aa006e0529"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Group Membership = 4
+                                        "bc0ac240-79a9-11d0-9020-00c04fc2d4cf"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Email-Information = 0
+                                        "E45795B2-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            $intCriticalityLevel = 0
+                                        }
+                                        # Web-Information = 2
+                                        "E45795B3-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # Personal-Information = 2
+                                        "77B5B886-944A-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # User-Account-Control = 4
+                                        "bf967a68-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Service-Principal-Name = 4
+                                        "f3a64788-5306-11d1-a9c5-0000f80367c1"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        #  Is-Member-Of-DL = 4
+                                        "bf967991-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        default
+                                        {
+                                            $intCriticalityLevel = 2
+                                        }
+                                    }
+                                }
+                                default
+                                {
+                                    $intCriticalityLevel = 3
+                                }
+                            }
+                               
+                        }
+                        "None"
+                        {
+
+                                    Switch ($objObjectType)
+                                    {
+                                        # All
+                                        "00000000-0000-0000-0000-000000000000"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Account Restrictions = 4
+                                        "4c164200-20c0-11d0-a768-00aa006e0529"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Group Membership = 4
+                                        "bc0ac240-79a9-11d0-9020-00c04fc2d4cf"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Email-Information = 0
+                                        "E45795B2-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            $intCriticalityLevel = 0
+                                        }
+                                        # Web-Information = 2
+                                        "E45795B3-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # Personal-Information = 2
+                                        "77B5B886-944A-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # User-Account-Control = 4
+                                        "bf967a68-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Service-Principal-Name = 4
+                                        "f3a64788-5306-11d1-a9c5-0000f80367c1"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        #  Is-Member-Of-DL = 4
+                                        "bf967991-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        default
+                                        {
+                                            $intCriticalityLevel = 2
+                                        }
+                                    }
+                        }
+                        default
+                        {
+
+                        }
+                    }#End switch
                  
                 }
                 "Descendents"
@@ -8798,6 +9125,90 @@ Switch ($objRights)
 
                                     Switch ($objObjectType)
                                     {
+                                        # Account Restrictions = 4
+                                        "4c164200-20c0-11d0-a768-00aa006e0529"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Group Membership = 4
+                                        "bc0ac240-79a9-11d0-9020-00c04fc2d4cf"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Email-Information = 0
+                                        "E45795B2-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            $intCriticalityLevel = 0
+                                        }
+                                        # Web-Information = 2
+                                        "E45795B3-9455-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # Personal-Information = 2
+                                        "77B5B886-944A-11d1-AEBD-0000F80367C1"
+                                        {
+                                            #If it SELF then = 1
+                                            if($objIdentity -eq "NT AUTHORITY\SELF")
+                                            {
+                                                $intCriticalityLevel = 1
+                                            }
+                                            else
+                                            {
+                                                $intCriticalityLevel = 2
+                                            }
+                                        }
+                                        # User-Account-Control = 4
+                                        "bf967a68-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        # Service-Principal-Name = 4
+                                        "f3a64788-5306-11d1-a9c5-0000f80367c1"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        #  Is-Member-Of-DL = 4
+                                        "bf967991-0de6-11d0-a285-00aa003049e2"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
+                                        default
+                                        {
+                                            $intCriticalityLevel = 2
+                                        }
+                                    }
+                                }
+                                default
+                                {
+                                    $intCriticalityLevel = 3
+                                }
+                            }
+                               
+                        }
+                        "InheritedObjectAceTypePresent"
+                        {
+                            Switch ($objInheritedObjectType)
+                            {
+                                # User = 4 ,Group = 4,Computer = 4
+                                {($_ -eq "bf967aba-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "bf967a9c-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "bf967a86-0de6-11d0-a285-00aa003049e2") -or ($_ -eq "ce206244-5827-4a86-ba1c-1c0c386c1b64") -or ($_ -eq "7b8b558a-93a5-4af7-adca-c017e67f1057")}
+                                {
+
+                                    Switch ($objObjectType)
+                                    {
+                                        # All
+                                        "00000000-0000-0000-0000-000000000000"
+                                        {
+                                            $intCriticalityLevel = 4
+                                        }
                                         # Account Restrictions = 4
                                         "4c164200-20c0-11d0-a768-00aa006e0529"
                                         {
@@ -9139,7 +9550,7 @@ if ($bolACLExist)
         }
         "DeleteChild"
         {
-            $objRights = "Delete"		
+            $objRights = "Delete Child"		
         }
         "GenericAll"
         {
@@ -9966,7 +10377,7 @@ if ($bolACLExist)
         }
         "DeleteChild"
         {
-            $objRights = "Delete"		
+            $objRights = "Delete Child"		
         }
         "GenericAll"
         {
@@ -15666,7 +16077,7 @@ Function Find-RiskyTemplates
             # Search for PKI templates objects
             $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
             $LDAPConnection.SessionOptions.ReferralChasing = "None"
-            $SearchFilter = "(&(objectClass=pKICertificateTemplate)(cn=$PublishedTemplate)(msPKI-Certificate-Name-Flag=1)(msPKI-Certificate-Application-Policy=1.3.6.1.5.5.7.3.2))"
+            $SearchFilter = "(&(objectClass=pKICertificateTemplate)(cn=$PublishedTemplate)(!(mspki-enrollment-flag:1.2.840.113556.1.4.804:=2))(|(mspki-ra-signature=0)(!(mspki-ra-signature=*)))(|(pkiextendedkeyusage=1.3.6.1.4.1.311.20.2.2)(pkiextendedkeyusage=1.3.6.1.5.5.7.3.2)(pkiextendedkeyusage=1.3.6.1.5.2.3.4)(pkiextendedkeyusage=2.5.29.37.0)(!(pkiextendedkeyusage=*)))(mspki-certificate-name-flag:1.2.840.113556.1.4.804:=1))"
             $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Certificate Templates,CN=Public Key Services,CN=Services,$ConfigurationDN", $SearchFilter, "OneLevel")
             [System.DirectoryServices.Protocols.PageResultRequestControl]$pagedRqc = new-object System.DirectoryServices.Protocols.PageResultRequestControl($global:PageSize)
             $request.Controls.Add($pagedRqc) | Out-Null
@@ -15815,6 +16226,9 @@ $global:intObjeComputer = 0
 $null = Add-Type -AssemblyName System.DirectoryServices.Protocols
 if($base -or $GPO) 
 {
+    # Display script info
+    Write-Host $ADACLScanVersion
+
     $CREDS = $null
     if($credentials)
     {
@@ -16544,6 +16958,7 @@ if($base -or $GPO)
             Write-Verbose "Could not connect! Check your credentials" 
         }     
     }#End if $NCSelect
+
 }# End if D
 else
 {
