@@ -2,17 +2,19 @@
 
 ## Current version
 
-**Version: 7.7**
+**Version: 7.8**
 
-**12 January, 2023**
+**13 August, 2023**
 
-**SHA256:** F8E0A09D99FF46019C0C3F2B725E9887D9AE53CB7FAD0BB233BC8612C2CA51F2
-
-**New Features**
-* Progress bar is disabled by default in CLI and is optional turned on by using "-ShowProgressBar"
+**SHA256:** 2A00013ABEBF1800E49E085877B29AD26E015CDD1A03206B5B397853E1F87562
 
 **Fixed issues**
-* Misspelling of the word "Inherited" in CLI output
+* Display script information when running from CLI
+
+**Fixed issues**
+* DeleteChild was reported as "Delete"
+* Updated RiskyTemplate search to include certificate tempaltes with all type of EKUs that permit authentication to AD.
+* Updated assessment
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
