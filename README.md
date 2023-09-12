@@ -2,19 +2,14 @@
 
 ## Current version
 
-**Version: 7.8**
+**Version: 7.9**
 
-**13 August, 2023**
+**12 September, 2023**
 
-**SHA256:** 2A00013ABEBF1800E49E085877B29AD26E015CDD1A03206B5B397853E1F87562
+**SHA256:** 447923C6F2B0E2AB8EE4114F3BC9D1E2EB62902D0B479387ED472D8EBA936C71
 
-**Fixed issues**
-* Display script information when running from CLI
-
-**Fixed issues**
-* DeleteChild was reported as "Delete"
-* Updated RiskyTemplate search to include certificate tempaltes with all type of EKUs that permit authentication to AD.
-* Updated assessment
+**New Features**
+* Show security descriptor in SDDL format
 
 *7.0 Features*
 * Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"

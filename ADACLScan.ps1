@@ -92,6 +92,11 @@
 
     The following command will result in an output with the possibility to see the state of each ACE on the object compared with the CSV-template.
 
+.EXAMPLE
+    .\ADACLScan.ps1 -Base "ou=mig,dc=contoso,dc=com" -SDDL
+
+    The following command will result in an output with security descriptor in SDDL format.
+
 .OUTPUTS
     The output is an CSV,HTML or EXCEL report.
 
@@ -100,18 +105,12 @@
 
 .NOTES
 
-**Version: 7.8**
+**Version: 7.9**
 
-**13 August, 2023**
+**12 September, 2023**
 
-**Fixed issues**
-* Display script information when running from CLI
-
-**Fixed issues**
-* DeleteChild was reported as "Delete"
-* Updated RiskyTemplate search to include certificate tempaltes with all type of EKUs that permit authentication to AD.
-* Updated assessment
-
+**New Features**
+* Show security descriptor in SDDL format
 
 
 #>
@@ -441,6 +440,13 @@ Param
     [switch] 
     $RAW,
 
+    # Returns ACE's in the SDDL format
+    [Parameter(Mandatory=$false)]
+    [ValidateNotNull()]
+    [ValidateNotNullOrEmpty()]
+    [switch] 
+    $SDDL,
+
     # Filter ACL for access type
     # Example 1. -AccessType "Allow"
     # Example 2. -AccessType "Deny"
@@ -496,7 +502,7 @@ Param
 
 )
 
-[string]$ADACLScanVersion = "-------`nAD ACL Scanner 7.8 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 7.9 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -899,7 +905,10 @@ $xamlBase = @"
                                                             <CheckBox x:Name="chkBoxObjType" Content="ObjectClass" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="90"/>
                                                         </StackPanel>
                                                         <StackPanel Orientation="Vertical"  Margin="0,0,0,0">
-                                                            <CheckBox x:Name="chkBoxUseCanonicalName" Content="Canonical Name" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120"/>
+                                                            <StackPanel Orientation="Horizontal" Height="19" Margin="0,0,0.2,0">
+                                                                <CheckBox x:Name="chkBoxUseCanonicalName" Content="Canonical Name" HorizontalAlignment="Left" Margin="5,05,0,0" VerticalAlignment="Top" Width="120"/>
+                                                                <CheckBox x:Name="chkBoxSDDLView" Content="SDDL" HorizontalAlignment="Left" Height="30" Margin="30,05,0,0" VerticalAlignment="Top" Width="90"/>
+                                                            </StackPanel>
                                                             <Label x:Name="lblReturnObjectType" Content="Filter report on security principal type:"  Margin="5,0,0,0"/>
                                                             <ComboBox x:Name="combReturnObjectType" HorizontalAlignment="Left" Margin="5,0,0,0" VerticalAlignment="Top" Width="120" IsEnabled="True"/>
                                                         </StackPanel>
@@ -1637,7 +1646,7 @@ $btnScanDefSD.add_Click(
         {
             $bolShowCriticalityColor = $false
         }
-
+        $bolSDDL = $rdbDefSD_SDDL.IsChecked
         if($bolSDDL -eq $true)
         {
                 CreateDefaultSDReportHTA $global:strDomainLongName $strFileDefSDHTA $strFileDefSDHTM $CurrentFSPath
@@ -3509,6 +3518,7 @@ If ($txtBoxSelected.Text)
 	    $BolSkipDefPerm = $chkBoxDefaultPerm.IsChecked
         $BolSkipProtectedPerm =  $chkBoxSkipProtectedPerm.IsChecked
         $global:bolProgressBar = $chkBoxSkipProgressBar.IsChecked
+        $bolSDDL =  $chkBoxSDDLView.IsChecked
         if(($rdbOnlyCSV.IsChecked) -or ($rdbOnlyCSVTEMPLATE.IsChecked))
         {
         $bolCSV = $true
@@ -3569,8 +3579,8 @@ If ($txtBoxSelected.Text)
 		                CreateHTM "$global:strDomainShortName-$strNode" $strFileHTM	
                     }
 
-	                InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO
-	                InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO
+	                InitiateHTM $strFileHTA $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO $chkBoxSDDLView.isChecked
+	                InitiateHTM $strFileHTM $strNode $txtBoxSelected.Text.ToString() $chkBoxReplMeta.IsChecked $chkBoxACLsize.IsChecked $Protected $bolShowCriticalityColor $false $BolSkipDefPerm $BolSkipProtectedPerm $strCompareFile $chkBoxFilter.isChecked $chkBoxEffectiveRights.isChecked $chkBoxObjType.isChecked -bolCanonical:$UseCanonicalName $GPO $chkBoxSDDLView.isChecked
                     $Format = "HTML"
                     $Show = $true
                 }
@@ -3626,7 +3636,7 @@ If ($txtBoxSelected.Text)
                     #Used from comand line only
                     $FilterBuiltin = $chkBoxFilterBuiltin.IsChecked
 
-                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $txtBoxObjectFilter.Text -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -BolACLPermissionFilter $chkBoxPermission.IsChecked  -ACLPermissionFilter $txtPermission.Text  -CREDS $CREDS -ReturnObjectType $combReturnObjectType.SelectedItem
+                    Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $BolSkipDefPerm -SkipProtectedPerm $BolSkipProtectedPerm -FilterEna $chkBoxFilter.IsChecked -bolGetOwnerEna $chkBoxGetOwner.IsChecked -bolReplMeta $chkBoxReplMeta.IsChecked -bolACLsize $chkBoxACLsize.IsChecked -bolEffectiveR $chkBoxEffectiveRights.IsChecked -bolGetOUProtected $Protected -bolGUIDtoText $bolTranslateGUIDStoObject -Show $Show -OutType $Format -bolToFile $bolToFile -bolAssess $chkBoxSeverity.IsChecked -AssessLevel $combServerity.SelectedItem -bolShowCriticalityColor $bolShowCriticalityColor -GPO $GPO -FilterBuiltin $FilterBuiltin -TranslateGUID $chkBoxTranslateGUID.isChecked -RecursiveFind $chkBoxRecursiveFind.isChecked -RecursiveObjectType $combRecursiveFind.SelectedValue -ApplyTo $txtBoxObjectFilter.Text -ACLObjectFilter $chkBoxObject.IsChecked -FilterTrustee $txtFilterTrustee.Text -FilterForTrustee $chkBoxTrustee.IsChecked -AccessType $combAccessCtrl.SelectedItem -AccessFilter $chkBoxType.IsChecked -BolACLPermissionFilter $chkBoxPermission.IsChecked  -ACLPermissionFilter $txtPermission.Text  -CREDS $CREDS -ReturnObjectType $combReturnObjectType.SelectedItem -SDDL $bolSDDL
                 }
                 else
                 {
@@ -9357,7 +9367,9 @@ else
 #==========================================================================
 function WriteOUT
 {
-    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$Type,[bool]$GPO,[string]$GPODisplayname,[bool]$bolShowCriticalityColor,[Parameter(Mandatory=$false)]
+    Param([bool] $bolACLExist,$sd,[string]$DSObject,[string]$Canonical,[bool] $OUHeader,[string] $strColorTemp,[string] $htmfileout,[bool] $CompareMode,[bool] $FilterMode,[bool]$boolReplMetaDate,[string]$strReplMetaDate,[bool]$boolACLSize,[string]$strACLSize,[bool]$boolOUProtected,[bool]$bolOUPRotected,[bool]$bolCriticalityLevel,[bool]$bolTranslateGUID,[string]$strObjClass,[bool]$bolObjClass,[string]$Type,[bool]$GPO,[string]$GPODisplayname,[bool]$bolShowCriticalityColor,
+    [string]$strSDDL,
+    [Parameter(Mandatory=$false)]
     [pscredential] 
     $CREDS)
 
@@ -9918,66 +9930,37 @@ if ($bolACLExist)
 
 if($Type -eq "Object")
 {
+    $objhashtableACE = [pscustomobject][ordered]@{
+    Object = $DSObject ;`
+    ObjectClass = $strObjClass}
 
-    if($Canonical)
+    if($strSDDL)
     {
-        if($GPO)
-        {
-            $objhashtableACE = [pscustomobject][ordered]@{
-            GPO = $GPOdisplayname ;`
-            Object = $DSObject ;`
-            CanonicalName = $Canonical ;`
-            ObjectClass = $strObjClass ;`
-            IdentityReference = $IdentityReference ;`
-            Trustee = $strNTAccount ;`
-            Access = $objAccess ;`
-            Inherited = $objIsInheried ;`
-            'Apply To' = $strApplyTo ;`
-            Permission = $strPerm}
-        }
-        else
-        {
-            $objhashtableACE = [pscustomobject][ordered]@{
-            Object = $DSObject ;`
-            CanonicalName = $Canonical ;`
-            ObjectClass = $strObjClass ;`
-            IdentityReference = $IdentityReference ;`
-            Trustee = $strNTAccount ;`
-            Access = $objAccess ;`
-            Inherited = $objIsInheried ;`
-            'Apply To' = $strApplyTo ;`
-            Permission = $strPerm}
-        }
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "SDDL" -Value $strSDDL
     }
     else
     {
-
-       if($GPO)
-        {
-            $objhashtableACE = [pscustomobject][ordered]@{
-            GPO = $GPOdisplayname ;`
-            Object = $DSObject ;`
-            ObjectClass = $strObjClass ;`
-            IdentityReference = $IdentityReference ;`
-            Trustee = $strNTAccount ;`
-            Access = $objAccess ;`
-            Inherited = $objIsInheried ;`
-            'Apply To' = $strApplyTo ;`
-            Permission = $strPerm}
-        }
-        else
-        {
-            $objhashtableACE = [pscustomobject][ordered]@{
-            Object = $DSObject ;`
-            ObjectClass = $strObjClass ;`
-            IdentityReference = $IdentityReference ;`
-            Trustee = $strNTAccount ;`
-            Access = $objAccess ;`
-            Inherited = $objIsInheried ;`
-            'Apply To' = $strApplyTo ;`
-            Permission = $strPerm}
-        }
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "IdentityReference" -Value $IdentityReference
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "Trustee" -Value $strNTAccount
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "Access" -Value $objAccess
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "Inherited" -Value $objIsInheried
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "Apply To" -Value $strApplyTo
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "Permission" -Value $strPerm
     }
+
+    if($Canonical)
+    {
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "CanonicalName" -Value $Canonical
+        $objhashtableACE  = $objhashtableACE | Select-Object -Property Object,CanonicalName,* -ErrorAction SilentlyContinue
+    }
+
+    if($GPO)
+    {
+        add-member -InputObject $objhashtableACE -MemberType NoteProperty -Name "GPO" -Value $GPOdisplayname
+        $objhashtableACE  = $objhashtableACE | Select-Object -Property GPO,* -ErrorAction SilentlyContinue
+
+    }
+    
 
     if($boolOUProtected)
     {
@@ -10063,6 +10046,15 @@ $strACLHTMLText
 <TD>$strFont $bolOUPRotected </TD>
 "@
 }
+if($strSDDL)
+{
+$strACLHTMLText =@"
+$strACLHTMLText
+<TD>$strFont $strSDDL</TD>
+"@
+}
+else
+{
 $strACLHTMLText =@"
 $strACLHTMLText
 <TD>$strFont <a href="#web" onclick="GetGroupDN('$strNTAccount')">$strNTAccount</a></TD>
@@ -10071,7 +10063,7 @@ $strACLHTMLText
 <TD>$strFont $strApplyTo</TD>
 <TD $strLegendColor>$strFontRights $strPerm</TD>
 "@
-
+}
 
 if($CompareMode)
 {
@@ -11058,7 +11050,7 @@ Remove-Variable -Name "strTHColor"
 #==========================================================================
 Function InitiateHTM
 {
-    Param([string] $htmfileout,[string]$strStartingPoint,[string]$strDN,[bool]$RepMetaDate ,[bool]$ACLSize,[bool]$bolACEOUProtected,[bool]$bolCriticaltiy,[bool]$bolCompare,[bool]$SkipDefACE,[bool]$SkipProtectDelACE,[string]$strComparefile,[bool]$bolFilter,[bool]$bolEffectiveRights,[bool]$bolObjType,[bool]$bolCanonical,[bool]$GPO)
+    Param([string] $htmfileout,[string]$strStartingPoint,[string]$strDN,[bool]$RepMetaDate ,[bool]$ACLSize,[bool]$bolACEOUProtected,[bool]$bolCriticaltiy,[bool]$bolCompare,[bool]$SkipDefACE,[bool]$SkipProtectDelACE,[string]$strComparefile,[bool]$bolFilter,[bool]$bolEffectiveRights,[bool]$bolObjType,[bool]$bolCanonical,[bool]$GPO,[bool]$SDDL)
 If($rdbSACL.IsChecked)
 {
 $strACLTypeHeader = "Audit"
@@ -11195,11 +11187,20 @@ $strHTMLText
 <th bgcolor="$strTHColor">$strFontTH Inheritance Disabled</font>
 "@
 }
+if($SDDL)
+{
+$strHTMLText =@"
+$strHTMLText
+</th><th bgcolor="$strTHColor">$strFontTH SDDL</font></th>
+"@
+}
+else
+{
 $strHTMLText =@"
 $strHTMLText
 </th><th bgcolor="$strTHColor">$strFontTH Trustee</font></th><th bgcolor="$strTHColor">$strFontTH $strACLTypeHeader</font></th><th bgcolor="$strTHColor">$strFontTH Inherited</font></th><th bgcolor="$strTHColor">$strFontTH Apply To</font></th><th bgcolor="$strTHColor">$strFontTH Permission</font></th>
 "@
-
+}
 if ($bolCompare -eq $true)
 {
 $strHTMLText =@"
@@ -11925,7 +11926,10 @@ Function Get-Perm
         $CREDS,
         #Retrun only objects of a this type
         [string]
-        $ReturnObjectType
+        $ReturnObjectType,
+        #If a object type have been selected
+        [boolean]
+        $SDDL
             
     )
 
@@ -12084,7 +12088,33 @@ if ($rdbDACL.IsChecked)
         {
             $strObjectClass = "unknown"
         }
+        if($SDDL)
+        {
+            [string]$strSDDL = ""
+            $objSd =  $DSobject.Attributes.ntsecuritydescriptor[0]
+            if ($objSD -is [Byte[]]) {
+                    $SDDLSec = New-Object System.Security.AccessControl.RawSecurityDescriptor @($objSd, 0)
+                } elseif ($objSD -is [string]) {
+                    $SDDLSec = New-Object System.Security.AccessControl.RawSecurityDescriptor @($objSd)
+                }
 
+            if(!($IncludeInherited))
+            {
+                $arrSDDL = @(($SDDLSec.GetSddlForm('Access,Owner')).split(")") | ?{$_ -notmatch "ID;"})
+                if($arrSDDL.count -gt 0)
+                {
+                    for($IntCount=0;$IntCount -lt $($arrSDDL.count -1);$IntCount++)
+                    {
+                        $strSDDL +="$($arrSDDL[$IntCount]))"
+                    }
+                }
+            }
+            else
+            {
+                $strSDDL = $SDDLSec.GetSddlForm('Access,Owner')
+            }
+
+        }
         $sec = New-Object System.DirectoryServices.ActiveDirectorySecurity
         if($chkBoxRAWSDDL.IsChecked)
         {
@@ -12095,9 +12125,9 @@ if ($rdbDACL.IsChecked)
                 } elseif ($objSD -is [string]) {
                     $SDDLSec = New-Object System.Security.AccessControl.RawSecurityDescriptor @($objSd)
                 }
-            $strSDDL = $SDDLSec.GetSddlForm('Access,Owner')
+            $strSDDLForm = $SDDLSec.GetSddlForm('Access,Owner')
 
-            $arrSplitedSDDL = $strSDDL.Split("(")
+            $arrSplitedSDDL = $strSDDLForm.Split("(")
             $intI = 0
             Foreach ($strSDDLPart in $arrSplitedSDDL)
             {
@@ -12512,7 +12542,10 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 
         if ($intSDCount -gt 0)
         {        
-    
+            if($SDDL)
+            {
+                $sd = @($sd[0])
+            }
 		    while($index -le $sd.count -1) 
 		    {
                     if($GPO)
@@ -12599,7 +12632,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
+                                WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor $strSDDL -CREDS $CREDS
                             }
 
 				 	    }# End If
@@ -12616,13 +12649,13 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 				 	        if ($permcount -eq 0)
 				 	        {
                                 $bolOUHeader = $true    
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor $strSDDL -CREDS $CREDS
 
 				 	        }
 				 	        else
 				 	        {
                                     $bolOUHeader = $false 
-				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
+				 		        WriteOUT $bolACLExist $sd[$index] $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor $strSDDL -CREDS $CREDS
 
 				 	        }# End If
                         }
@@ -12650,7 +12683,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
 		 	    {
                     $bolOUHeader = $false 
                     $GetOwnerEna = $false
-                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
+                    WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader $strColorTemp $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor $strSDDL -CREDS $CREDS
                     #$aclcount++
 		 	    }
             }
@@ -12664,7 +12697,7 @@ if(($global:GetSecErr -ne $true) -or ($global:secd -ne ""))
             if (($permcount -eq 0) -and ($index -gt 0))
             {
                 $bolOUHeader = $true 
-	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor -CREDS $CREDS
+	            WriteOUT $bolACLExist $sd $strDistinguishedName $CanonicalName $bolOUHeader "1" $strFileHTA $bolCompare $FilterEna $bolReplMeta $objLastChange $bolACLsize $strACLSize $bolGetOUProtected $bolOUProtected $bolShowCriticalityColor $bolGUIDtoText $strObjectClass $chkBoxObjType.IsChecked $WriteOut $GPO $GPOdisplayname $bolShowCriticalityColor $strSDDL -CREDS $CREDS
                 $aclcount++
             }# End If
         }# End if bolCSVOnly
@@ -16821,7 +16854,7 @@ if($base -or $GPO)
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "HTML" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType -SDDL $SDDL
                         }
 
                         Write-host "Report saved in: $strFileHTM" -ForegroundColor Yellow
@@ -16930,7 +16963,7 @@ if($base -or $GPO)
                         else
                         {
                             
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSVTEMPLATE" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType -SDDL $SDDL
                         }
                     }
                     else
@@ -16943,7 +16976,7 @@ if($base -or $GPO)
                         }
                         else
                         {
-                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType
+                            Get-Perm -AllObjectDn $allSubOU -DomainNetbiosName $global:strDomainShortName -IncludeInherited $IncludeInherited -SkipDefaultPerm $SkipDefaults -SkipProtectedPerm $SkipProtected -FilterEna $ACLFilter -bolGetOwnerEna $Owner -bolReplMeta $SDDate -bolACLsize $false -bolEffectiveR $bolEffective -bolGetOUProtected $Protected -bolGUIDtoText $false -Show $Show -OutType "CSV" -bolToFile $file -bolAssess $bolAssess -AssessLevel $Criticality -bolShowCriticalityColor $ShowCriticalityColor -GPO $GPO -FilterBuiltin $SkipBuiltIn -TranslateGUID $Translate -RecursiveFind $RecursiveFind -RecursiveObjectType $RecursiveObjectType  -ApplyTo $ApplyTo -ACLObjectFilter $ACLObjectFilter -FilterTrustee $FilterTrustee -FilterForTrustee $FilterForTrustee -AccessType $AccessType -AccessFilter $AccessFilter -BolACLPermissionFilter $BolACLPermissionFilter -ACLPermissionFilter $Permission -CREDS $CREDS -ReturnObjectType $ReturnObjectType -SDDL $SDDL
                         }
                     }
 
