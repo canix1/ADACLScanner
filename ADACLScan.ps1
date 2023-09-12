@@ -786,7 +786,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.8" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.9" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
