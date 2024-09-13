@@ -7850,7 +7850,7 @@ $sd  | foreach {
     } 
 }
 #==========================================================================
-# Function		: WritePermCSV
+# Function		: WriteDefSDPermCSV
 # Arguments     : Security Descriptor, OU distinguishedName, Ou put text file
 # Returns   	: n/a
 # Description   : Writes the SD to a text file.
@@ -7956,7 +7956,10 @@ $sd  | foreach {
             #Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "OrgUSN"  -value ""
         }
 
-        Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Criticality"  -value $strLegendText
+        if($bolShowCriticalityColor -eq $true)
+        {
+            Add-Member -InputObject $objCSVLine -MemberType NoteProperty -Name "Criticality"  -value $strLegendText
+        }
         
         if($compare)
         {
@@ -9523,6 +9526,8 @@ Switch ($strColorTemp)
 }          
 	}# End Switch
 }#End if HTM
+
+# Check if ACL should be written or not
 if ($bolACLExist) 
 {
 	$sd  | foreach{
@@ -14718,15 +14723,25 @@ $ACLdate = $(get-date $strLastChangeDate -UFormat "%Y-%m-%d %H:%M:%S")
 #==========================================================================
 Function Get-DefaultSD
 {
-    Param( [String[]] $strObjectClass,[bool] $bolChangedDefSD,[bool]$bolSDDL,[string]$File,
-    [boolean]$Show,[string] $OutType,[bool]$bolShowCriticalityColor,[bool]$Assess,[string]$Criticality,[bool]$FilterBuiltin,[bool]$bolReplMeta,
+    Param( [String[]] $strObjectClass,
+    [bool] $bolChangedDefSD,
+    [bool]$bolSDDL,
+    [string]$File,
+    [boolean]$Show,
+    [string] $OutType,
+    [bool]$bolShowCriticalityColor,
+    [bool]$Assess,
+    [string]$Criticality,
+    [bool]$FilterBuiltin,
+    [bool]$bolReplMeta,
     [Parameter(Mandatory=$false)]
     [pscredential] 
     $CREDS)
 
-if($OutType -eq "CSV")
+if(($OutType -eq "CSVTEMPLATE") -or ($OutType -eq "CSV"))
 {
-    $ToFile = $true
+    $bolCSV = $true
+    $bolToFile = $True
 	If ((Test-Path $File) -eq $true)
 	{
 	    Remove-Item $File
@@ -14734,9 +14749,9 @@ if($OutType -eq "CSV")
 }
 else
 {
-    $ToFile = $false
+    $bolCSV = $false
+    $bolToFile = $False
 }
-
 
 $bolOUHeader = $true 
 
@@ -14959,14 +14974,30 @@ while ($true)
                 #Indicate that a defaultsecuritydescriptor was found
                 $intNumberofDefSDFound++  
 
-                if (($OutType -eq "CSV") -or ($OutType -eq ""))
+                If ($bolCSV)
                 {
 
-                    WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor -CREDS $CREDS
+                   #WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor -CREDS $CREDS
+
+                   ## SAVE ##
+                   #
+                   #Write-PermCSVTemplate -sd $sd -object $entry.distinguishedName -canonical $canonical -objType $strObjectClassName -fileout $File -ACLMeta $bolReplMeta -strACLDate $strLastChangeDate -strInvocationID $strOrigInvocationID -strOrgUSN $strOrigUSN -Outfile $true -GPO $GPO -GPOdisplayname $GPOdisplayname -CREDS $CREDS
+                   #
+                   ## SAVE ##
+                    if($OutType -eq "CSVTEMPLATE")
+                    {
+                        Write-PermCSVTemplate -sd $sd -object $entry.distinguishedName -canonical $canonical -objType $strObjectClassName -fileout $File -ACLMeta $bolReplMeta -strACLDate $strLastChangeDate -strInvocationID $strOrigInvocationID -strOrgUSN $strOrigUSN -Outfile $true -GPO $GPO -GPOdisplayname $GPOdisplayname -CREDS $CREDS
+                    }
+                    else
+                    {
+                        $WriteOut = "Object"
+                        WriteOUT -bolACLExist $True -sd $sd -DSObject $entry.distinguishedName -Canonical $canonical -boolReplMetaDate $bolReplMeta -strReplMetaDate $strLastChangeDate -strObjClass $strObjectClassName  -bolObjClass $true -Type $WriteOut -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS
+                    }
                 }
                 else
                 {
-                    WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
+                    #WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
+                    WriteDefSDAccessHTM -bolACLExist $true -sd $sd -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                 }
                } 
             
@@ -15052,14 +15083,22 @@ while ($true)
                     #Indicate that a defaultsecuritydescriptor was found
                     $intNumberofDefSDFound++
 
-                    if (($OutType -eq "CSV") -or ($OutType -eq ""))
+                    If ($bolCSV)
                     {
-
-                        WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $ToFile $bolShowCriticalityColor -CREDS $CREDS
+                        if($OutType -eq "CSVTEMPLATE")
+                        {
+                            WriteDefSDPermCSV $sd $entry.distinguishedName $strObjectClassName $File $bolReplMeta $strVersion $strLastChangeDate $BolToFile $bolShowCriticalityColor -CREDS $CREDS
+                        }
+                        else
+                        {
+                            $WriteOut = "Object"
+                            WriteOUT -bolACLExist $True -sd $sd -DSObject $entry.distinguishedName -Canonical $canonical -boolReplMetaDate $bolReplMeta -strReplMetaDate $strLastChangeDate -strObjClass $strObjectClassName  -bolObjClass $true -Type $WriteOut -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS
+                        }
                     }
                     else
                     {
-                        WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
+                        #WriteDefSDAccessHTM $true $sd $true $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare $strFileEXCEL $OutType
+                        WriteDefSDAccessHTM -bolACLExist $true -sd $sd -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                     }
                 }#End if $sec
 
@@ -15090,34 +15129,91 @@ if (($PSVersionTable.PSVersion -ne "2.0") -and ($global:bolProgressBar))
     $ProgressBarWindow = $null
     Remove-Variable -Name "ProgressBarWindow" -Scope Global
 } 
-if($intNumberofDefSDFound  -gt 0)
+
+if (($intNumberofDefSDFound -gt 0))
 {
 
-    if($ToFile )
+    if($bolCSV)
     {
-        if($bolCMD)
+        if($OutType -eq "CSVTEMPLATE")
         {
-            Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
-            Write-output $strFileCSV
-        }
-        else
-        {
-            $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
-        }
+            if($bolCMD)
+            {
+                if($bolToFile)
+                {
+                    Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                    Write-output $strFileCSV
+                }
+            }
+            else
+            {
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
+            }
             #If Get-Perm was called with Show then open the CSV file.
             if($Show)
             {
-	            #Invoke-Item $strFileCSV
+	            Invoke-Item $strFileCSV
             }
+        }
+        else
+        {
+            if($bolCMD)
+            {
+                if($bolToFile)
+                {
+                    $global:ArrayAllACE | export-csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                    Write-host "Report saved in: $strFileCSV" -ForegroundColor Yellow
+                    Write-output $strFileCSV
+                }
+                else
+                {
+                    $global:ArrayAllACE
+                }
+            }
+            else
+            {
+                $global:ArrayAllACE | export-csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileCSV" -strType "Warning" -DateStamp ))
+            }
+            #If Get-Perm was called with Show then open the CSV file.
+            if($Show)
+            {
+	            Invoke-Item $strFileCSV
+            }
+        }
     }
     else
     {
         #If excel output
         if($OutType -eq "EXCEL")
         {
-            $global:ArrayAllACE 
-            #| Export-Excel -path $strFileEXCEL -WorkSheetname "DefaultSD" -BoldTopRow -TableStyle Medium2 -TableName "defaultsdacltbl" -NoLegend -AutoSize -FreezeTopRow -Append
-            
+            $tablename  = $($strNode+"acltbl") -replace '[^a-zA-Z]+',''
+
+            if($bolShowCriticalityColor)
+            {
+                # Array with alphabet characters
+                $ExcelColumnAlphabet = @()  
+                for ([byte]$c = [char]'A'; $c -le [char]'Z'; $c++)  
+                {  
+                    $ExcelColumnAlphabet += [char]$c  
+                }  
+                
+                #Define Column name for "criticality" by using position in array
+                $RangeColumnCriticality = $ExcelColumnAlphabet[$(($global:ArrayAllACE | get-member -MemberType NoteProperty ).count -1 )]
+
+                $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $($strNode+"acltbl") -NoLegend -AutoSize -FreezeTopRow -ConditionalText $( 
+                New-ConditionalText -RuleType Equal -ConditionValue Low -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor DeepSkyBlue -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Critical -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Red -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Warning -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Gold -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Medium -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor Yellow -ConditionalTextColor Black
+                New-ConditionalText -RuleType Equal -ConditionValue Info -Range "$($RangeColumnCriticality):$($RangeColumnCriticality)" -BackgroundColor LightGray -ConditionalTextColor Black
+                )
+            }
+            else
+            {
+                $global:ArrayAllACE | Export-Excel -path $strFileEXCEL -WorkSheetname $($strNode+"_ACL") -BoldTopRow -TableStyle Medium2 -TableName $tablename -NoLegend -AutoSize -FreezeTopRow -Append
+            }
+
             if($bolCMD)
             {
                 Write-host "Report saved in: $strFileEXCEL" -ForegroundColor Yellow
@@ -15137,21 +15233,43 @@ if($intNumberofDefSDFound  -gt 0)
         }#End if EXCEL
         else
         {
-            if($bolCMD)
+            if($bolShowCriticalityColor)
             {
-                Write-host "Report saved in: $strFileDefSDHTM" -ForegroundColor Yellow
-                Write-output $strFileDefSDHTM
+                Switch ($global:intShowCriticalityLevel)
+                {
+                    0
+                    {
+                    (Get-Content $strFileDefSDHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileDefSDHTA
+                    (Get-Content $strFileDefSDHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "grey">INFO' | Set-Content $strFileDefSDHTM
+                    }
+                    1
+                    {
+                    (Get-Content $strFileDefSDHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileDefSDHTA
+                    (Get-Content $strFileDefSDHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "blue">LOW' | Set-Content $strFileDefSDHTM
+                    }
+                    2
+                    {
+                    (Get-Content $strFileDefSDHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileDefSDHTA
+                    (Get-Content $strFileDefSDHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "yellow">MEDIUM' | Set-Content $strFileDefSDHTM
+                    }
+                    3
+                    {
+                    (Get-Content $strFileDefSDHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileDefSDHTA
+                    (Get-Content $strFileDefSDHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "orange">WARNING' | Set-Content $strFileDefSDHTM
+                    }
+                    4
+                    {
+                    (Get-Content $strFileDefSDHTA) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileDefSDHTA
+                    (Get-Content $strFileDefSDHTM) -replace "20141220T021111056594002014122000", '<FONT size="6" color= "red">CRITICAL' | Set-Content $strFileDefSDHTM
+                    }
+                }
             }
-            else
-            {
-                $global:observableCollection.Insert(0,(LogMessage -strMessage "Report saved in $strFileDefSDHTM" -strType "Warning" -DateStamp ))
-            }            
             #If Get-Perm was called with Show then open the HTA file.
             if($Show)
             {
 	            try
-                {    
-                    Invoke-Item $strFileDefSDHTA 
+                {
+                    Invoke-Item $strFileDefSDHTA
                 }
                 catch
                 {
@@ -15165,22 +15283,16 @@ if($intNumberofDefSDFound  -gt 0)
                         $global:observableCollection.Insert(0,(LogMessage -strMessage "Failed to launch MSHTA.exe" -strType "Error" -DateStamp ))
                         $global:observableCollection.Insert(0,(LogMessage -strMessage "Instead opening the following file directly: $strFileDefSDHTM" -strType "Ino" -DateStamp ))
                     }   
-                    Invoke-Item $strFileDefSDHTM
+                    invoke-item $strFileDefSDHTM
                 }
             }
         }
     }
+
 }
 else
 {
-    if($bolCMD)
-    {
-        Write-host "No defaultsecuritydescriptor found!"  -ForegroundColor Yellow
-    }
-    else
-    {
-        $global:observableCollection.Insert(0,(LogMessage -strMessage "No defaultsecuritydescriptor found!" -strType "Error" -DateStamp ))
-    }
+    $global:observableCollection.Insert(0,(LogMessage -strMessage "No objects found!" -strType "Error" -DateStamp ))
 }
 }
 
@@ -15198,12 +15310,24 @@ Function Get-DefaultSDCompare
     [pscredential] 
     $CREDS
     )
+
 $strFileDefSDHTA = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".hta" 
 $strFileDefSDHTM = $env:temp + "\"+$global:ModifiedDefSDAccessFileName+".htm" 
+
 $bolOUHeader = $true 
 $bolReplMeta = $true     
 $bolCompare = $true
 #Indicator that a defaultsecuritydescriptor was found
+
+if($chkBoxSeverity.isChecked -or $chkBoxEffectiveRightsColor.isChecked)
+{
+    $bolShowCriticalityColor = $true
+}
+else
+{
+    $bolShowCriticalityColor = $false
+}
+
 $intNumberofDefSDFound = 0
 
 CreateHTM "strObjectClass" $strFileDefSDHTM					
@@ -15427,12 +15551,14 @@ while ($true)
                             #Indicate that a defaultsecuritydescriptor was found
                             $intNumberofDefSDFound++
                             $bolOUHeader = $true
-                            WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                            #WriteDefSDAccessHTM $true $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                            WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                         }
                         else
                         {
                             $bolOUHeader = $false
-                            WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                            #WriteDefSDAccessHTM $true $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                            WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                         }
                         #Count ACE to not ad a header
                         $intACEcount++
@@ -15497,12 +15623,14 @@ while ($true)
                                 #Indicate that a defaultsecuritydescriptor was found
                                 $intNumberofDefSDFound++
                                 $bolOUHeader = $true
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                #WriteDefSDAccessHTM $true  $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                             }
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                #WriteDefSDAccessHTM $true  $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                             }
                             #Count ACE to not ad a header
                             $intACEcount++
@@ -15517,12 +15645,14 @@ while ($true)
                                 #Indicate that a defaultsecuritydescriptor was found
                                 $intNumberofDefSDFound++
                                 $bolOUHeader = $true
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                #WriteDefSDAccessHTM $true  $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                             }
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                #WriteDefSDAccessHTM $true  $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                             }
                             #Count ACE to not ad a header
                             $intACEcount++        
@@ -15563,12 +15693,14 @@ while ($true)
                                 #Indicate that a defaultsecuritydescriptor was found
                                 $intNumberofDefSDFound++
                                 $bolOUHeader = $true
-                                WriteDefSDAccessHTM $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                #WriteDefSDAccessHTM $true  $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                WriteDefSDAccessHTM -bolACLExist $true -sd $ObjectDefSDFile -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                             }
                             else
                             {
                                 $bolOUHeader = $false
-                                WriteDefSDAccessHTM $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                #WriteDefSDAccessHTM $true  $ObjectDefSDFile $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                                WriteDefSDAccessHTM -bolACLExist $true -sd $ObjectDefSDFile -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                             }
                             #Count ACE to not ad a header
                             $intACEcount++
@@ -15613,12 +15745,14 @@ while ($true)
                     $bolOUHeader = $true
                     #Indicate that a defaultsecuritydescriptor was found
                     $intNumberofDefSDFound++
-                    WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                    #WriteDefSDAccessHTM $true  $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                    WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                 }
                 else
                 {
                     $bolOUHeader = $false
-                    WriteDefSDAccessHTM $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                    #WriteDefSDAccessHTM $true  $newObjectDefSD $strObjectClassName $strColorTemp $strFileDefSDHTA $strFileDefSDHTM $bolOUHeader $bolReplMeta $strVersion $strLastChangeDate $bolShowCriticalityColor $bolCompare
+                    WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare #-xlsxout $strFileEXCEL -Type $OutType
                 }
                 #Count ACE to not ad a header
                 $intACEcount++
@@ -17005,10 +17139,6 @@ else
          if($Criticality)
         {
             $ShowCriticalityColor = $true
-        }
-        else
-        {
-            $ShowCriticalityColor = $false
         }
  
         if($Criticality)
