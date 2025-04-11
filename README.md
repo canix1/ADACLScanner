@@ -2,17 +2,16 @@
 
 ## Current version
 
-**Version: 7.9**
+**Version: 8.0**
 
-**12 September, 2023**
+**11 April, 2025**
 
-**SHA256:** 66394A80A432C978A64D6A490D5C155AECDAAC53BAE5024B00BC5517F445B537
+**SHA256:** A96A1737301CD29184919A0934A01EA644E319BFC3DF6A4062CC70C52FA2E269
 
-**New Features**
-* Show security descriptor in SDDL format
+**Fixed issues**
+* Adjusted the DownloadFile function to include a User Agent string
 
-*7.0 Features*
-* Filter on permissions like "GenericAll" or multiple values like "WriteProperty | ExtendedRight"
+
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan7.0_Permission.png)
 

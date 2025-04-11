@@ -105,12 +105,12 @@
 
 .NOTES
 
-**Version: 7.9**
+**Version: 8.0**
 
-**12 September, 2023**
+**11 April, 2025**
 
-**New Features**
-* Show security descriptor in SDDL format
+**Fixed issues**
+* Adjusted the DownloadFile function to include a User Agent string
 
 
 #>
@@ -502,7 +502,7 @@ Param
 
 )
 
-[string]$ADACLScanVersion = "-------`nAD ACL Scanner 7.9 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 8.0 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -786,7 +786,7 @@ $xamlBase = @"
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 7.9" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 8.0" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -4992,7 +4992,8 @@ param([string]$URL)
 $TemporaryDestination = $(join-path -Path $CurrentFSPath -ChildPath $TempFileName) 
 try
 {
-    $WebReq = Invoke-WebRequest -Uri $URL -OutFile $TemporaryDestination -PassThru
+    $UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+    $WebReq = Invoke-WebRequest -Uri $URL -OutFile $TemporaryDestination -UserAgent $UserAgent -PassThru
 }
 catch
 {
