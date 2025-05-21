@@ -2,15 +2,14 @@
 
 ## Current version
 
-**Version: 8.0**
+**Version: 8.1**
 
-**11 April, 2025**
+**16 May, 2025**
 
-**SHA256:** A96A1737301CD29184919A0934A01EA644E319BFC3DF6A4062CC70C52FA2E269
+**SHA256:** 202B97106F90FB742000742360219C86E03DA11F7199B9660001AB9DAC0E4BC3
 
 **Fixed issues**
-* Adjusted the DownloadFile function to include a User Agent string
-
+* Added info for Windows 2022 and Windows 2025
 
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan7.0_Permission.png)
