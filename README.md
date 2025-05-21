@@ -8,7 +8,7 @@
 
 **SHA256:** 202B97106F90FB742000742360219C86E03DA11F7199B9660001AB9DAC0E4BC3
 
-**Fixed issues**
+**New Features**
 * Added info for Windows 2022 and Windows 2025
 
 
