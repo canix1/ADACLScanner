@@ -599,7 +599,8 @@ $global:SchemaHashExchange = @{
     15333 = 'Exchange Server 2016 CU19';
     17000 = 'Exchange Server 2019';
     17001 = 'Exchange Server 2019 CU2-CU7';
-    17002 = 'Exchange Server 2019 CU8'
+    17002 = 'Exchange Server 2019 CU8';
+
 }
 
 # List of Lync Schema versions
@@ -642,7 +643,7 @@ Function BuildSchemaDic {
 
 BuildSchemaDic
 
-$CurrentFSPath = $PSScriptRoot
+$CurrentFSPath = $PSScriptRoot17003 = 'Exchange Server 2019 CU10'
 
 Add-Type -Assembly PresentationFramework
 
