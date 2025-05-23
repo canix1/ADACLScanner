@@ -109,7 +109,7 @@
 
 **23 May, 2025**
 
-**Fixed issues**
+**New Features**
 * Added Exchange Schema version 'Exchange Server 2019 CU10'
 
 
