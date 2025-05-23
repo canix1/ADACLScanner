@@ -2,14 +2,14 @@
 
 ## Current version
 
-**Version: 8.1**
+**Version: 8.2**
 
-**16 May, 2025**
+**23 May, 2025**
 
-**SHA256:** 202B97106F90FB742000742360219C86E03DA11F7199B9660001AB9DAC0E4BC3
+**SHA256:** A644BB0C95256599FB1146C68803F905F13C260E646DFD1A51CBDA64C5D7D83F
 
 **New Features**
-* Added info for Windows 2022 and Windows 2025
+* Added Exchange Schema version 'Exchange Server 2019 CU10
 
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan7.0_Permission.png)
