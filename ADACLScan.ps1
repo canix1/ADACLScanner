@@ -105,13 +105,12 @@
 
 .NOTES
 
-**Version: 8.1**
+**Version: 8.2**
 
-**16 May, 2025**
+**23 May, 2025**
 
 **Fixed issues**
-* Adjusted the DownloadFile function to include a User Agent string
-* added info for Windows 2022 and Windows 2025
+* Added Exchange Schema version 'Exchange Server 2019 CU10'
 
 
 #>
@@ -600,7 +599,7 @@ $global:SchemaHashExchange = @{
     17000 = 'Exchange Server 2019';
     17001 = 'Exchange Server 2019 CU2-CU7';
     17002 = 'Exchange Server 2019 CU8';
-
+    17003 = 'Exchange Server 2019 CU10'
 }
 
 # List of Lync Schema versions
@@ -643,7 +642,7 @@ Function BuildSchemaDic {
 
 BuildSchemaDic
 
-$CurrentFSPath = $PSScriptRoot17003 = 'Exchange Server 2019 CU10'
+$CurrentFSPath = $PSScriptRoot
 
 Add-Type -Assembly PresentationFramework
 
