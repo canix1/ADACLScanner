@@ -2,14 +2,25 @@
 
 ## Current version
 
-**Version: 8.2**
+**Version: 8.3**
 
-**23 May, 2025**
+**26 May, 2025**
 
-**SHA256:** A644BB0C95256599FB1146C68803F905F13C260E646DFD1A51CBDA64C5D7D83F
+**SHA256:** E7E5E1E9600326E8C9F0E3816A69BAF1D55B9EC26CA6E01ED6F75562E9AE5869
+
+**Fixed issues**
+* Running from CLI does not require "ApartmentState" to be Single-Threaded Apartment (STA).
 
 **New Features**
-* Added Exchange Schema version 'Exchange Server 2019 CU10
+* Search with onelevel and set the depth of the search
+    * Example:
+```
+ADACLScan.ps1 -Base rootdse -SearchDepth 3 -LDAPFilter "(objectClass=OrganizationalUnit)"
+```
+* Get version number of the ntsecuritydescription
+* Export defaultsecuritydescriptor with readable permissions
+* Skip banner in CLI with -NoBanner
+
 
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan7.0_Permission.png)
@@ -42,6 +53,12 @@ Related blog posts
 Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 
 ## Features
+* Search with onelevel and set the depth of the search
+    * Example:
+```
+ADACLScan.ps1 -Base rootdse -SearchDepth 3 -LDAPFilter "(objectClass=OrganizationalUnit)"
+```
+
 * Run effective rights report from the command line.
 * parameter from command line to get modified date of security descriptor in report.
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/effectiverights.gif)
