@@ -105,18 +105,12 @@
 
 .NOTES
 
-**Version: 8.3**
+**Version: 8.4**
 
-**26 May, 2025**
+**11 June, 2025**
 
 **Fixed issues**
-* Running from CLI does not require "ApartmentState" to be Single-Threaded Apartment (STA).
-
-**New Features**
-* Search with onelevel and set the depth of the search
-* Get version number of the ntsecuritydescription
-* Export defaultsecuritydescriptor with readable permissions
-* Skip banner in CLI
+* Removed incorrect parameter name 'bolObjClass'
 
 
 #>
@@ -522,7 +516,7 @@ Param
 
 )
 
-[string]$ADACLScanVersion = "-------`nAD ACL Scanner 8.3 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 8.4 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -13210,13 +13204,13 @@ Function ConvertCSVtoHTM {
                 if ($tmpOU -ne $strOU) {
 
                     $bolOUHeader = $true
-                    WriteOUT -bolACLExist $true -sd $txtSdObject -DSObject $strOU -Canonical $CanonicalName -strColorTemp $strColorTemp -boolReplMetaDate $bolReplMeta -strReplMetaDate $objLastChange -strObjClass $strObjectClass -bolObjClass $bolObjType -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion -bolShowOUProtected $bolGetOUProtected -bolOUPRotected $bolOUProtected -boolACLSize $bolACLsize -strACLSize $strACLSize -CompareMode $bolCompare -OUHeader $bolOUHeader -FilterMode $bolFilter -bolTranslateGUID $bolGUIDtoText -GPO $GPO -GPODisplayname $GPOdisplayname -strSDDL $strSDDL -htmfileout $strFileHTA -bolCriticalityLevel $ShowCriticalityColor
+                    WriteOUT -bolACLExist $true -sd $txtSdObject -DSObject $strOU -Canonical $CanonicalName -strColorTemp $strColorTemp -boolReplMetaDate $bolReplMeta -strReplMetaDate $objLastChange -strObjClass $strObjectClass -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion -bolShowOUProtected $bolGetOUProtected -bolOUPRotected $bolOUProtected -boolACLSize $bolACLsize -strACLSize $strACLSize -CompareMode $bolCompare -OUHeader $bolOUHeader -FilterMode $bolFilter -bolTranslateGUID $bolGUIDtoText -GPO $GPO -GPODisplayname $GPOdisplayname -strSDDL $strSDDL -htmfileout $strFileHTA -bolCriticalityLevel $ShowCriticalityColor
 
 
                     $tmpOU = $strOU
                 } else {
                     $bolOUHeader = $false
-                    WriteOUT -bolACLExist $true -sd $txtSdObject -DSObject $strOU -Canonical $CanonicalName -strColorTemp $strColorTemp -boolReplMetaDate $bolReplMeta -strReplMetaDate $objLastChange -strObjClass $strObjectClass -bolObjClass $bolObjType -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion -bolShowOUProtected $bolGetOUProtected -bolOUPRotected $bolOUProtected -boolACLSize $bolACLsize -strACLSize $strACLSize -CompareMode $bolCompare -OUHeader $bolOUHeader -FilterMode $bolFilter -bolTranslateGUID $bolGUIDtoText -GPO $GPO -GPODisplayname $GPOdisplayname -strSDDL $strSDDL -htmfileout $strFileHTA -bolCriticalityLevel $ShowCriticalityColor
+                    WriteOUT -bolACLExist $true -sd $txtSdObject -DSObject $strOU -Canonical $CanonicalName -strColorTemp $strColorTemp -boolReplMetaDate $bolReplMeta -strReplMetaDate $objLastChange -strObjClass $strObjectClass -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion -bolShowOUProtected $bolGetOUProtected -bolOUPRotected $bolOUProtected -boolACLSize $bolACLsize -strACLSize $strACLSize -CompareMode $bolCompare -OUHeader $bolOUHeader -FilterMode $bolFilter -bolTranslateGUID $bolGUIDtoText -GPO $GPO -GPODisplayname $GPOdisplayname -strSDDL $strSDDL -htmfileout $strFileHTA -bolCriticalityLevel $ShowCriticalityColor
 
 
                 }
@@ -13574,7 +13568,7 @@ Function Get-DefaultSD {
                         Write-PermCSVTemplate -sd $sd -object $entry.distinguishedName -canonical $CanonicalName -objType $strObjectClassName -fileout $File -ACLMeta $bolReplMeta -strACLDate $strLastChangeDate -strInvocationID $strOrigInvocationID -strOrgUSN $strOrigUSN -Outfile $true -GPO $GPO -GPOdisplayname $GPOdisplayname -CREDS $CREDS
                     } else {
                         $OutputFormat = "Object"
-                        WriteOUT -bolACLExist $True -sd $sd -DSObject $entry.distinguishedName -Canonical $CanonicalName -boolReplMetaDate $bolReplMeta -strReplMetaDate $strLastChangeDate -strObjClass $strObjectClassName  -bolObjClass $true -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion
+                        WriteOUT -bolACLExist $True -sd $sd -DSObject $entry.distinguishedName -Canonical $CanonicalName -boolReplMetaDate $bolReplMeta -strReplMetaDate $strLastChangeDate -strObjClass $strObjectClassName -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion
                     }
                     } else {
                             WriteDefSDAccessHTM -bolACLExist $true -sd $sd -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType

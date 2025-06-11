@@ -2,24 +2,14 @@
 
 ## Current version
 
-**Version: 8.3**
+**Version: 8.4**
 
-**26 May, 2025**
+**11 June, 2025**
 
-**SHA256:** E7E5E1E9600326E8C9F0E3816A69BAF1D55B9EC26CA6E01ED6F75562E9AE5869
+**SHA256:** 170D73007102C2D19611BE712346A8D94246C0A09FFD9D33F32455D6B398E4BD 
 
 **Fixed issues**
-* Running from CLI does not require "ApartmentState" to be Single-Threaded Apartment (STA).
-
-**New Features**
-* Search with onelevel and set the depth of the search
-    * Example:
-```
-ADACLScan.ps1 -Base rootdse -SearchDepth 3 -LDAPFilter "(objectClass=OrganizationalUnit)"
-```
-* Get version number of the ntsecuritydescription
-* Export defaultsecuritydescriptor with readable permissions
-* Skip banner in CLI with -NoBanner
+* Removed incorrect parameter name 'bolObjClass'
 
 
 
