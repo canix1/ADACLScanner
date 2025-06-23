@@ -2,14 +2,14 @@
 
 ## Current version
 
-**Version: 8.4**
+**Version: 8.5**
 
-**11 June, 2025**
+**23 June, 2025**
 
-**SHA256:** 170D73007102C2D19611BE712346A8D94246C0A09FFD9D33F32455D6B398E4BD 
+**SHA256:** E2A87D1FD7FD45D6B5AB8953DE4FDF477E1CE0FE791AC0AE5BE0064C8F01F460
 
 **Fixed issues**
-* Removed incorrect parameter name 'bolObjClass'
+* Replaced CN with SamAccountName in the HTML group member view
 
 
 
