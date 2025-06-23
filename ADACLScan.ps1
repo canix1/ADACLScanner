@@ -105,12 +105,12 @@
 
 .NOTES
 
-**Version: 8.4**
+**Version: 8.5**
 
-**11 June, 2025**
+**23 June, 2025**
 
 **Fixed issues**
-* Removed incorrect parameter name 'bolObjClass'
+* Replaced CN with SamAccountName in the HTML group member view
 
 
 #>
@@ -516,7 +516,7 @@ Param
 
 )
 
-[string]$ADACLScanVersion = "-------`nAD ACL Scanner 8.4 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 8.5 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -828,7 +828,7 @@ $xamlBase = @'
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 8.3" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 8.5" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -10442,14 +10442,14 @@ for each objMember In objGroup.Members
     if i < MaxResult Then
 	    If strGroupMemberList = "" Then
 		    strBGColor = strBG1
-		    strGroupMemberList = "<TR "&strBGColor&"><TD>" & objMember.Get("cn") & "</TD><TD>" & objMember.Get("distinguishedname") & "</TD></TR>"
+		    strGroupMemberList = "<TR "&strBGColor&"><TD>" & objMember.Get("samAccountName") & "</TD><TD>" & objMember.Get("distinguishedname") & "</TD></TR>"
 	    Else
 		    If strBGColor = strBG1 Then
 			    strBGColor = strBG2
 		    Else
 			    strBGColor = strBG1
 		    End If
-	    strGroupMemberList = strGroupMemberList & vbCrlf & "<TR "&strBGColor&"><TD>" & objMember.Get("cn") & "</TD><TD>" & objMember.Get("distinguishedname") & "</TD></	TR>"
+	    strGroupMemberList = strGroupMemberList & vbCrlf & "<TR "&strBGColor&"><TD>" & objMember.Get("samAccountName") & "</TD><TD>" & objMember.Get("distinguishedname") & "</TD></	TR>"
 	    End If
         i = i + 1
         if objMember.Class = "group" then
