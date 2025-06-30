@@ -2,14 +2,22 @@
 
 ## Current version
 
-**Version: 8.5**
+**Version: 8.6**
 
-**23 June, 2025**
+**30 June, 2025**
 
-**SHA256:** E2A87D1FD7FD45D6B5AB8953DE4FDF477E1CE0FE791AC0AE5BE0064C8F01F460
+**SHA256:** 82B61CACCC7A6E5A929750CB8D540D364138956B2DC44654D6A8E868F6E0C93D
 
 **Fixed issues**
-* Replaced CN with SamAccountName in the HTML group member view
+* Revealed hidden UI section for LDAP searched Depth
+* New Download file function
+* Always display Object Type in HTML report
+* Issue with compare Default Security Descriptor
+* Duplicate "Version" field in HTML report for Default Security Descriptor
+* Addtional Forest and Domain collection functions
+
+**New Features**
+* Downloads for Windows Server 2025 templates
 
 
 

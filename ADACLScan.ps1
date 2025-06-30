@@ -105,12 +105,21 @@
 
 .NOTES
 
-**Version: 8.5**
+**Version: 8.6**
 
-**23 June, 2025**
+**30 June, 2025**
 
 **Fixed issues**
-* Replaced CN with SamAccountName in the HTML group member view
+* Revealed hidden UI section for LDAP searched Depth
+* New Download file function
+* Always display Object Type in HTML report
+* Issue with compare Default Security Descriptor
+* Duplicate "Version" field in HTML report for Default Security Descriptor
+* Addtional Forest and Domain collection functions
+
+**New Features**
+* Downloads for Windows Server 2025 templates
+
 
 
 #>
@@ -516,7 +525,7 @@ Param
 
 )
 
-[string]$ADACLScanVersion = "-------`nAD ACL Scanner 8.5 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 8.6 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -828,7 +837,7 @@ $xamlBase = @'
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 8.5" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 8.6" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="White" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -885,7 +894,7 @@ $xamlBase = @'
                                                         </StackPanel>
                                                     </StackPanel>
                                                 </GroupBox>
-                                                <GroupBox x:Name="gBoxScanDepth" Header="Scan Depth" HorizontalAlignment="Left" Height="51" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
+                                                <GroupBox x:Name="gBoxScanDepth" Header="Scan Depth" HorizontalAlignment="Left" Height="78" Margin="2,1,0,0" VerticalAlignment="Top" Width="290">
                                                     <StackPanel Orientation="Vertical" Margin="0,0">
                                                         <StackPanel Orientation="Horizontal">
                                                             <RadioButton GroupName="Depth" x:Name="rdbBase" Content="Base" HorizontalAlignment="Left" Height="18" Margin="5,10,0,0" VerticalAlignment="Top" Width="61" IsChecked="True"/>
@@ -1580,20 +1589,12 @@ $combObjectDefSD.SelectedValue = 'All Objects'
                     $global:observableCollection.Insert(0, (LogMessage -strMessage 'No Template CSV file selected!' -strType 'Error' -DateStamp ))
                 } else {
                     $global:bolProgressBar = $chkBoxSkipProgressBar.IsChecked
-                    $global:bolDefaultSDCSVLoaded = $false
+
                     $strDefaultSDCompareFile = $txtCompareDefSDTemplate.Text
-                    & { #Try
-                        $global:bolDefaultSDCSVLoaded = $true
-                        $global:csvdefSDTemplate = Import-Csv $strDefaultSDCompareFile
-                    }
-                    Trap [SystemException] {
-                        $strCSVErr = $_.Exception.Message
-                        $global:observableCollection.Insert(0, (LogMessage -strMessage "Failed to load CSV. $strCSVErr" -strType 'Error' -DateStamp ))
-                        $global:bolDefaultSDCSVLoaded = $false
-                        continue
-                    }
-                    if ($bolDefaultSDCSVLoaded) {
-                        if (TestCSVColumnsDefaultSD $global:csvdefSDTemplate) {
+
+                    if(Test-Path -Path $strDefaultSDCompareFile) {
+
+                        if (Test-CSVColumnsDefaultSD $strDefaultSDCompareFile) {
                             $strSelectedItem = $combObjectDefSD.SelectedItem
                             if ($strSelectedItem -eq 'All Objects') {
                                 $strSelectedItem = '*'
@@ -1604,6 +1605,7 @@ $combObjectDefSD.SelectedValue = 'All Objects'
                         } else {
                             $global:observableCollection.Insert(0, (LogMessage -strMessage "CSV file got wrong format! File:  $strDefaultSDCompareFile" -strType 'Error' -DateStamp ))
                         } #End if test column names exist
+
                     }
                 }#end if txtCompareDefSDTemplate.Text is empty
 
@@ -2174,8 +2176,8 @@ $combObjectDefSD.SelectedValue = 'All Objects'
 
                             $global:DirContext = Get-DirContext $global:strDC -CREDS $CREDS
 
-                            $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                            $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                             $global:DSType = 'AD DS'
                             $global:bolADDSType = $true
                             $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
@@ -2222,8 +2224,8 @@ $combObjectDefSD.SelectedValue = 'All Objects'
 
                             $global:DirContext = Get-DirContext $global:strDC $CREDS
 
-                            $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                            $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                             $global:DSType = 'AD DS'
                             $global:bolADDSType = $true
                             $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
@@ -2288,8 +2290,8 @@ $combObjectDefSD.SelectedValue = 'All Objects'
                             }
 
                             $global:DirContext = Get-DirContext $global:strDC $CREDS
-                            $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                            $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                             $global:DSType = 'AD DS'
                             $global:bolADDSType = $true
                             $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
@@ -2358,8 +2360,8 @@ $combObjectDefSD.SelectedValue = 'All Objects'
                             }
 
                             $global:DirContext = Get-DirContext $global:strDC -CREDS $CREDS
-                            $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                            $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                             $global:DSType = 'AD DS'
                             $global:bolADDSType = $true
                             $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
@@ -2405,8 +2407,8 @@ $combObjectDefSD.SelectedValue = 'All Objects'
                             }
 
                             $global:DirContext = Get-DirContext $global:strDC -CREDS $CREDS
-                            $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                            $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                            $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                             $global:DSType = 'AD DS'
                             $global:bolADDSType = $true
                             $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
@@ -2475,8 +2477,8 @@ $combObjectDefSD.SelectedValue = 'All Objects'
                         }
 
                         $global:DirContext = Get-DirContext $global:strDC $CREDS
-                        $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                        $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                        $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                        $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                         $global:DSType = 'AD DS'
                         $global:bolADDSType = $true
                         $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
@@ -2568,8 +2570,8 @@ $combObjectDefSD.SelectedValue = 'All Objects'
 
                                 }
                                 $global:strDomainPrinDNName = $global:strDomainDNName
-                                $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                                $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                                $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                                $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
                                 $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
                             }
                             default {
@@ -2719,56 +2721,15 @@ $combObjectDefSD.SelectedValue = 'All Objects'
 
             #Get Forest Root Domain ObjectSID
             if ($global:DSType -eq 'AD DS') {
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
-                $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-                $request = New-Object System.directoryServices.Protocols.SearchRequest($global:strDomainDNName, '(objectClass=*)', 'base')
-                [void]$request.Attributes.Add('objectsid')
 
-                try {
-                    $response = $LDAPConnection.SendRequest($request)
-                    $global:bolLDAPConnection = $true
-                } catch {
-                    $global:bolLDAPConnection = $false
-                    $global:observableCollection.Insert(0, (LogMessage -strMessage 'Failed! Domain does not exist or can not be connected' -strType 'Error' -DateStamp ))
-                }
-                if ($global:bolLDAPConnection -eq $true) {
-                    $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
+                $objForestInfo = Get-ForestInfoFromPartitions -Server $global:strDC  -strConfigDN $global:ConfigDN -credential $CREDS
+                $objForest = Get-ForestInfo -ForestFQDN $objForestInfo.ForestName -CREDS $CREDS
+                $objDomains = Get-DomainsInfo -Forest $objForest -CREDS $CREDS -CurrentDomainFQDN $global:strDomainLongName
 
-                }
-
-                if ($global:ForestRootDomainDN -ne $global:strDomainDNName) {
-                    $global:strForestDomainLongName = $global:ForestRootDomainDN.Replace('DC=', '')
-                    $global:strForestDomainLongName = $global:strForestDomainLongName.Replace(',', '.')
-                    if ($CREDS.UserName) {
-                        $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $global:strForestDomainLongName, $CREDS.UserName, $CREDS.GetNetworkCredential().Password)
-                    } else {
-                        $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $global:strForestDomainLongName)
-                    }
-                    $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
-                    $global:strForestDC = $($ojbDomain.FindDomainController()).name
-
-                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $CREDS)
-                    $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-                    $request = New-Object System.directoryServices.Protocols.SearchRequest($global:ForestRootDomainDN, '(objectClass=*)', 'base')
-                    [void]$request.Attributes.Add('objectsid')
-
-                    try {
-                        $response = $LDAPConnection.SendRequest($request)
-                        $global:bolLDAPConnection = $true
-                    } catch {
-                        $global:bolLDAPConnection = $false
-                        $global:observableCollection.Insert(0, (LogMessage -strMessage 'Failed! Domain does not exist or can not be connected' -strType 'Error' -DateStamp ))
-                    }
-                    if ($global:bolLDAPConnection -eq $true) {
-                        $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
-
-                    }
-                } else {
-                    $global:strForestDC = $global:strDC
-                    $global:ForestRootDomainSID = $global:DomainSID
-                }
-
-
+                $global:DomainSID = ($objDomains | Where-Object {$_.IsCurrentDomain -eq $true}).DomainSID
+                $global:strForestDomainLongName = $objForest.Name
+                $global:strForestDC = $objForest.RWDC
+                $global:ForestRootDomainSID = ($objDomains | Where-Object {$_.IsRootDomain -eq $true}).DomainSID
             }
 
         })
@@ -3946,6 +3907,302 @@ $global:dicWellKnownSids = @{'S-1-0' = 'Null Authority'; `
         'S-1-18-2'                   = 'Service Asserted Identity'
 }
 #==========================================================================
+# Function		: Get-ForestInfo
+# Arguments     : Forest Namae, Credentials 
+# Returns   	: N/A
+# Description   : Create a Forest Info Hashtable
+#==========================================================================
+Function Get-ForestInfo
+{
+    param(
+    [Parameter(Mandatory=$false)]
+    [string]
+    $ForestFQDN,
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS
+    )
+    
+    $dcLocatorFlag = [System.DirectoryServices.ActiveDirectory.LocatorOptions]::"ForceRediscovery", "WriteableRequired"
+
+    # Get The AD Forest Data
+    Try {
+	    if($ForestFQDN) {
+            
+
+            if ($CREDS) {
+                $context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext(
+                    'Forest', 
+                    $ForestFQDN, 
+                    $CREDS.UserName, 
+                    $CREDS.GetNetworkCredential().Password
+                )
+            } else {
+                $context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Forest', $ForestFQDN)
+            }
+
+            $objForest = [DirectoryServices.ActiveDirectory.Forest]::GetForest($context)
+
+        } else {
+
+
+            $currentForestName = [DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest().Name
+            if ($CREDS) {
+                $context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext(
+                    'Forest', 
+                    $currentForestName, 
+                    $CREDS.UserName, 
+                    $CREDS.GetNetworkCredential().Password
+                )
+                $context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Forest', $currentForestName)
+            } else {
+                
+                $objForest = [DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
+            }
+
+
+                
+        }
+	    $ForestDomainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext("Domain", $($objForest.RootDomain.Name))
+
+	    $ForestDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($ForestDomainContext)
+
+        $ForestRWDC = $($ForestDomain.FindDomainController($dcLocatorFlag).Name)
+
+        If ([int]$($objForest.ForestModeLevel) -eq 7 -And $($objForest.ForestMode)  -eq "Unknown") {
+		    $ForestMode = "Windows2016Forest"
+	    } else {
+            $ForestMode = $objForest.ForestMode
+        }
+
+        $ForestDN = $ForestDomain.GetDirectoryEntry().distinguishedname.toString()
+
+        $ForestObject = @{
+            Name = $objForest.Name
+            Domain = $objForest.RootDomain.Name
+            DistinguiShedName =  $ForestDN 
+            NetBIOSName = $(Get-DomainShortName -strDomain $ForestDN -strConfigDN $($objForest.Schema.Name.Replace("CN=Schema,", "")) -DC $ForestRWDC -CREDS $CREDS)
+            RWDC = $ForestRWDC
+            ForestModeLevel = $objForest.ForestModeLevel
+            ForestMode = $ForestMode
+            Schema = $objForest.Schema.Name
+            Configuration = $objForest.Schema.Name.Replace("CN=Schema,", "")
+            SchemaRoleOwner = $objForest.SchemaRoleOwner
+            NamingRoleOwner = $objForest.NamingRoleOwner
+            Domains = $objForest.Domains
+            Sites = $objForest.Sites
+            GlobalCatalogs = $objForest.GlobalCatalogs
+            ApplicationPartitions = $objForest.ApplicationPartitions
+        }
+
+	    
+    } Catch {
+        Write-host "Exception Message...: $($_.Exception.Message)"
+	    Break
+    }
+
+    return $ForestObject
+
+}
+#==========================================================================
+# Function		: Get-DomainsInfo
+# Arguments     : Forest Hahstable, Current Domain Name, Credentials 
+# Returns   	: N/A
+# Description   : Create list of Domains
+#==========================================================================
+function Get-DomainsInfo
+{
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateScript({
+            # Check if it's a hashtable
+            if ($_ -isnot [hashtable]) {
+                throw "Parameter must be a hashtable"
+            }
+            
+            # Check if it has the required Domains property
+            if (-not $_.ContainsKey('Domains')) {
+                throw "Hashtable must contain a 'Domains' property"
+            }
+            
+            # Check if Domains property is the correct type
+            if ($_.Domains -isnot [System.DirectoryServices.ActiveDirectory.DomainCollection]) {
+                throw "Domains property must be of type DomainCollection"
+            }
+            
+            # Check if DomainCollection has at least one domain
+            if ($_.Domains.Count -eq 0) {
+                throw "DomainCollection cannot be empty"
+            }
+            
+            return $true
+        })]
+        [hashtable]$Forest,
+
+        [string]
+        $CurrentDomainFQDN,
+
+        [Parameter(Mandatory=$false)]
+        [pscredential] 
+        $CREDS
+    )
+
+    $dcLocatorFlag = [System.DirectoryServices.ActiveDirectory.LocatorOptions]::"ForceRediscovery", "WriteableRequired"
+
+    # Determine The List Of AD Domains In The AD Forest
+    $arrDomains = @()
+    $Forest.Domains | ForEach-Object {
+	    $DomainContext = $null
+	    $Domain = $null
+	    Try {
+            if($CREDS) {
+            $DomainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext(
+                "Domain", 
+                $($_.Name), 
+                $CREDS.UserName, 
+                $CREDS.GetNetworkCredential().Password
+            )
+        }
+		    $DomainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext("Domain", $($_.Name))
+		    $Domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($DomainContext)
+	    } Catch {
+		    $DomainContext = $null
+		    $Domain = $null
+	    }
+
+        if($Domain)
+        {
+            $DomainDN = $Domain.GetDirectoryEntry().distinguishedname
+        }
+
+
+        $DomainHashtable = @{
+	        DomainFQDN = $($_.Name)
+	        DomainDN = $(If ($Domain) { $DomainDN } Else { "AD Domain Not Available" })
+	        DomainName = $(If ($Domain) { $Domain.GetDirectoryEnTry().Properties["name"].Value } Else { "AD Domain Not Available" })
+            NetBIOSName = $(Get-DomainShortName -strDomain $DomainDN -strConfigDN $Forest.Configuration -DC $Forest.RWDC -CREDS $CREDS  )
+	        DomainSID = $(If ($Domain) { $objectSidBytes = $null; $objectSidBytes = $Domain.GetDirectoryEnTry().Properties["objectSid"].Value; (New-Object System.Security.Principal.SecurityIdentifier($objectSidBytes, 0)).Value } Else { "AD Domain Not Available" })
+	        ObjectGUID = $(If ($Domain) { $objectGuidBytes = $null; $objectGuidBytes = $Domain.GetDirectoryEnTry().Properties["objectGuid"].Value; (New-Object Guid @(, $objectGuidBytes)).Guid } Else { "AD Domain Not Available" })
+	        DomainMode = $(If ($Domain) { If ([int]$($Domain.DomainModeLevel) -eq 7 -And $($Domain.DomainMode) -eq "Unknown") { "Windows2016Domain" } Else { $($Domain.DomainMode) } } Else { "AD Domain Is Not Available" })
+	        DomainModeLevel = $(If ($Domain) { $Domain.DomainModeLevel } Else { "AD Domain Not Available" })
+	        IsRootDomain = $(If ($Forest.name -eq $($_.Name)) { "TRUE" } Else { "FALSE" })
+	        IsCurrentDomain = $(If ($($_.Name) -eq $CurrentDomainFQDN) { "TRUE" } Else { "FALSE" })
+	        PdcRoleOwner = $(If ($Domain) { $Domain.PdcRoleOwner } Else { "AD Domain Not Available" })
+	        NearestRWDC = $(If ($Domain) { $Domain.FindDomainController($dcLocatorFlag).Name } Else { "AD Domain Not Available" })
+        }
+	    $arrDomains += $DomainHashtable
+    }
+
+    return $arrDomains
+}
+
+#==========================================================================
+# Function		: Get-ForestInfoFromPartitions
+# Arguments     : server (DC), DN of Config Partition, Credentials
+# Returns   	: N/A
+# Description   : Return the forest name
+#==========================================================================
+function Get-ForestInfoFromPartitions {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]
+        $strConfigDN,
+
+        [string]
+        $Server,
+
+        [PSCredential]
+        $Credential
+    )
+
+    
+    $connection = New-Object System.DirectoryServices.Protocols.LdapConnection($Server)
+
+    try {
+        # Set authentication
+        if ($Credential) {
+            $connection.AuthType = [System.DirectoryServices.Protocols.AuthType]::Basic
+            $connection.Credential = $Credential.GetNetworkCredential()
+        } else {
+            $connection.AuthType = [System.DirectoryServices.Protocols.AuthType]::Negotiate
+        }
+        
+        $connection.Bind()
+       
+        # Query the Partitions container
+        $partitionsDN = "CN=Partitions,$strConfigDN"
+        $partitionsRequest = New-Object System.DirectoryServices.Protocols.SearchRequest(
+            $partitionsDN,
+            "(&(objectClass=crossRef)(nCName=*))",
+            [System.DirectoryServices.Protocols.SearchScope]::OneLevel
+        )
+        [void]$partitionsRequest.Attributes.Add("nCName")
+        [void]$partitionsRequest.Attributes.Add("dnsRoot")
+        [void]$partitionsRequest.Attributes.Add("systemFlags")
+        $partitionsResponse = $connection.SendRequest($partitionsRequest)
+        
+        # Find the forest root domain (systemFlags & 0x00000002)
+        foreach ($entry in $partitionsResponse.Entries) {
+            if ($entry.Attributes.Contains("systemFlags")) {
+                $systemFlags = [int]$entry.Attributes["systemFlags"][0]
+                if (($systemFlags -band 0x00000002) -eq 0x00000002) {  # FLAG_CR_NTDS_DOMAIN
+                    $forestRootDN = $entry.Attributes["nCName"][0]
+                    $forestName = $entry.Attributes["dnsRoot"][0]
+                    
+                    return @{
+                        ForestName = $forestName
+                        ForestRootDN = $forestRootDN
+                        SystemFlags = $systemFlags
+                    }
+                }
+            }
+        }
+        
+    } finally {
+        if ($connection) {
+            $connection.Dispose()
+        }
+    }
+}
+#==========================================================================
+# Function		: Get-DomainShortName
+# Arguments     : domain name 
+# Returns   	: N/A
+# Description   : Search for short domain name
+#==========================================================================
+function Get-DomainShortName
+{ 
+
+    param(
+    [Parameter(Mandatory=$false)]
+    [pscredential] 
+    $CREDS,
+    [string]
+    $strDomainDN,
+    [string]
+    $strConfigDN,
+    [string]
+    $DC
+    )
+    
+    $null = Add-Type -AssemblyName System.DirectoryServices.Protocols
+    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($DC, $CREDS)
+    $LDAPConnection.SessionOptions.ReferralChasing = "None"
+    $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Partitions,$strConfigDN", "(&(objectClass=crossRef)(nCName=$strDomainDN))", "Subtree")
+    [void]$request.Attributes.Add("netbiosname")
+    $response = $LDAPConnection.SendRequest($request)
+    $Object = $response.Entries[0]
+
+    if($null -ne $Object) {
+
+        $ReturnShortName = $Object.Attributes.netbiosname[0]
+    } else {
+        $ReturnShortName = ""
+    }
+
+    return $ReturnShortName
+}
+#==========================================================================
 # Function		: New-LDAPSearch
 # Arguments     : basedn,ldapfilter,scope,server,attributes,creds
 # Returns   	: ldap search result
@@ -4011,52 +4268,6 @@ param(
 
 $null = Add-Type -AssemblyName System.DirectoryServices.Protocols
 
-#==========================================================================
-# Function		: GetDomainShortName
-# Arguments     : domain name 
-# Returns   	: N/A
-# Description   : Search for short domain name
-#==========================================================================
-function GetDomainShortName
-{ 
-
-    param(
-    [Parameter(Mandatory=$false)]
-    [pscredential] 
-    $CREDS,
-    [string]
-    $strDomain,
-    [string]
-    $strConfigDN)
-    
-
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($strDC, $CREDS)
-    $LDAPConnection.SessionOptions.ReferralChasing = "None"
-    $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Partitions,$strConfigDN", "(&(objectClass=crossRef)(nCName=$strDomain))", "Subtree")
-    [void]$request.Attributes.Add("netbiosname")
-    try
-    {
-        $response = $LDAPConnection.SendRequest($request)
-        $adObject = $response.Entries[0]
-    }
-    catch
-    {
-    }
-
-    if($null -ne $adObject)
-    {
-
-        $ReturnShortName = $adObject.Attributes.netbiosname[0]
-	}
-	else
-	{
-		$ReturnShortName = ""
-	}
- 
-return $ReturnShortName
-}
-
-$null = Add-Type -AssemblyName System.DirectoryServices.Protocols
 $LDAPConnection = $null
 $request = $null
 $response = $null
@@ -4114,8 +4325,8 @@ if($bolLDAPConnection)
         $IS_GC = $response.Entries[0].Attributes.isglobalcatalogready[0]
     }
 
-    $strDomainShortName = GetDomainShortName -strDomain $strDomainDNName -strConfigDN $ConfigDN -CREDS $CREDS
-    $strRootDomainShortName = GetDomainShortName -strDomain $ForestRootDomainDN -strConfigDN $ConfigDN -CREDS $CREDS
+    $strDomainShortName = Get-DomainShortName -strDomainDN $strDomainDNName -strConfigDN $ConfigDN -CREDS $CREDS
+    $strRootDomainShortName = Get-DomainShortName -strDomainDN $ForestRootDomainDN -strConfigDN $ConfigDN -CREDS $CREDS
     $strNamingContextDN = $strDomainDNName
 }
 
@@ -4941,6 +5152,7 @@ Function GenerateTemplateDownloaderSchemaDefSD {
             <Label x:Name="lblDownloadLinks" Content="Download links for defaultSecuritydescriptor CSV templates:" Margin="10,05,00,00"  Foreground="White"/>
                 <GroupBox x:Name="gBoxTemplate" Header="Templates" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Foreground="White">
                     <StackPanel Orientation="Vertical" Margin="0,0">
+                        <Button x:Name="btnDownloadCSVFileSchema2025" Content="Windows Server 2025" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         <Button x:Name="btnDownloadCSVFileSchema2019_1809" Content="Windows Server 2019 1809" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         <Button x:Name="btnDownloadCSVFileSchema2016" Content="Windows Server 2016" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
                         <Button x:Name="btnDownloadCSVFileSchema2012R2" Content="Windows Server 2012 R2" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -4993,7 +5205,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
     $TemplateDownloaderSchemaDefSDGui.Icon = $IconImage
 
     $btnOK = $TemplateDownloaderSchemaDefSDGui.FindName('btnOK')
-
+    $btnDownloadCSVFileSchema2025 = $TemplateDownloaderSchemaDefSDGui.FindName('btnDownloadCSVFileSchema2025')
     $btnDownloadCSVFileSchema2019_1809 = $TemplateDownloaderSchemaDefSDGui.FindName('btnDownloadCSVFileSchema2019_1809')
     $btnDownloadCSVFileSchema2016 = $TemplateDownloaderSchemaDefSDGui.FindName('btnDownloadCSVFileSchema2016')
     $btnDownloadCSVFileSchema2012R2 = $TemplateDownloaderSchemaDefSDGui.FindName('btnDownloadCSVFileSchema2012R2')
@@ -5007,37 +5219,41 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
     $btnOK.add_Click({
             $TemplateDownloaderSchemaDefSDGui.Close()
         })
+    $btnDownloadCSVFileSchema2025.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2025_DefaultSecDescriptor.csv'
+            Invoke-FileDownload -Url $URL
+        })
     $btnDownloadCSVFileSchema2019_1809.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!252&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2019_1809_DefaultSecDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFileSchema2016.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9%21173&authkey=!ANmZFP4r67-yvGs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2016_RTM_DefaultSecDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFileSchema2012R2.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!108&authkey=!AH2bxltG5s-l3YY&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2012_RTM_DefaultSecDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFileSchema2012.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!111&authkey=!APeksydtWJ9B1Fc&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2012_R2_RTM_DefaultSecDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFileSchema2008R2.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!110&authkey=!AKYYkARRfsC7IyM&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2008_R2_SP1_DefaultSecDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFileSchema2003SP1.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9%21164&authkey=AI5D2Q7kmGI_17Q&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2003_SP1_defaultsSecurityDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFileSchema2003.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!109&authkey=!AKZcScjykAZr9sw&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2003_RTM_defaultsSecurityDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFileSchema2000SP4.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!112&authkey=!ACo2xB2BHPYSkOE&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DefaultSecuriyDescriptors/Win_2000_SP4_DefaultSecDescriptor.csv'
+            Invoke-FileDownload -Url $URL
         })
 
 
@@ -5046,39 +5262,54 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
 
 }
 #==========================================================================
-# Function		: DownloadFile
+# Function		: Invoke-FileDownload
 # Arguments     : -
 # Returns   	: -
 # Description   : download file
 #==========================================================================
-Function DownloadFile {
-    param([string]$URL)
-(65..90) + (97..122) | Get-Random -Count 8 | ForEach-Object { $TempFileName += [char]$_ }
-    $TemporaryDestination = $(Join-Path -Path $CurrentFSPath -ChildPath $TempFileName)
+function Invoke-FileDownload {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$DestinationPath = $PSScriptRoot,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$FileName
+    )
+    
     try {
-        $UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-        $WebReq = Invoke-WebRequest -Uri $URL -OutFile $TemporaryDestination -UserAgent $UserAgent -PassThru
-    } catch {
-        $MsgBox = [System.Windows.Forms.MessageBox]::Show('Download failed', 'Error' , 0, 'Error')
-    }
 
-    if (($WebReq.Headers.'Content-Type' -eq 'application/octet-stream') -or ($WebReq.Headers.'Content-Type' -eq 'application/zip')) {
-        if ((Test-Path -Path $TemporaryDestination)) {
-            $FileName = $WebReq.Headers.'Content-Disposition'.split(';') | ForEach-Object { if ($_ -match 'filename') {
-                    $_.split('=')[-1].Replace('"', '')
-                } }
-            $Destination = $(Join-Path -Path $CurrentFSPath -ChildPath $FileName)
-            Move-Item -Path $TemporaryDestination -Destination $Destination -Force
-            $MsgBox = [System.Windows.Forms.MessageBox]::Show("File downloaded: `n$Destination", 'Downloads' , 0, 'Information')
-        } else {
+        # Extract filename if not provided
+        if (-not $FileName) {
+            $FileName = Split-Path -Leaf ([System.Uri]$Url).LocalPath
+            if (-not $FileName) {
+                $FileName = "Downloaded_file_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
+            }
+        }
+        
+        $DestinationFile = Join-Path -Path $DestinationPath -ChildPath $FileName
+       
+
+        $UserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+        # Download the file
+        Invoke-WebRequest -Uri $Url -OutFile $DestinationFile -ErrorAction Stop -UserAgent $UserAgent 
+        
+        if (Test-Path -Path $DestinationFile) {
+            $MsgBox = [System.Windows.Forms.MessageBox]::Show("File downloaded: `n$DestinationFile", 'Downloads' , 0, 'Information')
+        }
+        else {
             $MsgBox = [System.Windows.Forms.MessageBox]::Show('Download failed', 'Error' , 0, 'Error')
         }
-    } else {
-        $MsgBox = [System.Windows.Forms.MessageBox]::Show('Download failed! Wrong URI or file type!', 'Error' , 0, 'Error')
     }
+    catch {
+        $MsgBox = [System.Windows.Forms.MessageBox]::Show("Download failed!`n $($_.Exception.Message)", 'Error' , 0, 'Error')
 
-
+    }
 }
+
 #==========================================================================
 # Function		: GenerateTemplateDownloader
 # Arguments     : -
@@ -5125,7 +5356,18 @@ Function GenerateTemplateDownloader {
                 <ComboBox x:Name="SelectOS"  Width="190" Margin="0,0,0,0" HorizontalAlignment="Left" />
                 </StackPanel>
                 <StackPanel Orientation="Vertical" Margin="0,10">
-                    <GroupBox x:Name="gBox2019_1809" Header="Windows Server 2019 1809" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Visible" Foreground="White" >
+                    <GroupBox x:Name="gBox2025" Header="Windows Server 2025" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Visible" Foreground="White" >
+                        <StackPanel Orientation="Vertical" Margin="0,0">
+                            <Button x:Name="btnDownloadCSVFile2025" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}" />
+                            <Button x:Name="btnDownloadCSVFile2025Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2025Config" Content="Configuration NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2025Schema" Content="Schema NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2025DomainDNS" Content="Domain DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2025ForestDNS" Content="Forest DNS Zone NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                            <Button x:Name="btnDownloadCSVFile2025AllFiles" Content="All Files Compressed" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
+                        </StackPanel>
+                    </GroupBox>
+                    <GroupBox x:Name="gBox2019_1809" Header="Windows Server 2019 1809" HorizontalAlignment="Left" Margin="2,1,0,0" VerticalAlignment="Top" Width="210" Visibility="Collapsed" Foreground="White" >
                         <StackPanel Orientation="Vertical" Margin="0,0">
                             <Button x:Name="btnDownloadCSVFile2019_1809" Content="Each NC root combined" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}" />
                             <Button x:Name="btnDownloadCSVFile2019_1809Domain" Content="Domain NC" HorizontalAlignment="Left"  VerticalAlignment="Top" Width="200" Style="{StaticResource AButtonStyle}"/>
@@ -5245,6 +5487,14 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
 
     $btnOK = $TemplateDownloaderGui.FindName('btnOK')
 
+    $btnDownloadCSVFile2025 = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2025')
+    $btnDownloadCSVFile2025Domain = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2025Domain')
+    $btnDownloadCSVFile2025Config = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2025Config')
+    $btnDownloadCSVFile2025Schema = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2025Schema')
+    $btnDownloadCSVFile2025DomainDNS = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2025DomainDNS')
+    $btnDownloadCSVFile2025ForestDNS = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2025ForestDNS')
+    $btnDownloadCSVFile2025AllFiles = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2025AllFiles')
+
     $btnDownloadCSVFile2019_1809 = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2019_1809')
     $btnDownloadCSVFile2019_1809Domain = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2019_1809Domain')
     $btnDownloadCSVFile2019_1809Config = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2019_1809Config')
@@ -5295,6 +5545,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
     $btnDownloadCSVFile2000SP4Schema = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2000SP4Schema')
     $btnDownloadCSVFile2000SP4AllFiles = $TemplateDownloaderGui.FindName('btnDownloadCSVFile2000SP4AllFiles')
     $SelectOS = $TemplateDownloaderGui.FindName('SelectOS')
+    $gBox2025 = $TemplateDownloaderGui.FindName('gBox2025')    
     $gBox2019_1809 = $TemplateDownloaderGui.FindName('gBox2019_1809')
     $gBox2016 = $TemplateDownloaderGui.FindName('gBox2016')
     $gBox2012R2 = $TemplateDownloaderGui.FindName('gBox2012R2')
@@ -5303,19 +5554,32 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
     $gBox2003 = $TemplateDownloaderGui.FindName('gBox2003')
     $gBox2000SP4 = $TemplateDownloaderGui.FindName('gBox2000SP4')
 
+    [void]$SelectOS.Items.Add('Windows Server 2025')    
     [void]$SelectOS.Items.Add('Windows Server 2019 1809')
     [void]$SelectOS.Items.Add('Windows Server 2016')
     [void]$SelectOS.Items.Add('Windows Server 2012 R2')
+    [void]$SelectOS.Items.Add('Windows Server 2012')    
     [void]$SelectOS.Items.Add('Windows Server 2008 R2')
     [void]$SelectOS.Items.Add('Windows Server 2003')
     [void]$SelectOS.Items.Add('Windows 2000 Server SP4')
 
-    $SelectOS.SelectedValue = 'Windows Server 2019 1809'
+    $SelectOS.SelectedValue = 'Windows Server 2025'
 
     $SelectOS.add_SelectionChanged({
 
             Switch ($SelectOS.SelectedValue) {
+                'Windows Server 2025' {
+                    $gBox2025.Visibility = 'Visible'                    
+                    $gBox2019_1809.Visibility = 'Collapsed'
+                    $gBox2016.Visibility = 'Collapsed'
+                    $gBox2012R2.Visibility = 'Collapsed'
+                    $gBox2012.Visibility = 'Collapsed'
+                    $gBox2008R2.Visibility = 'Collapsed'
+                    $gBox2003.Visibility = 'Collapsed'
+                    $gBox2000SP4.Visibility = 'Collapsed'
+                }
                 'Windows Server 2019 1809' {
+                    $gBox2025.Visibility = 'Collapsed'                    
                     $gBox2019_1809.Visibility = 'Visible'
                     $gBox2016.Visibility = 'Collapsed'
                     $gBox2012R2.Visibility = 'Collapsed'
@@ -5325,6 +5589,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
                     $gBox2000SP4.Visibility = 'Collapsed'
                 }
                 'Windows Server 2016' {
+                    $gBox2025.Visibility = 'Collapsed'
                     $gBox2019_1809.Visibility = 'Collapsed'
                     $gBox2016.Visibility = 'Visible'
                     $gBox2012R2.Visibility = 'Collapsed'
@@ -5334,6 +5599,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
                     $gBox2000SP4.Visibility = 'Collapsed'
                 }
                 'Windows Server 2012 R2' {
+                    $gBox2025.Visibility = 'Collapsed'
                     $gBox2019_1809.Visibility = 'Collapsed'
                     $gBox2016.Visibility = 'Collapsed'
                     $gBox2012R2.Visibility = 'Visible'
@@ -5343,6 +5609,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
                     $gBox2000SP4.Visibility = 'Collapsed'
                 }
                 'Windows Server 2012' {
+                    $gBox2025.Visibility = 'Collapsed'
                     $gBox2019_1809.Visibility = 'Collapsed'
                     $gBox2016.Visibility = 'Collapsed'
                     $gBox2012R2.Visibility = 'Collapsed'
@@ -5352,6 +5619,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
                     $gBox2000SP4.Visibility = 'Collapsed'
                 }
                 'Windows Server 2008 R2' {
+                    $gBox2025.Visibility = 'Collapsed'
                     $gBox2019_1809.Visibility = 'Collapsed'
                     $gBox2016.Visibility = 'Collapsed'
                     $gBox2012R2.Visibility = 'Collapsed'
@@ -5361,6 +5629,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
                     $gBox2000SP4.Visibility = 'Collapsed'
                 }
                 'Windows Server 2003' {
+                    $gBox2025.Visibility = 'Collapsed'
                     $gBox2019_1809.Visibility = 'Collapsed'
                     $gBox2016.Visibility = 'Collapsed'
                     $gBox2012R2.Visibility = 'Collapsed'
@@ -5370,6 +5639,7 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
                     $gBox2000SP4.Visibility = 'Collapsed'
                 }
                 'Windows 2000 Server SP4' {
+                    $gBox2025.Visibility = 'Collapsed'
                     $gBox2019_1809.Visibility = 'Collapsed'
                     $gBox2016.Visibility = 'Collapsed'
                     $gBox2012R2.Visibility = 'Collapsed'
@@ -5387,213 +5657,243 @@ o4ErDMjk1kh4jHP+eKPiFTPWjMCMF13g2cbG7a6DbvDo7qWcpoRjjEXO4w2RIPOaUgB0hYDymIETJeG4
     $btnOK.add_Click({
             $TemplateDownloaderGui.Close()
         })
+    ## START 2025
+    $btnDownloadCSVFile2025.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2025_RTM/Win_2025_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
 
+        })
+    $btnDownloadCSVFile2025Domain.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2025_RTM/Win_2025_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
+        })
+    $btnDownloadCSVFile2025Config.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2025_RTM/Win_2025_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
+        })
+    $btnDownloadCSVFile2025Schema.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2025_RTM/Win_2025_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
+        })
+    $btnDownloadCSVFile2025DomainDNS.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2025_RTM/Win_2025_Default_DACL_DomainDnsZones.csv'
+            Invoke-FileDownload -Url $URL
+        })
+    $btnDownloadCSVFile2025ForestDNS.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2025_RTM/Win_2025_Default_DACL_ForestDnsZones.csv'
+            Invoke-FileDownload -Url $URL
+        })
+    $btnDownloadCSVFile2025AllFiles.add_Click({
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2025_RTM/Windows_Server_2025_DACL.zip'
+            Invoke-FileDownload -Url $URL
+        })
+    ## END 2025
     ## START 2019 1809
     $btnDownloadCSVFile2019_1809.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!230&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2019_1809/Win_2019_1809_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
 
         })
     $btnDownloadCSVFile2019_1809Domain.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!227&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2019_1809/Win_2019_1809_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2019_1809Config.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!226&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2019_1809/Win_2019_1809_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2019_1809Schema.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!231&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2019_1809/Win_2019_1809_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2019_1809DomainDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!229&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2019_1809/Win_2019_1809_Default_DACL_DomainDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2019_1809ForestDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!228&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2019_1809/Win_2019_1809_Default_DACL_ForestDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2019_1809AllFiles.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!225&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2019_1809/Windows_Server_2019_1809_DACL.zip'
+            Invoke-FileDownload -Url $URL
         })
     ## END 2019 1809
 
     ## START 2016
     $btnDownloadCSVFile2016.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!247&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2016_RTM/Win_2016_RTM_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2016Domain.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!243&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2016_RTM/Win_2016_RTM_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2016Config.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!244&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2016_RTM/Win_2016_RTM_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2016Schema.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!248&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2016_RTM/Win_2016_RTM_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2016DomainDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!246&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2016_RTM/Win_2016_RTM_Default_DACL_DomainDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2016ForestDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!245&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2016_RTM/Win_2016_RTM_Default_DACL_ForestDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2016AllFiles.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!242&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2016_RTM/Windows_Server_2016_RTM_DACL.zip'
+            Invoke-FileDownload -Url $URL
         })
     ## END 2016
 
     ## START 2012 R2
     $btnDownloadCSVFile2012R2.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!209&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_R2_RTM/Win_2012_R2_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012R2Domain.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!206&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_R2_RTM/Win_2012_R2_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012R2Config.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!205&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_R2_RTM/Win_2012_R2_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012R2Schema.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!210&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_R2_RTM/Win_2012_R2_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012R2DomainDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!207&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_R2_RTM/Win_2012_R2_Default_DACL_DomainDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012R2ForestDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!208&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_R2_RTM/Win_2012_R2_Default_DACL_ForestDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012R2AllFiles.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!204&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_R2_RTM/Windows_Server_2012_R2_DACL.zip'
+            Invoke-FileDownload -Url $URL
         })
     ## END 2012 R2
     ## START 2012
     $btnDownloadCSVFile2012.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!216&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_RTM/Win_2012_RTM_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012Domain.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!213&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_RTM/Win_2012_RTM_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012Config.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!212&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_RTM/Win_2012_RTM_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012Schema.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!217&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_RTM/Win_2012_RTM_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012DomainDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!214&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_RTM/Win_2012_RTM_Default_DACL_DomainDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012ForestDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!215&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_RTM/Win_2012_RTM_Default_DACL_ForestDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2012AllFiles.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!211&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2012_RTM/Windows_Server_2012_RTM_DACL.zip'
+            Invoke-FileDownload -Url $URL
         })
     ## END 2012
     ## START 2008 R2
     $btnDownloadCSVFile2008R2.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!201&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2008_R2_SP1/Win_2008_R2_SP1_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2008R2Domain.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!198&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2008_R2_SP1/Win_2008_R2_SP1_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2008R2Config.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!197&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2008_R2_SP1/Win_2008_R2_SP1_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2008R2Schema.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!237&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2008_R2_SP1/Win_2008_R2_SP1_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2008R2DomainDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!199&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2008_R2_SP1/Win_2008_R2_SP1_Default_DACL_DomainDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2008R2ForestDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!200&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2008_R2_SP1/Win_2008_R2_SP1_Default_DACL_ForestDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2008R2AllFiles.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!236&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2008_R2_SP1/Windows_Server_2008_R2_SP1_DACL.zip'
+            Invoke-FileDownload -Url $URL
         })
     ## END 2008 R2
     ## START 2003
 
     $btnDownloadCSVFile2003.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!194&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2003_SP1/Win_2003_SP1_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2003Domain.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!191&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2003_SP1/Win_2003_SP1_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2003Config.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!190&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2003_SP1/Win_2003_SP1_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2003Schema.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!195&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2003_SP1/Win_2003_SP1_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2003DomainDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!192&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2003_SP1/Win_2003_SP1_Default_DACL_DomainDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2003ForestDNS.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!193&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2003_SP1/Win_2003_SP1_Default_DACL_ForestDnsZones.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2003AllFiles.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!189&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2003_SP1/Windows_Server_2003_SP1_DACL.zip'
+            Invoke-FileDownload -Url $URL
         })
     ## END 2003
 
     ## START 2000 SP4
 
     $btnDownloadCSVFile2000SP4.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!187&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2000_SP4/Win_2000_SP4_Default_DACL_NC.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2000SP4Domain.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!183&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2000_SP4/Win_2000_SP4_Default_DACL_Domain.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2000SP4Config.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!186&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2000_SP4/Win_2000_SP4_Default_DACL_Config.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2000SP4Schema.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!188&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2ccsv'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2000_SP4/Win_2000_SP4_Default_DACL_Schema.csv'
+            Invoke-FileDownload -Url $URL
         })
     $btnDownloadCSVFile2000SP4AllFiles.add_Click({
-            $URL = 'https://onedrive.live.com/download?resid=3FC56366F033BAA9!182&authkey=!AA9I-EWBR7zZ2hs&ithint=file%2czip'
-            DownloadFile $URL
+            $URL = 'https://raw.githubusercontent.com/canix1/ADACLRepository/refs/heads/main/DACL_Library/Windows_Server_2000_SP4/Windows_2000_Server_SP4_DACL.zip'
+            Invoke-FileDownload -Url $URL
         })
     ## END 2000
 
@@ -6667,46 +6967,69 @@ function CheckDNExist {
 
 
 #==========================================================================
-# Function		: TestCSVColumnsDefaultSD
+# Function		: Test-CSVColumnsDefaultSD
 # Arguments     : CSV import for Default Security descriptor
 # Returns   	: Boolean
 # Description   : Search for all requried column names in CSV and return true or false
 #==========================================================================
-function TestCSVColumnsDefaultSD {
-    param($CSVImport)
+function Test-CSVColumnsDefaultSD {
+    param($CSVDefaultSD)
+    
+    $bolDefaultSDCSVLoaded = $false
     $bolColumExist = $false
-    $colHeaders = ( $CSVImport | Get-Member -MemberType 'NoteProperty' | Select-Object -ExpandProperty 'Name')
-    $bolName = $false
-    $boldistinguishedName = $false
-    $bolVersion = $false
-    $bolModifiedDate = $false
-    $bolSDDL = $false
 
-    Foreach ($ColumnName in $colHeaders ) {
+    if(Test-Path -Path $CSVDefaultSD) {
 
-        if ($ColumnName.Trim() -eq 'Name') {
-            $bolName = $true
+        Try { #Try
+            $bolDefaultSDCSVLoaded = $true
+            $CSVImport = Import-Csv $CSVDefaultSD
         }
-        if ($ColumnName.Trim() -eq 'distinguishedName') {
-            $boldistinguishedName = $true
+        Catch [SystemException] {
+            $strCSVErr = $_.Exception.Message
+            $global:observableCollection.Insert(0, (LogMessage -strMessage "Failed to load CSV. $strCSVErr" -strType 'Error' -DateStamp ))
+            $global:bolDefaultSDCSVLoaded = $false
+            continue
         }
-        if ($ColumnName.Trim() -eq 'Version') {
-            $bolVersion = $true
-        }
-        if ($ColumnName.Trim() -eq 'ModifiedDate') {
-            $bolModifiedDate = $true
-        }
-        if ($ColumnName.Trim() -eq 'SDDL') {
-            $bolSDDL = $true
-        }
-
-
     }
-    #if test column names exist
-    if ($bolName -and $boldistinguishedName -and $bolVersion -and $bolModifiedDate -and $bolSDDL) {
-        $bolColumExist = $true
+
+    if($bolDefaultSDCSVLoaded) {
+
+        $colHeaders = ( $CSVImport | Get-Member -MemberType 'NoteProperty' | Select-Object -ExpandProperty 'Name')
+        $bolName = $false
+        $boldistinguishedName = $false
+        $bolVersion = $false
+        $bolModifiedDate = $false
+        $bolSDDL = $false
+
+        Foreach ($ColumnName in $colHeaders ) {
+
+            if ($ColumnName.Trim() -eq 'Name') {
+                $bolName = $true
+            }
+            if ($ColumnName.Trim() -eq 'distinguishedName') {
+                $boldistinguishedName = $true
+            }
+            if ($ColumnName.Trim() -eq 'Version') {
+                $bolVersion = $true
+            }
+            if ($ColumnName.Trim() -eq 'ModifiedDate') {
+                $bolModifiedDate = $true
+            }
+            if ($ColumnName.Trim() -eq 'SDDL') {
+                $bolSDDL = $true
+            }
+
+
+        }
+
+        #if test column names exist
+        if ($bolName -and $boldistinguishedName -and $bolVersion -and $bolModifiedDate -and $bolSDDL) {
+            $bolColumExist = $true
+        }
+
     }
     return $bolColumExist
+    
 }
 #==========================================================================
 # Function		: TestCSVColumns
@@ -7335,43 +7658,6 @@ function GetAllChildNodes {
     }
     return $nodelist
 
-}
-#==========================================================================
-# Function		: GetDomainShortName
-# Arguments     : domain name
-# Returns   	: N/A
-# Description   : Search for short domain name
-#==========================================================================
-function GetDomainShortName {
-
-    param(
-        [Parameter(Mandatory = $false)]
-        [pscredential]
-        $CREDS,
-        [string]
-        $strDomain,
-        [string]
-        $strConfigDN)
-
-
-    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
-    $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-    $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=Partitions,$strConfigDN", "(&(objectClass=crossRef)(nCName=$strDomain))", 'Subtree')
-    [void]$request.Attributes.Add('netbiosname')
-    try {
-        $response = $LDAPConnection.SendRequest($request)
-        $adObject = $response.Entries[0]
-    } catch {
-    }
-
-    if ($null -ne $adObject) {
-
-        $ReturnShortName = $adObject.Attributes.netbiosname[0]
-    } else {
-        $ReturnShortName = ''
-    }
-
-    return $ReturnShortName
 }
 
 #==========================================================================
@@ -9652,12 +9938,12 @@ $strACLHTMLText
 
 }
 #==========================================================================
-# Function		: WriteDefSDAccessHTM
+# Function		: Write-DefSDAccessHTM
 # Arguments     : Security Descriptor, OU dn string, Output htm file
 # Returns   	: n/a
 # Description   : Wites the SD info to a HTM table, it appends info if the file exist
 #==========================================================================
-function WriteDefSDAccessHTM {
+function Write-DefSDAccessHTM {
     Param([bool]$bolACLExist, $sd, [bool]$bolObjClass, [string]$strObjectClass, [string]$strColorTemp, [string]$htmfileout, [string]$strFileHTM, [bool]$OUHeader, [bool]$boolReplMetaDate, [string]$strReplMetaVer, [string]$strReplMetaDate, [bool]$bolCriticalityLevel, [boolean]$CompareMode, [string]$xlsxout, [string]$Type)
 
     if ($Type -eq 'HTML') {
@@ -10206,7 +10492,7 @@ $strHTMLText
     if ($RepMetaDate -eq $true) {
         $strHTMLText = @"
 $strHTMLText
-<th bgcolor="$strTHColor">$strFontTH Security Descriptor Modified</font><th bgcolor="$strTHColor">$strFontTH Version</font>
+<th bgcolor="$strTHColor">$strFontTH Security Descriptor Modified</font>
 <th bgcolor="$strTHColor">$strFontTH Version</font>
 "@
     }
@@ -10249,6 +10535,9 @@ $strHTMLText
 #==========================================================================
 Function InitiateHTM {
     Param([string] $htmfileout, [string]$strStartingPoint, [string]$strDN, [bool]$RepMetaDate , [bool]$ACLSize, [bool]$bolACEOUProtected, [bool]$bolCriticaltiy, [bool]$bolCompare, [bool]$SkipDefACE, [bool]$SkipProtectDelACE, [string]$strComparefile, [bool]$bolFilter, [bool]$bolEffectiveRights, [bool]$bolObjType, [bool]$bolCanonical, [bool]$GPO, [bool]$SDDL)
+    
+    $bolObjType = $true
+    
     If ($rdbSACL.IsChecked) {
         $strACLTypeHeader = 'Audit'
     } else {
@@ -11684,7 +11973,7 @@ Function Get-Perm {
                     $permcount++
                 }#End if array
 
-                If (!($bolCSVO)) {
+                If (!($bolCSV)) {
                     $bolACLExist = $false
                     if (($permcount -eq 0) -and ($index -gt 0)) {
                         $bolOUHeader = $true
@@ -13571,7 +13860,7 @@ Function Get-DefaultSD {
                         WriteOUT -bolACLExist $True -sd $sd -DSObject $entry.distinguishedName -Canonical $CanonicalName -boolReplMetaDate $bolReplMeta -strReplMetaDate $strLastChangeDate -strObjClass $strObjectClassName -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion
                     }
                     } else {
-                            WriteDefSDAccessHTM -bolACLExist $true -sd $sd -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                            Write-DefSDAccessHTM -bolACLExist $true -sd $sd -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                         }
                     }
 
@@ -13656,7 +13945,7 @@ Function Get-DefaultSD {
                             WriteOUT -bolACLExist $True -sd $sd -DSObject $entry.distinguishedName -Canonical $CanonicalName -boolReplMetaDate $bolReplMeta -strReplMetaDate $strLastChangeDate -strObjClass $strObjectClassName  -Type $OutputFormat -bolShowCriticalityColor $bolShowCriticalityColor -CREDS $CREDS -Version $strVersion
                         }
                     } else {
-                        WriteDefSDAccessHTM -bolACLExist $true -sd $sd -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                        Write-DefSDAccessHTM -bolACLExist $true -sd $sd -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                     }
                     }#End if $sec
 
@@ -13887,6 +14176,10 @@ Function Get-DefaultSDCompare {
         $bolShowCriticalityColor = $false
     }
 
+    if(Test-Path -Path $strTemplate) {
+        $csvdefSDTemplate = Import-CSV -Path $strTemplate
+    }
+
     $intNumberofDefSDFound = 0
 
     CreateHTM 'strObjectClass' $strFileDefSDHTM
@@ -14037,16 +14330,16 @@ Function Get-DefaultSDCompare {
             $index = 0
             #Enumerate template file
             $ObjectMatchResult = $false
-            while ($index -le $global:csvdefSDTemplate.count - 1) {
-                $strNamecol = $global:csvdefSDTemplate[$index].Name
+            while ($index -le $csvdefSDTemplate.count - 1) {
+                $strNamecol = $csvdefSDTemplate[$index].Name
                 #Check for matching object names
                 if ($strObjectClassName -eq $strNamecol ) {
                     $ObjectMatchResult = $true
-                    $strSDDLcol = $global:csvdefSDTemplate[$index].SDDL
+                    $strSDDLcol = $csvdefSDTemplate[$index].SDDL
                     #Replace any <ROOT-DOAMIN> strngs with Forest Root Domain SID
-                    if ($strSDDLcol.Contains('<ROOT-DOMAIN>')) {
+                    if ($strSDDLcol.Contains('<ROOTDOMAINSID>')) {
                         if ($global:ForestRootDomainSID -gt '') {
-                            $strSDDLcol = $strSDDLcol.Replace('<ROOT-DOMAIN>', $global:ForestRootDomainSID)
+                            $strSDDLcol = $strSDDLcol.Replace('<ROOTDOMAINSID>', $global:ForestRootDomainSID)
                         }
                     }
                     #Compare SDDL
@@ -14078,10 +14371,10 @@ Function Get-DefaultSDCompare {
                                 #Indicate that a defaultsecuritydescriptor was found
                                 $intNumberofDefSDFound++
                                 $bolOUHeader = $true
-                                WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                             } else {
                                 $bolOUHeader = $false
-                                WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                             }
                             #Count ACE to not ad a header
                             $intACEcount++
@@ -14119,7 +14412,17 @@ Function Get-DefaultSDCompare {
                             #Create ad security object
                             $secFile = New-Object System.DirectoryServices.ActiveDirectorySecurity
                             if ($null -ne $strSDDLcol) {
+                                try {
                                 $secFile.SetSecurityDescriptorSddlForm($strSDDLcol)
+                                }
+                                catch
+                                {
+                                    if ($bolCMD) {
+                                        Write-host "Could not import SDDL for Schema Object $strNamecol. Error:`n$($_.Exception.InnerException.Message.ToString())"
+                                    } else {
+                                        $global:observableCollection.Insert(0, (LogMessage -strMessage "Could not import SDDL for Schema Object $strNamecol. Error:`n$($_.Exception.InnerException.Message.ToString())" -strType 'Warning' -DateStamp ))
+                                    }
+                                }
                             }
                             $sdFile = $secFile.GetAccessRules($true, $false, [System.Security.Principal.NTAccount])
                             foreach ($ObjectDefSDFile in $sdFile) {
@@ -14137,10 +14440,10 @@ Function Get-DefaultSDCompare {
                                     #Indicate that a defaultsecuritydescriptor was found
                                     $intNumberofDefSDFound++
                                     $bolOUHeader = $true
-                                    WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                    Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                                 } else {
                                     $bolOUHeader = $false
-                                    WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                    Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                                 }
                                 #Count ACE to not ad a header
                                 $intACEcount++
@@ -14152,10 +14455,10 @@ Function Get-DefaultSDCompare {
                                     #Indicate that a defaultsecuritydescriptor was found
                                     $intNumberofDefSDFound++
                                     $bolOUHeader = $true
-                                    WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                    Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                                 } else {
                                     $bolOUHeader = $false
-                                    WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                    Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                                 }
                                 #Count ACE to not ad a header
                                 $intACEcount++
@@ -14165,7 +14468,17 @@ Function Get-DefaultSDCompare {
                         #Comare DefaultSecurityDesriptor in template with schema looking for missing ACE's
                         $secFile = New-Object System.DirectoryServices.ActiveDirectorySecurity
                         if ($null -ne $strSDDLcol) {
+                            try {
                             $secFile.SetSecurityDescriptorSddlForm($strSDDLcol)
+                            }
+                            catch
+                            {
+                                if ($bolCMD) {
+                                    Write-host "Could not import SDDL for Schema Object $strNamecol. Error:`n$($_.Exception.InnerException.Message.ToString())"
+                                } else {
+                                    $global:observableCollection.Insert(0, (LogMessage -strMessage "Could not import SDDL for Schema Object $strNamecol. Error:`n$($_.Exception.InnerException.Message.ToString())" -strType 'Warning' -DateStamp ))
+                                }
+                            }
                         }
                         $sdFile = $secFile.GetAccessRules($true, $false, [System.Security.Principal.NTAccount])
                         foreach ($ObjectDefSDFromFile in $sdFile) {
@@ -14191,10 +14504,10 @@ Function Get-DefaultSDCompare {
                                     #Indicate that a defaultsecuritydescriptor was found
                                     $intNumberofDefSDFound++
                                     $bolOUHeader = $true
-                                    WriteDefSDAccessHTM -bolACLExist $true -sd $ObjectDefSDFile -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                    Write-DefSDAccessHTM -bolACLExist $true -sd $ObjectDefSDFile -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                                 } else {
                                     $bolOUHeader = $false
-                                    WriteDefSDAccessHTM -bolACLExist $true -sd $ObjectDefSDFile -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                                    Write-DefSDAccessHTM -bolACLExist $true -sd $ObjectDefSDFile -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                                 }
                                 #Count ACE to not ad a header
                                 $intACEcount++
@@ -14236,10 +14549,10 @@ Function Get-DefaultSDCompare {
                         $bolOUHeader = $true
                         #Indicate that a defaultsecuritydescriptor was found
                         $intNumberofDefSDFound++
-                        WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                        Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                     } else {
                         $bolOUHeader = $false
-                        WriteDefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
+                        Write-DefSDAccessHTM -bolACLExist $true -sd $newObjectDefSD -bolObjClass $true -strObjectClass $strObjectClassName -strColorTemp $strColorTemp -htmfileout $strFileDefSDHTA -strFileHTM $strFileDefSDHTM -OUHeader $bolOUHeader -boolReplMetaDate $bolReplMeta -strReplMetaVer $strVersion -strReplMetaDate $strLastChangeDate -bolCriticalityLevel $bolShowCriticalityColor -CompareMode $bolCompare -xlsxout $strFileEXCEL -Type $OutType
                     }
                     #Count ACE to not ad a header
                     $intACEcount++
@@ -14974,8 +15287,8 @@ if ($base -or $GPO) {
 
                     }
                     $global:strDomainPrinDNName = $global:strDomainDNName
-                    $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                    $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
 
                 }
                 default {
@@ -15027,57 +15340,15 @@ if ($base -or $GPO) {
 
         }
         #Get Forest Root Domain ObjectSID
-        if ($global:bolADDSType) {
-            $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
-            $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-            $request = New-Object System.directoryServices.Protocols.SearchRequest($global:strDomainDNName, '(objectClass=*)', 'base')
-            [void]$request.Attributes.Add('objectsid')
+        if ($global:DSType -eq 'AD DS') {
+            $objForestInfo = Get-ForestInfoFromPartitions -Server $global:strDC  -strConfigDN $global:ConfigDN -credential $CREDS
+            $objForest = Get-ForestInfo -ForestFQDN $objForestInfo.ForestName -CREDS $CREDS
+            $objDomains = Get-DomainsInfo -Forest $objForest -CREDS $CREDS -CurrentDomainFQDN $global:strDomainLongName
 
-            try {
-                $response = $LDAPConnection.SendRequest($request)
-                $global:bolLDAPConnection = $true
-            } catch {
-                $global:bolLDAPConnection = $false
-                Write-Host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
-            }
-            if ($global:bolLDAPConnection -eq $true) {
-                $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
-
-            }
-
-            if ($global:ForestRootDomainDN -ne $global:strDomainDNName) {
-                $global:strForestDomainLongName = $global:ForestRootDomainDN.Replace('DC=', '')
-                $global:strForestDomainLongName = $global:strForestDomainLongName.Replace(',', '.')
-                if ($CREDS.UserName) {
-                    $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $global:strForestDomainLongName, $CREDS.UserName, $CREDS.GetNetworkCredential().Password)
-                } else {
-                    $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $global:strForestDomainLongName)
-                }
-                $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
-                $global:strForestDC = $($ojbDomain.FindDomainController()).name
-
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $CREDS)
-                $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-                $request = New-Object System.directoryServices.Protocols.SearchRequest($global:ForestRootDomainDN, '(objectClass=*)', 'base')
-                [void]$request.Attributes.Add('objectsid')
-
-                try {
-                    $response = $LDAPConnection.SendRequest($request)
-                    $global:bolLDAPConnection = $true
-                } catch {
-                    $global:bolLDAPConnection = $false
-                    Write-Host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
-                }
-                if ($global:bolLDAPConnection -eq $true) {
-                    $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
-
-                }
-            } else {
-                $global:strForestDC = $global:strDC
-                $global:ForestRootDomainSID = $global:DomainSID
-            }
-
-
+            $global:DomainSID = ($objDomains | Where-Object {$_.IsCurrentDomain -eq $true}).DomainSID
+            $global:strForestDomainLongName = $objForest.Name
+            $global:strForestDC = $objForest.RWDC
+            $global:ForestRootDomainSID = ($objDomains | Where-Object {$_.IsRootDomain -eq $true}).DomainSID
         }
 
         #Verify that you could connect to the naming context
@@ -15499,8 +15770,8 @@ else {
 
                     }
                     $global:strDomainPrinDNName = $global:strDomainDNName
-                    $global:strDomainShortName = GetDomainShortName -strDomain $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
-                    $global:strRootDomainShortName = GetDomainShortName -strDomain $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:strDomainShortName = Get-DomainShortName -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS
+                    $global:strRootDomainShortName = Get-DomainShortName -strDomainDN $global:ForestRootDomainDN -strConfigDN $global:ConfigDN -CREDS $CREDS
 
                 }
                 default {
@@ -15539,58 +15810,17 @@ else {
 
 
             }
+
             #Get Forest Root Domain ObjectSID
-            if ($global:bolADDSType) {
-                $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strDC, $CREDS)
-                $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-                $request = New-Object System.directoryServices.Protocols.SearchRequest($global:strDomainDNName, '(objectClass=*)', 'base')
-                [void]$request.Attributes.Add('objectsid')
+            if ($global:DSType -eq 'AD DS') {
+                $objForestInfo = Get-ForestInfoFromPartitions -Server $global:strDC  -strConfigDN $global:ConfigDN -credential $CREDS
+                $objForest = Get-ForestInfo -ForestFQDN $objForestInfo.ForestName -CREDS $CREDS
+                $objDomains = Get-DomainsInfo -Forest $objForest -CREDS $CREDS -CurrentDomainFQDN $global:strDomainLongName
 
-                try {
-                    $response = $LDAPConnection.SendRequest($request)
-                    $global:bolLDAPConnection = $true
-                } catch {
-                    $global:bolLDAPConnection = $false
-                    Write-Host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
-                }
-                if ($global:bolLDAPConnection -eq $true) {
-                    $global:DomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
-
-                }
-
-                if ($global:ForestRootDomainDN -ne $global:strDomainDNName) {
-                    $global:strForestDomainLongName = $global:ForestRootDomainDN.Replace('DC=', '')
-                    $global:strForestDomainLongName = $global:strForestDomainLongName.Replace(',', '.')
-                    if ($CREDS.UserName) {
-                        $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $global:strForestDomainLongName, $CREDS.UserName, $CREDS.GetNetworkCredential().Password)
-                    } else {
-                        $Context = New-Object DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $global:strForestDomainLongName)
-                    }
-                    $ojbDomain = [DirectoryServices.ActiveDirectory.Domain]::GetDomain($Context)
-                    $global:strForestDC = $($ojbDomain.FindDomainController()).name
-
-                    $LDAPConnection = New-Object System.DirectoryServices.Protocols.LDAPConnection($global:strForestDC, $CREDS)
-                    $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-                    $request = New-Object System.directoryServices.Protocols.SearchRequest($global:ForestRootDomainDN, '(objectClass=*)', 'base')
-                    [void]$request.Attributes.Add('objectsid')
-
-                    try {
-                        $response = $LDAPConnection.SendRequest($request)
-                        $global:bolLDAPConnection = $true
-                    } catch {
-                        $global:bolLDAPConnection = $false
-                        Write-Host "Failed! Domain does not exist or can not be connected: $($_.Exception.InnerException.Message.ToString())" -ForegroundColor red
-                    }
-                    if ($global:bolLDAPConnection -eq $true) {
-                        $global:ForestRootDomainSID = GetSidStringFromSidByte $response.Entries[0].attributes.objectsid.GetValues([byte[]])[0]
-
-                    }
-                } else {
-                    $global:strForestDC = $global:strDC
-                    $global:ForestRootDomainSID = $global:DomainSID
-                }
-
-
+                $global:DomainSID = ($objDomains | Where-Object {$_.IsCurrentDomain -eq $true}).DomainSID
+                $global:strForestDomainLongName = $objForest.Name
+                $global:strForestDC = $objForest.RWDC
+                $global:ForestRootDomainSID = ($objDomains | Where-Object {$_.IsRootDomain -eq $true}).DomainSID
             }
 
 
