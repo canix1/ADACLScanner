@@ -2,26 +2,24 @@
 
 ## Current version
 
-**Version: 8.6**
+**Version: 9.0**
 
-**30 June, 2025**
+**30 September, 2025**
 
-**SHA256:** 82B61CACCC7A6E5A929750CB8D540D364138956B2DC44654D6A8E868F6E0C93D
+**SHA256:** A04EE9B03F49FC1141A010E58F88ADA6044A0181C914C468C1B123FB7F1BF769
 
-**Fixed issues**
-* Revealed hidden UI section for LDAP searched Depth
-* New Download file function
-* Always display Object Type in HTML report
-* Issue with compare Default Security Descriptor
-* Duplicate "Version" field in HTML report for Default Security Descriptor
-* Addtional Forest and Domain collection functions
+**Features**
+* Filter on Properties such as attribute,property lists or extended rights
+* Replace the LDAP Connection code
+* Added autehntication using UI
 
-**New Features**
-* Downloads for Windows Server 2025 templates
+**Fixes**
+* Fixed type in URL to templates
+* Repaired authentication from non-domain joined machines
 
 
 
-![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan7.0_Permission.png)
+![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan9.0_Permission.png)
 
 * From the CLI you can select Target and select RiskyTemplates to scan published certificate templates with "supply in request".
 * The default output from CLI is structured and translated
@@ -29,6 +27,29 @@
 * New output option for comparing that is called CSVTEMPLATE from CLI and "CSV Template" in GUI.
 * Old CLI output format is produced by using the -RAW switch
 
+## Examples
+
+### Who has access to LAPS passwords?
+```
+./ADACLScan.ps1 -Base "DC=contoso,DC=com" -Scope subtree -ApplyTo "computer|*" -Permission "ExtendedRight|GenericAll|WriteDACL|WriteOwner" -IncludeInherited -SkipBuiltIn -LDAPFilter "(|(objectCategory=OrganizationalUnit)(objectClass=domaindns))" -PropertyFilter "msLAPS-Password|msLAPS-EncryptedPassword|msLAPS-EncryptedPasswordHistory" | ft
+```
+### Who has write access to drink and audio properties for users, with credentials
+```
+./ADACLScan.ps1" -base "OU=_Test2,DC=contoso,DC=com" -Server "contoso.com" -Credentials $(get-credential) -ApplyTo "User" -PropertyFilter "drink|audio" -Permission "WriteProperty" -AccessType Allow -IncludeInherited | ft
+```
+### From a non-domain-joined machine with credentials, who has reset permissions on users
+```
+./ADACLScan.ps1" -base "OU=_Test2,DC=contoso,DC=com" -Server "contoso.com" -Credentials $(get-credential) -ApplyTo "User" -PropertyFilter "Reset Password" -Permission "ExtendedRight" -AccessType Allow -IncludeInherited | ft
+```
+### Show all recursively security principals that have GenericAll on computer accounts
+This will display all security principals, both directly and nested in any groups, with GenericAll on the OU IT.
+```
+./ADACLScan.ps1" -base "OU=IT,DC=contoso,DC=com"" -Server "contoso.com" -Credentials  $(get-credential) -ApplyTo "Computer" -Permission "GenericAll" -AccessType Allow -IncludeInherited -RecursiveFind
+```
+
+### Filtering in GUI
+
+![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan9.0.png)
 
 ## Download
 **[Release](https://github.com/canix1/ADACLScanner/releases/latest)**
@@ -54,7 +75,7 @@ Features and fixes https://github.com/canix1/ADACLScanner/wiki/History
 * Search with onelevel and set the depth of the search
     * Example:
 ```
-ADACLScan.ps1 -Base rootdse -SearchDepth 3 -LDAPFilter "(objectClass=OrganizationalUnit)"
+./ADACLScan.ps1 -Base rootdse -SearchDepth 3 -LDAPFilter "(objectClass=OrganizationalUnit)"
 ```
 
 * Run effective rights report from the command line.
