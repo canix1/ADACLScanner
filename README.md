@@ -9,7 +9,7 @@
 **SHA256:** ECE2366421C7FEA43956BD49983B38E7957A8E935AAE581C0822BDE3531FDE63
 
 **Fixes**
-* Fetching accounts from a different domain for Effecitive Permissions now works.
+* Fetching accounts from a different domain for Effective Permissions now works.
 
 
 ## Examples
