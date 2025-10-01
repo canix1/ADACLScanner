@@ -2,22 +2,19 @@
 
 ## Current version
 
-**Version: 9.0**
+**Version: 9.1**
 
-**30 September, 2025**
+**1 October, 2025**
 
-**SHA256:** A04EE9B03F49FC1141A010E58F88ADA6044A0181C914C468C1B123FB7F1BF769
-
-**Features**
-* Filter on Properties such as attribute,property lists or extended rights
-* Replace the LDAP Connection code
-* Added autehntication using UI
+**SHA256:** ECE2366421C7FEA43956BD49983B38E7957A8E935AAE581C0822BDE3531FDE63
 
 **Fixes**
-* Fixed type in URL to templates
-* Repaired authentication from non-domain joined machines
+* Fetching accounts from a different domain for Effecitive Permissions now works.
 
 
+## Examples
+
+### Using CLI
 
 ![](https://github.com/canix1/ADACLScanner/blob/master/src/ADACLScan9.0_Permission.png)
 
@@ -26,8 +23,6 @@
 * The default csv file output option is structured and translated and cannot be used for comparing.
 * New output option for comparing that is called CSVTEMPLATE from CLI and "CSV Template" in GUI.
 * Old CLI output format is produced by using the -RAW switch
-
-## Examples
 
 ### Who has access to LAPS passwords?
 ```

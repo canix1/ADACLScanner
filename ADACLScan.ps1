@@ -105,18 +105,12 @@
 
 .NOTES
 
-**Version: 9.0**
+**Version: 9.1**
 
-**30 September, 2025**
-
-**Features**
-* Filter on Properties such as attribute,property lists or extended rights
-* Replace the LDAP Connection code
-* Added autehntication using UI
+**1 October, 2025**
 
 **Fixes**
-* Fixed type in URL to templates
-* Repaired authentication from non-domain joined machines
+* Fetching accounts from a different domain for Effecitive Permissions now works.
 
 
 #>
@@ -532,7 +526,7 @@ Param
 
 )
 
-[string]$ADACLScanVersion = "-------`nAD ACL Scanner 9.0 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 9.1 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -687,7 +681,7 @@ $global:strPrinDomAttr = ''
 $global:strPrinDomDir = ''
 $global:strPrinDomFlat = ''
 $global:strPrincipalDN = ''
-$global:strDomainPrinDNName = ''
+$global:strDomainPrinFQDN = ''
 $global:strEffectiveRightSP = ''
 $global:strEffectiveRightAccount = ''
 $global:strSPNobjectClass = ''
@@ -846,7 +840,7 @@ $xamlBase = @'
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 9.0" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="#FF46724C" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 9.1" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="#FF46724C" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -1708,7 +1702,13 @@ $combObjectDefSD.SelectedValue = 'All Objects'
                 CreateSPNHTM $global:strEffectiveRightSP $strFileSPNHTM
                 InitiateSPNHTM $strFileSPNHTA
                 $strColorTemp = 1
-                WriteSPNHTM $global:strEffectiveRightSP $global:tokens $global:strSPNobjectClass $($global:tokens.count - 1) $strColorTemp $strFileSPNHTA $strFileSPNHTM
+                if (($global:strDomainPrinFQDN -eq '') -or ( $global:strDomainPrinFQDN -eq $global:strDomainFQDN )) {                
+                    WriteSPNHTM -strSPN $global:strEffectiveRightSP -tokens $global:tokens -objType $global:strSPNobjectClass -intMemberOf $($global:tokens.count - 1) -strColorTemp $strColorTemp -htafileout $strFileSPNHTA -htmfileout $strFileSPNHTM -server $global:strDC -CREDS $CREDS    
+                } else {
+                    WriteSPNHTM -strSPN $global:strEffectiveRightSP -tokens $global:tokens -objType $global:strSPNobjectClass -intMemberOf $($global:tokens.count - 1) -strColorTemp $strColorTemp -htafileout $strFileSPNHTA -htmfileout $strFileSPNHTM -server $global:strDomainPrinFQDN -CREDS $CREDS    
+                }
+
+                
                 Invoke-Item $strFileSPNHTA
             } else {
                 $global:observableCollection.Insert(0, (LogMessage -strMessage 'No service principal selected!' -strType 'Error' -DateStamp ))
@@ -1730,7 +1730,7 @@ $combObjectDefSD.SelectedValue = 'All Objects'
             if ($global:bolConnected -eq $true) {
 
                 If (!($txtBoxSelectPrincipal.Text -eq '')) {
-                    GetEffectiveRightSP $txtBoxSelectPrincipal.Text $global:strDomainPrinDNName -CREDS $CREDS
+                    GetEffectiveRightSP $txtBoxSelectPrincipal.Text $global:strDomainPrinFQDN -CREDS $CREDS
                 } else {
                     $global:observableCollection.Insert(0, (LogMessage -strMessage 'Enter a principal name!' -strType 'Error' -DateStamp ))
                 }
@@ -2419,7 +2419,6 @@ $combObjectDefSD.SelectedValue = 'All Objects'
             Remove-Variable -Name 'dicWellKnownSids' -Scope Global
             Remove-Variable -Name 'myPID' -Scope Global
             Remove-Variable -Name 'observableCollection' -Scope Global
-            Remove-Variable -Name 'strDomainPrinDNName' -Scope Global
             Remove-Variable -Name 'strDomainSelect' -Scope Global
             Remove-Variable -Name 'strEffectiveRightAccount' -Scope Global
             Remove-Variable -Name 'strEffectiveRightSP' -Scope Global
@@ -2519,15 +2518,14 @@ function RunCompare {
                     $global:bolCSVLoaded = $false
                     $strCompareFile = $txtCompareTemplate.Text
 
-                    & { #Try
+                    try {
                         $global:bolCSVLoaded = $true
                         $global:csvHistACLs = Import-Csv $strCompareFile
                     }
-                    Trap [SystemException] {
+                    catch {
                         $strCSVErr = $_.Exception.Message
                         $global:observableCollection.Insert(0, (LogMessage -strMessage "Failed to load CSV. $strCSVErr" -strType 'Error' -DateStamp ))
                         $global:bolCSVLoaded = $false
-                        continue
                     }
                     #Verify that a successful CSV import is performed before continue
                     if ($global:bolCSVLoaded) {
@@ -3739,8 +3737,6 @@ Function Connect-DirectoryServices
 
                     $global:strDomainFQDN = $global:strDomainDNName.Replace('DC=', '')
                     $global:strDomainFQDN = $global:strDomainFQDN.Replace(',', '.')
-
-                    $global:strDomainPrinDNName = $global:strDomainDNName
 
                     $Global:Domainlist = Get-Domains -strDomainDN $global:strDomainDNName -strConfigDN $global:ConfigDN -CREDS $CREDS -DC $global:strDC
                     if($Global:Domainlist) {
@@ -6597,15 +6593,16 @@ Function GenerateTrustedDomainPicker {
         })
 
     $btnOK.add_Click({
-            $global:strDomainPrinDNName = $objListBoxDomainList.SelectedItem
+            $global:strDomainPrinFQDN = $objListBoxDomainList.SelectedItem
 
-            if ( $global:strDomainPrinDNName -eq $global:strDomainFQDN ) {
-                $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
+            if (($global:strDomainPrinFQDN -eq '') -or ( $global:strDomainPrinFQDN -eq $global:strDomainFQDN )) {
+                $global:strPrinDomFlat = $global:strDomainShortName
+                $lblSelectPrincipalDom.Content = $global:strPrinDomFlat + ':'
             } else {
 
                 $LDAPConnection = Connect-SecureLDAP -Server $global:strDC -Credential $CREDS ; Write-verbose "Calling Connect-SecureLDAP at: $((Get-PSCallStack).ScriptLineNumber[0])"
                 $LDAPConnection.SessionOptions.ReferralChasing = 'None'
-                $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=System,$global:strDomainDNName", "(&(trustPartner=$global:strDomainPrinDNName))", 'Onelevel')
+                $request = New-Object System.directoryServices.Protocols.SearchRequest("CN=System,$global:strDomainDNName", "(&(trustPartner=$global:strDomainPrinFQDN))", 'Onelevel')
                 [void]$request.Attributes.Add('trustdirection')
                 [void]$request.Attributes.Add('trustattributes')
                 [void]$request.Attributes.Add('flatname')
@@ -7298,7 +7295,7 @@ Function GetTokenGroups {
     $response = $LDAPConnection.SendRequest($request)
     $ADobject = $response.Entries[0]
 
-    if ( $global:strDomainPrinDNName -eq $global:strDomainDNName ) {
+    if (($global:strDomainPrinFQDN -eq '') -or ( $global:strDomainPrinFQDN -eq $global:strDomainFQDN )) {
         $SIDs = $ADobject.Attributes.tokengroups
     } else {
         $SIDs = $ADobject.Attributes.tokengroupsglobalanduniversal
@@ -8897,29 +8894,27 @@ function Convert-SidToName {
         [pscredential]
         $CREDS)
 
-    $global:strAccNameTranslation = ''
+    $strAccNameTranslation = ''
     $ID = New-Object System.Security.Principal.SecurityIdentifier($sid)
 
-    & { #Try
+    try{
         $User = $ID.Translate( [System.Security.Principal.NTAccount])
-        $global:strAccNameTranslation = $User.Value
+        $strAccNameTranslation = $User.Value
+        return $strAccNameTranslation
     }
-    Trap [SystemException] {
-        If ($global:dicWellKnownSids.ContainsKey($sid)) {
-            $global:strAccNameTranslation = $global:dicWellKnownSids.Item($sid)
-            return $global:strAccNameTranslation
-        }
-        ; Continue
+    catch {
+
     }
 
-    if ($global:strAccNameTranslation -eq '') {
+    if ($strAccNameTranslation -eq '') {
 
         If ($global:dicSidToName.ContainsKey($sid)) {
-            $global:strAccNameTranslation = $global:dicSidToName.Item($sid)
+            $strAccNameTranslation = $global:dicSidToName.Item($sid)
+            return $strAccNameTranslation
         } else {
 
 
-            $LDAPConnection = Connect-SecureLDAP -Server $global:strDC -Credential $CREDS ; Write-verbose "Calling Connect-SecureLDAP at: $((Get-PSCallStack).ScriptLineNumber[0])"
+            $LDAPConnection = Connect-SecureLDAP -Server $server -Credential $CREDS ; Write-verbose "Calling Connect-SecureLDAP at: $((Get-PSCallStack).ScriptLineNumber[0])"
 
             $LDAPConnection.SessionOptions.ReferralChasing = 'None'
             $request = New-Object System.directoryServices.Protocols.SearchRequest
@@ -8931,30 +8926,35 @@ function Convert-SidToName {
             $request.Filter = '(name=*)'
             $request.Scope = 'Base'
             [void]$request.Attributes.Add('samaccountname')
-
-            $response = $LDAPConnection.SendRequest($request)
-            $result = $response.Entries[0]
-
             try {
-                $global:strAccNameTranslation = $global:strDomainShortName + '\' + $result.attributes.samaccountname[0]
+                $response = $LDAPConnection.SendRequest($request)
+                $result = $response.Entries[0]
+                if($result.attributes.samaccountname) {
+                    $strAccNameTranslation = $global:strDomainShortName + '\' + $result.attributes.samaccountname[0]
+                    if (($strAccNameTranslation) -and ($strAccNameTranslation -ne '')) {
+                        return  $strAccNameTranslation
+                    }
+                    
+                }
+                
 
             } catch {
 
             }
 
-            if (!($global:strAccNameTranslation)) {
-                $global:strAccNameTranslation = $result.distinguishedname
+            if (!($strAccNameTranslation)) {
+                $strAccNameTranslation = $result.distinguishedname
             }
-            $global:dicSidToName.Add($sid, $global:strAccNameTranslation)
+            $global:dicSidToName.Add($sid, $strAccNameTranslation)
         }
 
     }
 
-    If (($global:strAccNameTranslation -eq $nul) -or ($global:strAccNameTranslation -eq '')) {
-        $global:strAccNameTranslation = $sid
+    If (($strAccNameTranslation -eq $nul) -or ($strAccNameTranslation -eq '')) {
+        $strAccNameTranslation = $sid
     }
 
-    return $global:strAccNameTranslation
+    return $strAccNameTranslation
 }
 #==========================================================================
 # Function		: Get-Criticality
@@ -11503,7 +11503,20 @@ End Function
 # Description   : Wites the account membership info to a HTM table, it appends info if the file exist
 #==========================================================================
 function WriteSPNHTM {
-    Param([string] $strSPN, $tokens, [string]$objType, [int]$intMemberOf, [string] $strColorTemp, [string] $htafileout, [string] $htmfileout)
+    Param(
+        [string] $strSPN,
+        $tokens,
+        [string]$objType,
+        [int]$intMemberOf,
+        [string] $strColorTemp,
+        [string] $htafileout,
+        [string] $htmfileout, 
+        [string] $server,
+        [Parameter(Mandatory = $false)]
+        [pscredential]
+        $CREDS
+    )
+
     #$strHTMLText ="<TABLE BORDER=1>"
     $strTHOUColor = 'E5CF00'
     $strTHColor = 'EFAC00'
@@ -11529,7 +11542,7 @@ $strHTMLText
 
     $tokens | ForEach-Object {
         If ($_.contains('S-1-')) {
-            $strNTAccount = Convert-SidToName -server $global:strDomainFQDN -Sid $_ -CREDS $CREDS
+            $strNTAccount = Convert-SidToName -server $server -Sid $_ -CREDS $CREDS
 
         }
         if ($($strNTAccount.toString()) -ne $strSPN) {
@@ -15448,8 +15461,8 @@ Function GetEffectiveRightSP {
         [SFW]::SetForegroundWindow($h)
         if ($null -ne $Script:CredsExt.UserName) {
             if (TestCreds $CredsExt) {
-                $global:strPinDomDC = $(GetDomainController $global:strDomainPrinDNName $true $Script:CredsExt)
-                $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $true -CREDS $Script:CredsExt)
+                $global:strPinDomDC = $(GetDomainController $global:strDomainPrinFQDN $true $Script:CredsExt)
+                $global:strPrincipalDN = (GetSecPrinDN -samAccountName $strPrincipal -strDomainDC $global:strPinDomDC -bolCreds $true -CREDS $Script:CredsExt)
             } else {
                 $global:observableCollection.Insert(0, (LogMessage -strMessage 'Bad user name or password!' -strType 'Error' -DateStamp ))
                 $lblEffectiveSelUser.Content = ''
@@ -15459,13 +15472,12 @@ Function GetEffectiveRightSP {
 
         }
     } else {
-        if ( $global:strDomainPrinDNName -eq $global:strDomainDNName ) {
+        if (($global:strDomainPrinFQDN -eq '') -or ( $global:strDomainPrinFQDN -eq $global:strDomainFQDN )) {
             $lblSelectPrincipalDom.Content = $global:strDomainShortName + ':'
             $global:strPinDomDC = $global:strDC
-            $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $false -CREDS $CREDS)
+            $global:strPrincipalDN = (GetSecPrinDN -samAccountName $strPrincipal -strDomainDC $global:strDC -bolCreds $false -CREDS $CREDS)
         } else {
-            $global:strPinDomDC = $global:strDC
-            $global:strPrincipalDN = (GetSecPrinDN $strPrincipal $global:strPinDomDC $false -CREDS $CREDS)
+            $global:strPrincipalDN = (GetSecPrinDN -samAccountName $strPrincipal -strDomainDC $global:strDomainPrinFQDN -bolCreds $false -CREDS $CREDS)
         }
     }
     if ($global:strPrincipalDN -eq '') {
@@ -15479,47 +15491,47 @@ Function GetEffectiveRightSP {
         $SPFound = $true
         $global:strEffectiveRightAccount = $strPrincipal
         if ($global:bolCMD) {
-            #Write-host "Found security principal"
+            Write-host "Found security principal"
         } else {
             $global:observableCollection.Insert(0, (LogMessage -strMessage 'Found security principal' -strType 'Info' -DateStamp ))
         }
 
         if ($global:strPrinDomDir -eq 2) {
-            [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strPinDomDC -PrincipalDN $global:strPrincipalDN -bolCreds $true -GetTokenCreds $Script:CredsExt -CREDS $CREDS)
+            [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strDomainPrinFQDN  -PrincipalDN $global:strPrincipalDN -bolCreds $true -GetTokenCreds $Script:CredsExt -CREDS $CREDS)
 
-            if ($CREDS) {
-                $objADPrinipal = New-Object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN", $Script:CredsExt.UserName, $Script:CredsExt.GetNetworkCredential().Password)
-            } else {
-                $objADPrinipal = New-Object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN")
-            }
+            $objADPrinipal = New-LDAPSearch -BaseDN $global:strPrincipalDN -Server $global:strDomainPrinFQDN  -creds $CREDS -Attributes "samaccountname;objectclass;msds-principalname" -Scope base -LDAPFilter "(objectClass=*)"
+            if($objADPrinipal) {
+                $strPrinName = $objADPrinipal.Attributes.'msds-principalname'[0]
 
-            $objADPrinipal.psbase.RefreshCache('msDS-PrincipalName')
-            $strPrinName = $($objADPrinipal.psbase.Properties.Item('msDS-PrincipalName'))
-            $global:strSPNobjectClass = $($objADPrinipal.psbase.Properties.Item('objectClass'))[$($objADPrinipal.psbase.Properties.Item('objectClass')).count - 1]
-            if (($strPrinName -eq '') -or ($null -eq $strPrinName)) {
-                $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item('samAccountName'))"
+                $global:strSPNobjectClass = $objADPrinipal.attributes.objectclass[$objADPrinipal.attributes.objectclass.count - 1]
+
+                if (($strPrinName -eq '') -or ($null -eq $strPrinName)) {
+                    $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.Attributes.'samaccountname'[0])"
+                }
+                $global:strEffectiveRightSP = $strPrinName
+                $lblEffectiveSelUser.Content = $strPrinName
             }
-            $global:strEffectiveRightSP = $strPrinName
-            $lblEffectiveSelUser.Content = $strPrinName
         } else {
-            [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strPinDomDC -PrincipalDN $global:strPrincipalDN -bolCreds $false -CREDS $CREDS)
-
-            if ($CREDS) {
-                $objADPrinipal = New-Object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN", $CREDS.UserName, $CREDS.GetNetworkCredential().Password)
+            if (($global:strDomainPrinFQDN -eq '') -or ( $global:strDomainPrinFQDN -eq $global:strDomainFQDN )) {
+                [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strDC -PrincipalDN $global:strPrincipalDN -bolCreds $false -CREDS $CREDS)
+                $objADPrinipal = New-LDAPSearch -BaseDN $global:strPrincipalDN -Server $global:strDC -creds $CREDS -Attributes "samaccountname;objectclass;msds-principalname" -Scope base -LDAPFilter "(objectClass=*)"
             } else {
-                $objADPrinipal = New-Object DirectoryServices.DirectoryEntry("LDAP://$global:strPinDomDC/$global:strPrincipalDN")
+                [System.Collections.ArrayList] $global:tokens = @(GetTokenGroups -PrincipalDomDC $global:strDomainPrinFQDN -PrincipalDN $global:strPrincipalDN -bolCreds $false -CREDS $CREDS)
+                $objADPrinipal = New-LDAPSearch -BaseDN $global:strPrincipalDN -Server $global:strDomainPrinFQDN -creds $CREDS -Attributes "samaccountname;objectclass;msds-principalname" -Scope base -LDAPFilter "(objectClass=*)"
             }
 
-            $objADPrinipal.psbase.RefreshCache('msDS-PrincipalName')
-            $strPrinName = $($objADPrinipal.psbase.Properties.Item('msDS-PrincipalName'))
-            $global:strSPNobjectClass = $($objADPrinipal.psbase.Properties.Item('objectClass'))[$($objADPrinipal.psbase.Properties.Item('objectClass')).count - 1]
-            if (($strPrinName -eq '') -or ($null -eq $strPrinName)) {
-                $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.psbase.Properties.Item('samAccountName'))"
+            if($objADPrinipal) {
+                $strPrinName = $objADPrinipal.Attributes.'msds-principalname'[0]
+
+                $global:strSPNobjectClass = $objADPrinipal.attributes.objectclass[$objADPrinipal.attributes.objectclass.count - 1]
+
+                if (($strPrinName -eq '') -or ($null -eq $strPrinName)) {
+                    $strPrinName = "$global:strPrinDomFlat\$($objADPrinipal.Attributes.'samaccountname'[0])"
+                }
+                $global:strEffectiveRightSP = $strPrinName
+                $lblEffectiveSelUser.Content = $strPrinName
             }
-            $global:strEffectiveRightSP = $strPrinName
-            $lblEffectiveSelUser.Content = $strPrinName
         }
-
     }
     return $SPFound
 }
