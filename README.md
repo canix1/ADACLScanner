@@ -2,14 +2,14 @@
 
 ## Current version
 
-**Version: 9.4**
+**Version: 9.5**
 
-**22 January, 2026**
+**6 May, 2026**
 
-**SHA256:** CF1CDE5F4002DAEAA54D7268373D6765403E6A96C00C6E08912BBD7EC11ED323
+**SHA256:** 39B7AC46C680D20448B46B315E3082C7FECA53D6D0B12FE610B0E54CCE6423CE
 
 **Fixes**
-* Updated Criticality function for GenericAll and Children
+* Missing check of Well-Known Sids
 
 
 
