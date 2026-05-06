@@ -105,12 +105,12 @@
 
 .NOTES
 
-**Version: 9.4**
+**Version: 9.5**
 
-**22 January, 2026**
+**6 May, 2026**
 
 **Fixes**
-* Updated Criticality function for GenericAll and Children
+* Missing check of Well-Known Sids
 
 
 #>
@@ -526,7 +526,7 @@ Param
 
 )
 
-[string]$ADACLScanVersion = "-------`nAD ACL Scanner 9.4 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
+[string]$ADACLScanVersion = "-------`nAD ACL Scanner 9.5 , Author: Robin Granberg, @ipcdollar1, Github: github.com/canix1 `n-------"
 [string]$global:SessionID = [GUID]::NewGuid().Guid
 [string]$global:ACLHTMLFileName = "ACLHTML-$SessionID"
 [string]$global:SPNHTMLFileName = "SPNHTML-$SessionID"
@@ -840,7 +840,7 @@ $xamlBase = @'
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                                 <StackPanel Orientation="Vertical" >
                                     <StackPanel Orientation="Horizontal" >
-                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 9.4" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="#FF46724C" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
+                                        <Label x:Name="lblStyleVersion1" Content="AD ACL Scanner 9.5" HorizontalAlignment="Left" Height="25" Margin="0,0,0,0" VerticalAlignment="Top" Width="140" Foreground="#FF46724C" Background="{x:Null}" FontWeight="Bold" FontSize="14"/>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" >
                                         <Label x:Name="lblStyleVersion2" Content="written by Robin Granberg " HorizontalAlignment="Left" Height="27" Margin="0,0,0,0" VerticalAlignment="Top" Width="150" Foreground="White" Background="{x:Null}" FontSize="12"/>
@@ -2416,7 +2416,7 @@ $combObjectDefSD.SelectedValue = 'All Objects'
             Remove-Variable -Name 'dicRightsGuids' -Scope Global
             Remove-Variable -Name 'dicSchemaIDGUIDs' -Scope Global
             Remove-Variable -Name 'dicSidToName' -Scope Global
-            Remove-Variable -Name 'dicWellKnownSids' -Scope Global
+            Remove-Variable -Name 'dicWellKnownSids'
             Remove-Variable -Name 'myPID' -Scope Global
             Remove-Variable -Name 'observableCollection' -Scope Global
             Remove-Variable -Name 'strDomainSelect' -Scope Global
@@ -3483,7 +3483,7 @@ $global:dicDCSpecialSids = @{'BUILTIN\Incoming Forest Trust Builders' = 'S-1-5-3
         'BUILTIN\Terminal Server License Servers'                     = 'S-1-5-32-561'; `
         'BUILTIN\Windows Authorization Access Group'                  = 'S-1-5-32-560'
 }
-$global:dicWellKnownSids = @{'S-1-0' = 'Null Authority'; `
+$dicWellKnownSids = @{'S-1-0' = 'Null Authority'; `
         'S-1-0-0'                    = 'Nobody'; `
         'S-1-1'                      = 'World Authority'; `
         'S-1-1-0'                    = 'Everyone'; `
@@ -8895,6 +8895,13 @@ function Convert-SidToName {
         $CREDS)
 
     $strAccNameTranslation = ''
+
+
+    If ($dicWellKnownSids.ContainsKey($sid)) {
+        $strAccNameTranslation = $dicWellKnownSids.Item($sid)
+        return $strAccNameTranslation
+    }
+
     $ID = New-Object System.Security.Principal.SecurityIdentifier($sid)
 
     try{
