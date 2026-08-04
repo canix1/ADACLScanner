@@ -10456,7 +10456,7 @@ $strACLHTMLText
                 } else {
                     $strACLHTMLText = @"
 $strACLHTMLText
-<TD>$strFont <a href="#web" onclick="GetGroupDN('$strNTAccount')">$strNTAccount</a></TD>
+<TD>$strFont <a href="#web" onclick="GetGroupDN('$($strNTAccount -replace '\\','\\' -replace "'","\'")')">$strNTAccount</a></TD>
 <TD>$strFont $objAccess</TD>
 <TD>$strFont $objIsInheried </TD>
 <TD>$strFont $strApplyTo</TD>
@@ -10986,7 +10986,7 @@ $strACLHTMLText
 
                 $strACLHTMLText = @"
 $strACLHTMLText
-<TD>$strFont <a href="#web" onclick="GetGroupDN('$strNTAccount')">$strNTAccount</a></TD>
+<TD>$strFont <a href="#web" onclick="GetGroupDN('$($strNTAccount -replace '\\','\\' -replace "'","\'")')">$strNTAccount</a></TD>
 <TD>$strFont $objAccess</TD>
 <TD>$strFont $objIsInheried </TD>
 <TD>$strFont $strApplyTo</TD>
