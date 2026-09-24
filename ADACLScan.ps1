@@ -12773,14 +12773,14 @@ Function Get-Perm {
                 } else {
                     if ($bolCMD) {
                         if ($bolToFile) {
-                            $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                            $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber -Encoding UTF8
                             Write-Host "Report saved in: $strFileCSV" -ForegroundColor Yellow
                             Write-Output $strFileCSV
                         } else {
                             $global:ArrayAllACE
                         }
                     } else {
-                        $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                        $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber -Encoding UTF8
                         $global:observableCollection.Insert(0, (LogMessage -strMessage "Report saved in $strFileCSV" -strType 'Warning' -DateStamp ))
                     }
                     #If Get-Perm was called with Show then open the CSV file.
@@ -13986,14 +13986,14 @@ Function Get-PermCompare {
                             } else {
                                 if ($bolCMD) {
                                     if ($bolToFile) {
-                                        $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                                        $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber -Encoding UTF8
                                         Write-Host "Report saved in: $strFileCSV" -ForegroundColor Yellow
                                         Write-Output $strFileCSV
                                     } else {
                                         $global:ArrayAllACE
                                     }
                                 } else {
-                                    $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber
+                                    $global:ArrayAllACE | Export-Csv -Path $strFileCSV -NoTypeInformation -NoClobber -Encoding UTF8
                                     $global:observableCollection.Insert(0, (LogMessage -strMessage "Report saved in $strFileCSV" -strType 'Warning' -DateStamp ))
                                 }
                                 #If Get-Perm was called with Show then open the CSV file.
